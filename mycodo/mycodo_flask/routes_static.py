@@ -46,9 +46,16 @@ def before_request_admin_exist():
 blueprint.before_request(before_request_admin_exist)
 
 
+def template_exists(path):
+    path_start = "{}/mycodo/mycodo_flask/templates".format(INSTALL_DIRECTORY)
+    path_full = "{}/{}".format(path_start, path)
+    if os.path.exists(path_full) and os.path.abspath(path_full).startswith(path_start):
+        return True
+
+
 @blueprint.context_processor
 def inject_variables():
-    """Variables to send with every page request"""
+    """Variables to send with every page request."""
     form_dashboard = forms_dashboard.DashboardConfig()  # Dashboard configuration in layout
 
     dashboards = Dashboard.query.all()
@@ -81,19 +88,20 @@ def inject_variables():
                 mycodo_version=MYCODO_VERSION,
                 permission_view_settings=user_has_permission('view_settings', silent=True),
                 dict_translation=TRANSLATIONS,
+                template_exists=template_exists,
                 themes=THEMES,
                 upgrade_available=misc.mycodo_upgrade_available)
 
 
 @blueprint.route('/robots.txt')
 def static_from_root():
-    """Return static robots.txt"""
+    """Return static robots.txt."""
     return send_from_directory(current_app.static_folder, request.path[1:])
 
 
 @blueprint.route("/mycodo-manual_{}.pdf".format(MYCODO_VERSION))
 def download_pdf_manual():
-    """Return PDF Manual"""
+    """Return PDF Manual."""
     path_manual = os.path.join(INSTALL_DIRECTORY, "docs")
     return send_from_directory(path_manual, "mycodo-manual.pdf")
 

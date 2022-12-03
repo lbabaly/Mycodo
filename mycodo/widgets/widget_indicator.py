@@ -38,8 +38,8 @@ WIDGET_INFORMATION = {
 
     'message': 'Displays a red or green circular image based on a measurement value. Useful for showing if an Output is on or off.',
 
-    'widget_width': 3,
-    'widget_height': 4,
+    'widget_width': 2,
+    'widget_height': 7,
 
     'custom_options': [
         {
@@ -48,7 +48,6 @@ WIDGET_INFORMATION = {
             'default_value': '',
             'options_select': [
                 'Input',
-                'Math',
                 'Function',
                 'Output_Channels_Measurements',
                 'PID'
@@ -62,15 +61,15 @@ WIDGET_INFORMATION = {
             'default_value': 120,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('{} {}'.format(lazy_gettext('Measurement'), lazy_gettext('Max Age'))),
-            'phrase': lazy_gettext('The maximum age (seconds) of the measurement')
+            'name': "{} ({})".format(lazy_gettext('Max Age'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
         },
         {
             'id': 'refresh_seconds',
             'type': 'float',
             'default_value': 30.0,
             'constraints_pass': constraints_pass_positive_value,
-            'name': 'Widget Refresh (seconds)',
+            'name': '{} ({})'.format(lazy_gettext("Refresh"), lazy_gettext("Seconds")),
             'phrase': 'The period of time between refreshing the widget'
         },
         {
@@ -148,7 +147,7 @@ WIDGET_INFORMATION = {
             document.getElementById('value-' + widget_id).innerHTML = 'NO DATA';
           }
           else {
-            const formattedTime = epoch_to_timestamp(data[0]);
+            const formattedTime = epoch_to_timestamp(data[0] * 1000);
             const measurement = data[1];
             if ((measurement && !invert) || (!measurement && invert)) {
               document.getElementById('value-' + widget_id).src = '/static/img/button-green.png';

@@ -1,6 +1,5 @@
 # coding=utf-8
 import copy
-import time
 
 from flask_babel import lazy_gettext
 
@@ -47,7 +46,7 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('pip-pypi', 'pylibftdi', 'pylibftdi==0.19.0')
+        ('pip-pypi', 'pylibftdi', 'pylibftdi==0.20.0')
     ],
 
     'interfaces': ['I2C', 'UART', 'FTDI'],
@@ -72,12 +71,12 @@ INPUT_INFORMATION = {
         }
     ],
 
-    'custom_actions_message':
+    'custom_commands_message':
         'The I2C address can be changed. Enter a new address in the 0xYY format '
         '(e.g. 0x22, 0x50), then press Set I2C Address. Remember to deactivate and '
         'change the I2C address option after setting the new address.',
 
-    'custom_actions': [
+    'custom_commands': [
         {
             'id': 'new_i2c_address',
             'type': 'text',
@@ -95,10 +94,10 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that acquires measurements from the sensor """
+    """A sensor support class that acquires measurements from the sensor."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.atlas_device = None
         self.interface = None
@@ -108,9 +107,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.interface = self.input_dev.interface
 
         try:
@@ -136,9 +135,9 @@ class InputModule(AbstractInput):
             self.logger.exception("Exception while initializing sensor")
 
     def get_measurement(self):
-        """ Gets the Atlas Scientific humidity sensor measurement """
+        """Gets the Atlas Scientific humidity sensor measurement."""
         if not self.atlas_device.setup:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         return_string = None
@@ -147,44 +146,34 @@ class InputModule(AbstractInput):
         if self.led == 'measure':
             self.atlas_device.query('L,1')
 
-        # Read sensor via FTDI or UART
-        if self.interface in ['FTDI', 'UART']:
-            hum_status, hum_list = self.atlas_device.query('R')
-            if hum_list:
-                self.logger.debug("Returned list: {lines}".format(
-                    lines=hum_list))
+        # Read device
+        atlas_status, atlas_return = self.atlas_device.query('R')
+        self.logger.debug("Device Returned: {}: {}".format(atlas_status, atlas_return))
 
-            if 'check probe' in hum_list:
+        if self.led == 'measure':
+            self.atlas_device.query('L,0')
+
+        if atlas_status == 'error':
+            self.logger.debug("Sensor read unsuccessful: {err}".format(err=atlas_return))
+            return
+
+        # Parse device return data
+        if self.interface in ['FTDI', 'UART']:
+            if 'check probe' in atlas_return:
                 self.logger.error('"check probe" returned from sensor')
                 return
 
             # Find value(s) in list
-            for each_split in hum_list:
+            for each_split in atlas_return:
                 if "," in each_split or str_is_float(each_split):
                     return_string = each_split
                     break
 
         elif self.interface == 'I2C':
-            hum_status, return_string = self.atlas_device.query('R')
-            if hum_status == 'error':
-                # try again
-                time.sleep(1)
-                hum_status, return_string = self.atlas_device.query('R')
-                if hum_status == 'error':
-                    self.logger.error("Sensor read unsuccessful (after 2 attempts): {err}".format(
-                        err=return_string))
-            if hum_status == 'success':
-                self.logger.debug("Sensor returned: type: {}, value: {}".format(
-                    type(return_string), return_string))
-
-        if self.led == 'measure':
-            self.atlas_device.query('L,0')
-
-        self.logger.debug("Sensor returned: Type: {}, Value: {}".format(
-            type(return_string), return_string))
+            return_string = self.atlas_device.build_string(atlas_return)
 
         # Parse return string
-        if ',' in return_string:
+        if return_string and ',' in return_string:
             index_place = 0
             return_list = return_string.split(',')
             if self.is_enabled(1):
@@ -209,7 +198,8 @@ class InputModule(AbstractInput):
         try:
             i2c_address = int(str(args_dict['new_i2c_address']), 16)
             write_cmd = "I2C,{}".format(i2c_address)
-            self.logger.debug("I2C Change command: {}".format(write_cmd))
-            self.atlas_device.atlas_write(write_cmd)
+            self.logger.info("I2C Change command: {}".format(write_cmd))
+            self.logger.info("Command returned: {}".format(self.atlas_device.query(write_cmd)))
+            self.atlas_device = None
         except:
             self.logger.exception("Exception changing I2C address")

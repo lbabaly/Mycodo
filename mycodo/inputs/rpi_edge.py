@@ -34,7 +34,7 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('pip-pypi', 'RPi.GPIO', 'RPi.GPIO==0.7.0')
+        ('pip-pypi', 'RPi.GPIO', 'RPi.GPIO==0.7.1')
     ],
 
     'interfaces': ['GPIO'],
@@ -57,10 +57,10 @@ INPUT_INFORMATION = {
 }
 
 class InputModule(AbstractInput):
-    """ A sensor support class that listens for rising or falling pin edge events """
+    """A sensor support class that listens for rising or falling pin edge events."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.GPIO = None
         self.gpio_location = None
@@ -75,9 +75,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         try:
             import RPi.GPIO as GPIO
 
@@ -148,7 +148,10 @@ class InputModule(AbstractInput):
 
             write_db = threading.Thread(
                 target=write_influxdb_value,
-                args=(self.unique_id, 'edge', rising_or_falling,))
+                args=(self.unique_id, measurements_dict[0]['unit'], rising_or_falling,),
+                kwargs={'channel': 0,
+                        'measure': measurements_dict[0]['measurement'],
+                        'timestamp': datetime.datetime.utcnow()})
             write_db.start()
 
             trigger = db_retrieve_table_daemon(Trigger)
@@ -176,7 +179,7 @@ class InputModule(AbstractInput):
                         each_trigger.unique_id, message=message)
 
     def stop_input(self):
-        """ Called when Input is deactivated """
+        """Called when Input is deactivated."""
         self.running = False
         try:
             self.logger.debug("Cleaning up GPIO")

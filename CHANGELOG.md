@@ -1,9 +1,288 @@
-## 8.12.10 (Unreleased)
+## 8.15.0 (Unreleased)
 
-If you are upgrading from a version prior to 8.12.10, following the upgrade, you will need to reboot.
+This release fixes several bugs and changes how measurement timestamps are returned from the time-series database.
+
+### InfluxDB Changes
+
+Since support for InfluxDB 2.x was added, in order to make data that's returned from the time-series database more consistent, all timestamps from internal Mycodo functions will be returned as a decimal epoch value. Please update any custom modules or code to incorporate this change.
+
+Previous behavior: InfluxDB 1.x returned data as a date/time string value (e.g. 2022-10-31T14:49:25.034447Z).
+
+New Behavior: InfluxDB 1.x returned data as an epoch float value (e.g. 1667228575.557).
+
+### Features
+
+ - Add Function: Regulate pH and Electrical Conductivity
+ - Add Input: MCP3008 (adafruit-circuitpython-mcp3xxx library)
+ - Add Input: On/Off Output State
+ - Add Input: Senseair K96 ([#1196](https://github.com/kizniche/Mycodo/issues/1196))
+ - Add Output: Remote Mycodo Output: On/Off (API)
+ - Add Output: Remote Mycodo Output: PWM (API)
+ - Add Widget: Activate/Deactivate Controller
+ - Add ability to set each Graph Widget series type to either Line or Column
+ - Add Temperature Calibration for Atlas Scientific PT-1000 Input
+ - Add language selection to installer
+ - Add Turkish Translation
+ - Make Docs Translatable (https://kizniche.github.io/Mycodo/)
+ - Add language selection on Admin Creation and Login pages
+ - Add ability to select Outputs in Output Modules
+ - Add ability to average measurements in Verification Function
+ - Add ability to select Output Measurements in Equation Functions
 
 ### Bugfixes
 
+ - Fix Python Code Input logging Exceptions in the Daemon Log
+ - Fix inability to execute Function Commands
+ - Fix get_custom_option() not returning the latest value
+ - Fix potential Missing Attribute error on Live page
+ - Fix continuous bad checksum errors with MHZ-14 input
+ - Fix SI1145 Input dependency
+ - Fix Output/Measurement/Channel selection in Output Modules
+ - Fix channel state at initialization of Python and Shell Command Outputs
+ - Fix function_status() error-handling
+ - Fix function modules not using function_name_short option
+ - Fix Sense Hat Input dependency ([#1233](https://github.com/kizniche/Mycodo/issues/1233))
+ - Fix missing jq dependency if not installed from the install script
+ - Fix values set by set_custom_option() from being reset when an Input/Output/Function configuration is saved
+ - Fix Select Device option not populating controllers properly
+ - Fix deprecated opencv dependency (update opencv to 4.6.0.66)
+ - Fix urllib camera library not saving the correct file name
+ - Fix missing image for Camera Widget when "Acquire Image (and erase last file)" selected
+ - Fix issues with SCD4x Input calibration ([#1234](https://github.com/kizniche/Mycodo/pull/1234))
+ - Fix data type issue in PID Controller when using InfluxDB 2.x ([#1232](https://github.com/kizniche/Mycodo/issues/1232))
+ - Fix data type issue in LCD Functions when using InfluxDB 2.x ([#1239](https://github.com/kizniche/Mycodo/pull/1239))
+ - Fix various InfluxDB 2.x issues
+ - Fix SHT31 Smart Gadget Input initialization
+ - Fix MCP23017 Pump Output initialization
+ - Fix race condition with Kasa RGB Bulb that could sometimes turn it back on after turning off
+ - Fix digits not properly displaying on PID Controller Widget
+ - Fix determining improper influxdb host in Docker
+ - Fix flask and nginx logs appearing empty in Docker
+ - Fix Outputs displaying on Energy Usage Page
+ - Fix API Output POST when using a volume ([#1245](https://github.com/kizniche/Mycodo/pull/1245))
+ - Fix hiding Warning/Info/Success toast messages
+ - Fix timelapse error from entering too long duration ([#1246](https://github.com/kizniche/Mycodo/issues/1246))
+
+### Miscellaneous
+
+ - Improve verbosity of errors with Custom Modules
+ - Make Function Status errors appear in the Function Status area of the UI
+ - Update ruuvitag-sensor from 1.1.0 to 2.0.0
+ - Update Mycodo Python libraries
+ - Move toast popup messages from top-right to top-left
+ - Move buttons to the top of the Dashboard Configuration
+
+
+## 8.14.2 (2022-08-20)
+
+### Bugfixes
+
+ - Fix Kasa Plug Output ([#1221](https://github.com/kizniche/Mycodo/pull/1221))
+ - Fix Conditional Function not saving Import and Initialize Python Code
+
+
+## 8.14.1 (2022-08-14)
+
+### Bugfixes
+
+ - Fix Conditional Function 'timeout' undefined error ([#1220](https://github.com/kizniche/Mycodo/issues/1220))
+
+
+## 8.14.0 (2022-08-13)
+
+### Bugfixes
+
+ - Fix inability to resume timelapses ([#1163](https://github.com/kizniche/Mycodo/issues/1163))
+ - Fix "Could not determine measurement from returned value" error for Atlas Scientific inputs
+ - Only increment the timelapse count when an image is captured
+ - Fix generating timelapse with custom file path ([#1205](https://github.com/kizniche/Mycodo/issues/1205))
+ - Fix timelapse filenames when using libcamera
+ - Fix printing lines on 2-line 128x32 SSD1306 Functions
+ - Fix PWM Slider Widget issues when Output signal is inverted and setting duty cycle
+ - Fix MCP3008 Input python library version number
+
+### Features
+
+ - Add ability to use Influxdb 2.x or Influxdb 1.x
+ - Add ability to set influxdb host and credentials in configuration
+ - Add Input: Raspberry Pi Power Monitor
+ - Add Input: MH-Z14 CO2
+ - Add Output: Non-SPI Neopixel
+ - Add ability to set Chirp Input I2C address ([#1197](https://github.com/kizniche/mycodo/issues/1197))
+ - Add UI feedback for Atlas Scientific calibration commands ([#1198](https://github.com/kizniche/Mycodo/issues/1198))
+ - Add ability to use non-standard condition/action ID strings in Conditional Functions
+ - Add Websocket support to MQTT Outputs ([#1219](https://github.com/kizniche/Mycodo/pull/1219))
+ - Add Import and Initialize options to Conditional Functions ([#1203](https://github.com/kizniche/Mycodo/pull/1203))
+ - Add Input: MCP3208 Analog-to-Digital Converter ([#1215](https://github.com/kizniche/Mycodo/pull/1215))
+
+### Miscellaneous
+
+ - Add username/password requirements to Admin Creation page
+ - Move Conditional Condition text ([#1204](https://github.com/kizniche/Mycodo/issues/1204))
+
+
+## 8.13.10 (2022-05-19)
+
+### Bugfixes
+
+ - Fix Test Value Input throwing constant but benign errors
+ - Fix pybluez dependency install ([#1178](https://github.com/kizniche/mycodo/issues/1178))
+ - Remove deprecated jinja2 extensions
+ - Fix loading dependency page ([#1180](https://github.com/kizniche/mycodo/issues/1180))
+ - Fix missing smbus2 dependency for several LCD Functions
+ - Fix Input/Output Custom Commands showing correct value
+ - Fix fswebcam Camera custom options not being applied
+ - Fix consistency of Time Span Trigger Function execution times
+ - Fix inability to use decimal values in float input fields for some browsers
+ - Fix executing actions when no message passed to function
+ - Fix calculating next sunrise/sunset
+
+### Features
+
+ - Add API endpoint: cameras/capture_image
+ - Add Headers option to URL (requests) camera library
+ - Add Input: MAX30155 PT100 I2C Temperature Sensor (by DFRobot)
+ - Add Input: Kasa Energy Meter (Strips/Plugs)
+ - Add Inout: Atlas Scientific O2 (Oxygen Gas)
+ - Add Outputs: Kasa Wifi RGB Light Bulbs
+ - Add Outputs: Kasa Wifi Power Plugs
+ - Add Output: Neopixel RGB LED Strip
+ - Add Function Action: Change Neopixel LED Strip Color
+ - Add Function Action: Change Kasa RGB Bulb Color
+ - Add Function Action: Clear Total kWh
+ - Add Function Action: Add Line to Daemon Log
+ - Add Input: MH-Z14A CO2 sensor.
+
+### Miscellaneous
+
+ - Increase dependency install timeout period
+ - Update python-kasa to 0.5.0
+
+
+## 8.13.9 (2022-04-21)
+
+### Bugfixes
+
+ - Fix PID Controller Widget
+
+
+## 8.13.8 (2022-04-19)
+
+### Bugfixes
+
+ - Fix timestamp argument having no affect in value_set()
+ - Revert changes to PCF8574 Output ([#1175](https://github.com/kizniche/mycodo/issues/1175))
+ - Fix Edge Detection Input storing measurements ([#1171](https://github.com/kizniche/mycodo/issues/1171))
+ - Fix Bang-Bang Hysteretic (On/Off) (Lower/Raise/Both) Function when set to Both
+
+### Features
+
+ - Add API endpoint: cameras/last_image
+ - Add Input: Signal (Revolutions) (Alternative pigpio method)
+ - Add Input: Test Save Any Value as a Measurement
+ - Add Outputs: Kasa KP303 and HS300 with latest python-kasa
+
+### Miscellaneous
+
+ - Update requirements.txt
+ - Add short name for input display
+
+
+## 8.13.7 (2022-04-06)
+
+### Bugfixes
+
+ - Fix showing graph widgets with Outputs that have no name custom option
+
+
+## 8.13.6 (2022-04-06)
+
+### Bugfixes
+
+ - Fix bash commands dependency installations ([#1170](https://github.com/kizniche/mycodo/issues/1170))
+ - Don't allow method creation until dependencies fulfilled
+
+
+## 8.13.5 (2022-04-04)
+
+### Bugfixes
+
+ - Fix missing module importlib_metadata
+ - Fix PCF8574 and MCP23017 Pump Output Measurements
+ - Fix selecting an Output Measurements for Conditional Controller Conditions
+ - Fix display of channel names in Graph Widget
+
+### Features
+
+ - Add Input variants for Kasa KP303 and HS300 that use the latest python-kasa library (0.4.2)
+ - Add ability to select Output measurements for Measurement Condition of Conditional Controllers
+
+### Miscellaneous
+
+ - Improve dependency install script
+ - Improve Output display names on UI Output selections
+
+
+## 8.13.4 (2022-04-03)
+
+### Bugfixes
+
+ - Fix Bang-Bang (On/Off) Function
+
+### Features
+
+ - Add Output: PCF8575 16-Channel I/O Expander
+
+### Miscellaneous
+
+ - Remove pip-git as module dependency option
+ - Improve dependency version-checking
+
+
+## 8.13.3 (2022-04-01)
+
+### Bugfixes
+
+ - Fix acquiring images for camera libraries that use OpenCV
+ - Fix showing usage when Actions are added to Conditional Controllers
+
+
+## 8.13.2 (2022-03-29)
+
+### Bugfixes
+
+ - Fix State option upgrade for Output Action
+ - Fix MQTT Publish Action for Inputs
+
+
+## 8.13.1 (2022-03-28)
+
+### Bugfixes
+
+ - Fix Trigger dependency install
+
+### Features
+
+ - Improve error feedback when importing controller modules
+ - Improve error-handling of controllers
+
+
+## 8.13.0 (2022-03-28)
+
+Following the upgrade, you will need to reboot to complete the upgrade.
+
+LCD and Math Controllers have been completely removed from Mycodo and replaced with Functions. If you were previously using an LCD or Math controller, you will need to add the corresponding Function and change any other parts of the system that referenced those devices.
+
+If you have any custom Output modules, you will need to rename setup_output(self) to initialize(self) within the modules. If you don't use setup_output(self) and initialize(self) doesn't exist, you will need to create it in the module at a minimum with just pass:
+
+```python
+def initialize(self):
+    pass
+```
+
+### Bugfixes
+
+ - Fix installation on 64-bit OSs
  - Fix missing netcat and wget install dependencies ([#1124](https://github.com/kizniche/mycodo/issues/1124))
  - Fix inability to safe user settings
  - Fix install issue due to outdated apt repository
@@ -11,19 +290,42 @@ If you are upgrading from a version prior to 8.12.10, following the upgrade, you
  - Fix issue with TTNv3 Input if there's no payload
  - Fix Desktop Widgets resizing when viewing on mobile browsers
  - Fix rotation and flip for fswebcam camera library
+ - Fix error-handling of missing template files ([#1145](https://github.com/kizniche/mycodo/issues/1145))
+ - Fix displaying values on LCDs when Decimal is set to 0
+ - Fix Blank Line option of LCDs actually displaying a blank line
+ - Fix missing Display Unit option for some LCDs
+ - Fix issues with the Output Widget
+ - Fix BME680 Input dependency
+ - Fix Gauge Widget stop selection ([#1130](https://github.com/kizniche/mycodo/issues/1130))
+ - Fix DS18B20 (ow-shell) Input ([#910](https://github.com/kizniche/mycodo/issues/910)) (measurements are erroneous, though)
+ - Fix PIDs using Function measurements ([#1165](https://github.com/kizniche/mycodo/issues/1165))
 
 ### Features
 
+ - Add ability to execute Actions for Inputs
+ - Add ability to import custom Action modules (Configure -> Custom Actions)
+ - Add ability to cast MQTT Action payload as integer or float
  - Add camera library: libcamera ([#1117](https://github.com/kizniche/mycodo/issues/1117))
  - Add Input: TTN Integration: Data Storage (TTN v3, Payload jmespath Expression)
  - Add Output: Kasa HS300 Smart WiFi Power Strip
+ - Add Output: I/O Expander: PCF8574 (8 Channels): Peristaltic Pump (Generic)
+ - Add Output: I/O Expander: MCP23017 (16 Channels): Peristaltic Pump (Generic)
  - Add size of file for last still and timelapse images
  - Add ability to duplicate Inputs
  - Add ability to invert the saved duty cycle for PWM Outputs
+ - Add randomly-generated Client IDs for MQTT Inputs/Functions
+ - Add calibration, offset, and reset options for SCD-30 Input
+ - Add Measurement Label as an LCD option
+ - Add multiple tries to initialize Input/Output/Function/Action before failing
 
 ### Miscellaneous
 
+ - Remove LCD and Math Controllers (both replaced with Functions)
+ - Update influxdb from 1.8.0 to 1.8.10
+ - Update python library versions in requirements.txt
  - Add button to install all dependencies on Diagnostics page
+ - Add Error Codes to log lines and the manual
+ - Switch to using suntime for Sunrise/Sunset calculation
 
 
 ## 8.12.9 (2021-12-02)
@@ -340,7 +642,7 @@ class CustomModule(AbstractController, threading.Thread):
     """
     def __init__(self, ready, unique_id, testing=False):
         threading.Thread.__init__(self)
-        super(CustomModule, self).__init__(ready, unique_id=unique_id, name=__name__)
+        super().__init__(ready, unique_id=unique_id, name=__name__)
 
         self.unique_id = unique_id
         self.log_level_debug = None
@@ -362,7 +664,7 @@ class CustomModule(AbstractFunction):
     Class to operate custom controller
     """
     def __init__(self, function, testing=False):
-        super(CustomModule, self).__init__(function, testing=testing, name=__name__)
+        super().__init__(function, testing=testing, name=__name__)
 
         # Note: The following 2 lines are no longer needed to be defined here. Delete them.
         # self.unique_id = function.unique_id  
@@ -439,7 +741,7 @@ As always, a backup of the current system files and settings is performed during
  - Add Function: SSD1309 Display
  - Add Function: Bang-Bang PWM
  - Add Function Action: MQTT Publish
- - Add Function Action: webhook to emit HTTP requests ([discussion](https://kylegabriel.com/forum/general-discussion/webhook-action/))
+ - Add Function Action: webhook to emit HTTP requests
  - Partial conversion of Display/LCD controllers to Display Functions
  - Add external temperature compensation for Anyleaf pH Input
  - Add ability to set camera stream frames per second

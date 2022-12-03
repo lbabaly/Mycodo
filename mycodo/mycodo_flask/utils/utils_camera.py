@@ -32,7 +32,7 @@ def camera_add(form_camera):
     if dep_unmet:
         list_unmet_deps = []
         for each_dep in dep_unmet:
-            list_unmet_deps.append(each_dep[0])
+            list_unmet_deps.append(each_dep[3])
         error.append(
             "The {dev} device you're trying to add has unmet dependencies: "
             "{dep}".format(dev=form_camera.library.data,
@@ -66,7 +66,7 @@ def camera_add(form_camera):
         new_camera.picamera_awb_gain_blue = 3.0
         new_camera.picamera_awb_gain_red = 2.0
         new_camera.picamera_shutter_speed = 0
-        new_camera.output_format = "jpeg"
+        new_camera.output_format = "jpg"
     elif form_camera.library.data == 'picamera':
         new_camera.brightness = 50
         new_camera.contrast = 0.0
@@ -84,6 +84,10 @@ def camera_add(form_camera):
     elif form_camera.library.data == 'http_address':
         new_camera.url_still = 'http://s.w-x.co/staticmaps/wu/wu/wxtype1200_cur/uscsg/current.png'
         new_camera.url_stream = ''
+    elif form_camera.library.data == 'http_address_requests':
+        new_camera.url_still = 'https://192.168.0.29/api/cameras/capture_image/149591a0-e9a8-4ae6-a8f8-bd3855840f4b'
+        new_camera.url_stream = ''
+        new_camera.json_headers = '{"Accept": "application/vnd.mycodo.v1+json", "X-API-KEY": "YOUR_API_KEY"}'
     if not error:
         try:
             new_camera.save()
@@ -199,6 +203,7 @@ def camera_mod(form_camera):
         elif mod_camera.library == 'http_address_requests':
             mod_camera.url_still = form_camera.url_still.data
             mod_camera.url_stream = form_camera.url_stream.data
+            mod_camera.json_headers = form_camera.json_headers.data
         else:
             messages["error"].append("Unknown camera library")
 
@@ -212,8 +217,6 @@ def camera_mod(form_camera):
 
         if not messages["error"]:
             db.session.commit()
-            control = DaemonControl()
-            control.refresh_daemon_camera_settings()
             messages["success"].append("Camera settings saved")
     except Exception as except_msg:
         logger.exception(1)
@@ -262,9 +265,16 @@ def camera_timelapse_video(form_camera):
         try:
             camera = db_retrieve_table(
                 Camera, unique_id=form_camera.camera_id.data)
+
+            if camera.path_timelapse:
+                timelapse_path = assure_path_exists(camera.path_timelapse)
+            else:
+                image_path = assure_path_exists(
+                    os.path.join(PATH_CAMERAS, camera.unique_id))
+                timelapse_path = assure_path_exists(os.path.join(image_path, 'timelapse'))
+
             camera_path = assure_path_exists(
-                os.path.join(PATH_CAMERAS, '{uid}'.format(uid=camera.unique_id)))
-            timelapse_path = assure_path_exists(os.path.join(camera_path, 'timelapse'))
+                os.path.join(PATH_CAMERAS, camera.unique_id))
             video_path = assure_path_exists(os.path.join(camera_path, 'timelapse_video'))
             timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
             path_file = os.path.join(

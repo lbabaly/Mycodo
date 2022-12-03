@@ -1,5 +1,5 @@
 # coding=utf-8
-""" collection of Page endpoints """
+"""collection of Page endpoints."""
 import logging
 import os
 
@@ -14,17 +14,17 @@ from flask.blueprints import Blueprint
 
 from mycodo.config import INSTALL_DIRECTORY
 from mycodo.databases.models import Camera
+from mycodo.databases.models import Conditional
 from mycodo.databases.models import CustomController
 from mycodo.databases.models import DisplayOrder
 from mycodo.databases.models import Input
-from mycodo.databases.models import LCD
-from mycodo.databases.models import Math
 from mycodo.databases.models import Measurement
 from mycodo.databases.models import Method
 from mycodo.databases.models import Misc
 from mycodo.databases.models import Output
 from mycodo.databases.models import OutputChannel
 from mycodo.databases.models import PID
+from mycodo.databases.models import Trigger
 from mycodo.databases.models import Unit
 from mycodo.databases.models import User
 from mycodo.mycodo_flask.extensions import db
@@ -57,7 +57,7 @@ def inject_dictionary():
 @blueprint.route('/output_submit', methods=['POST'])
 @flask_login.login_required
 def page_output_submit():
-    """ Submit form for Output page """
+    """Submit form for Output page"""
     messages = {
         "success": [],
         "info": [],
@@ -105,7 +105,7 @@ def page_output_submit():
                     custom_button = True
                     break
             if custom_button:
-                messages = utils_general.custom_action(
+                messages = utils_general.custom_command(
                     "Output",
                     parse_output_information(),
                     form_mod_output.output_id.data,
@@ -127,7 +127,7 @@ def page_output_submit():
 
 @blueprint.route('/save_output_layout', methods=['POST'])
 def save_output_layout():
-    """Save positions of outputs"""
+    """Save positions of outputs."""
     if not utils_general.user_has_permission('edit_controllers'):
         return redirect(url_for('routes_general.home'))
     data = request.get_json()
@@ -145,7 +145,7 @@ def save_output_layout():
 @blueprint.route('/output', methods=('GET', 'POST'))
 @flask_login.login_required
 def page_output():
-    """ Display Output page options """
+    """Display Output page options."""
     output_type = request.args.get('output_type', None)
     output_id = request.args.get('output_id', None)
     each_output = None
@@ -155,8 +155,6 @@ def page_output():
     camera = Camera.query.all()
     function = CustomController.query.all()
     input_dev = Input.query.all()
-    lcd = LCD.query.all()
-    math = Math.query.all()
     method = Method.query.all()
     misc = Misc.query.first()
     output = Output.query.all()
@@ -178,13 +176,13 @@ def page_output():
     choices_input = utils_general.choices_inputs(
         input_dev, dict_units, dict_measurements)
     choices_input_devices = utils_general.choices_input_devices(input_dev)
-    choices_math = utils_general.choices_maths(
-        math, dict_units, dict_measurements)
     choices_method = utils_general.choices_methods(method)
     choices_output = utils_general.choices_outputs(
-        output, dict_units, dict_measurements)
+        output, OutputChannel, dict_outputs, dict_units, dict_measurements)
     choices_output_channels = utils_general.choices_outputs_channels(
         output, output_channel.query.all(), dict_outputs)
+    choices_output_channels_measurements = utils_general.choices_outputs_channels_measurements(
+        output, OutputChannel, dict_outputs, dict_units, dict_measurements)
     choices_pid = utils_general.choices_pids(
         pid, dict_units, dict_measurements)
 
@@ -193,10 +191,10 @@ def page_output():
     custom_options_values_output_channels = parse_custom_option_values_output_channels_json(
         output_channel.query.all(), dict_controller=dict_outputs, key_name='custom_channel_options')
 
-    custom_actions = {}
+    custom_commands = {}
     for each_output_dev in output:
-        if 'custom_actions' in dict_outputs[each_output_dev.output_type]:
-            custom_actions[each_output_dev.output_type] = True
+        if 'custom_commands' in dict_outputs[each_output_dev.output_type]:
+            custom_commands[each_output_dev.output_type] = True
 
     # Create dict of Input names
     names_output = {}
@@ -240,12 +238,12 @@ def page_output():
                                choices_function=choices_function,
                                choices_input=choices_input,
                                choices_input_devices=choices_input_devices,
-                               choices_math=choices_math,
                                choices_method=choices_method,
                                choices_output=choices_output,
                                choices_output_channels=choices_output_channels,
+                               choices_output_channels_measurements=choices_output_channels_measurements,
                                choices_pid=choices_pid,
-                               custom_actions=custom_actions,
+                               custom_commands=custom_commands,
                                custom_options_values_outputs=custom_options_values_outputs,
                                custom_options_values_output_channels=custom_options_values_output_channels,
                                dict_outputs=dict_outputs,
@@ -253,7 +251,6 @@ def page_output():
                                form_add_output=form_add_output,
                                form_mod_output=form_mod_output,
                                ftdi_devices=ftdi_devices,
-                               lcd=lcd,
                                misc=misc,
                                names_output=names_output,
                                output=output,
@@ -261,6 +258,13 @@ def page_output():
                                output_types=output_types(),
                                output_templates=output_templates,
                                output_variables=output_variables,
+                               table_camera=Camera,
+                               table_conditional=Conditional,
+                               table_function=CustomController,
+                               table_input=Input,
+                               table_output=Output,
+                               table_pid=PID,
+                               table_trigger=Trigger,
                                user=user)
     elif output_type == 'entry':
         return render_template('pages/output_entry.html',
@@ -268,12 +272,12 @@ def page_output():
                                choices_function=choices_function,
                                choices_input=choices_input,
                                choices_input_devices=choices_input_devices,
-                               choices_math=choices_math,
                                choices_method=choices_method,
                                choices_output=choices_output,
                                choices_output_channels=choices_output_channels,
+                               choices_output_channels_measurements=choices_output_channels_measurements,
                                choices_pid=choices_pid,
-                               custom_actions=custom_actions,
+                               custom_commands=custom_commands,
                                custom_options_values_outputs=custom_options_values_outputs,
                                custom_options_values_output_channels=custom_options_values_output_channels,
                                dict_outputs=dict_outputs,
@@ -282,7 +286,6 @@ def page_output():
                                form_add_output=form_add_output,
                                form_mod_output=form_mod_output,
                                ftdi_devices=ftdi_devices,
-                               lcd=lcd,
                                misc=misc,
                                names_output=names_output,
                                output=output,
@@ -290,6 +293,13 @@ def page_output():
                                output_types=output_types(),
                                output_templates=output_templates,
                                output_variables=output_variables,
+                               table_camera=Camera,
+                               table_conditional=Conditional,
+                               table_function=CustomController,
+                               table_input=Input,
+                               table_output=Output,
+                               table_pid=PID,
+                               table_trigger=Trigger,
                                user=user)
     elif output_type == 'options':
         return render_template('pages/output_options.html',
@@ -297,12 +307,12 @@ def page_output():
                                choices_function=choices_function,
                                choices_input=choices_input,
                                choices_input_devices=choices_input_devices,
-                               choices_math=choices_math,
                                choices_method=choices_method,
                                choices_output=choices_output,
                                choices_output_channels=choices_output_channels,
+                               choices_output_channels_measurements=choices_output_channels_measurements,
                                choices_pid=choices_pid,
-                               custom_actions=custom_actions,
+                               custom_commands=custom_commands,
                                custom_options_values_outputs=custom_options_values_outputs,
                                custom_options_values_output_channels=custom_options_values_output_channels,
                                dict_outputs=dict_outputs,
@@ -311,7 +321,6 @@ def page_output():
                                form_add_output=form_add_output,
                                form_mod_output=form_mod_output,
                                ftdi_devices=ftdi_devices,
-                               lcd=lcd,
                                misc=misc,
                                names_output=names_output,
                                output=output,
@@ -319,4 +328,11 @@ def page_output():
                                output_types=output_types(),
                                output_templates=output_templates,
                                output_variables=output_variables,
+                               table_camera=Camera,
+                               table_conditional=Conditional,
+                               table_function=CustomController,
+                               table_input=Input,
+                               table_output=Output,
+                               table_pid=PID,
+                               table_trigger=Trigger,
                                user=user)

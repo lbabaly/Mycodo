@@ -139,7 +139,7 @@ INPUT_INFORMATION = {
     # adafruit-circuitpython-ina219 also installs adafruit-blinka
     'dependencies_module': [
         ('pip-pypi', 'adafruit_ina219', 'adafruit-circuitpython-ina219==3.4.9'),
-        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.1')
+        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.2')
     ],
 
     'interfaces': ['I2C'],
@@ -208,7 +208,7 @@ class InputModule(AbstractInput):
     INA219x sensor module
     """
     def __init__(self, input_dev, testing=False,):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
         self.calibration = None
@@ -220,9 +220,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         """
         Initialize INA219x sensor
         """
@@ -292,7 +292,7 @@ class InputModule(AbstractInput):
         """
 
         if not self.sensor:
-            self.logger.error("INA219x sensor not set up.")
+            self.logger.error("Input not set up.")
             return None
 
         self.return_dict = copy.deepcopy(measurements_dict)

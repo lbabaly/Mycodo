@@ -37,15 +37,13 @@ def scan(args):
         print('  {}'.format(device))
 
 def valid_miflora_mac(mac, pat=re.compile(r"C4:7C:8D:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}")):
-    """Check for valid mac adresses."""
+    """Check for valid mac addresses."""
     if not pat.match(mac.upper()):
         raise argparse.ArgumentTypeError('The MAC address "{}" seems to be in the wrong format'.format(mac))
     return mac
 
 def main():
-    """Main function.
-    Mostly parsing the command line arguments.
-    """
+    """Main function. Mostly parsing the command line arguments."""
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--verbose', action='store_const', const=True)
     subparsers = parser.add_subparsers(help='sub-command help', )

@@ -1,5 +1,6 @@
 # coding=utf-8
 import copy
+
 from flask_babel import lazy_gettext
 
 from mycodo.inputs.base_input import AbstractInput
@@ -36,7 +37,7 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('pip-pypi', 'pylibftdi', 'pylibftdi==0.19.0')
+        ('pip-pypi', 'pylibftdi', 'pylibftdi==0.20.0')
     ],
 
     'interfaces': ['I2C', 'UART', 'FTDI'],
@@ -61,12 +62,12 @@ INPUT_INFORMATION = {
         }
     ],
 
-    'custom_actions_message':
+    'custom_commands_message':
         'The I2C address can be changed. Enter a new address in the 0xYY format '
         '(e.g. 0x22, 0x50), then press Set I2C Address. Remember to deactivate and '
         'change the I2C address option after setting the new address.',
 
-    'custom_actions': [
+    'custom_commands': [
         {
             'id': 'new_i2c_address',
             'type': 'text',
@@ -84,10 +85,10 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that acquires measurements from the sensor """
+    """A sensor support class that acquires measurements from the sensor."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.atlas_device = None
         self.interface = None
@@ -97,9 +98,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.interface = self.input_dev.interface
 
         try:
@@ -112,9 +113,9 @@ class InputModule(AbstractInput):
             self.logger.exception("Exception while initializing sensor")
 
     def get_measurement(self):
-        """ Gets the Atlas Scientific pressure sensor measurement """
+        """Gets the Atlas Scientific pressure sensor measurement."""
         if not self.atlas_device.setup:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         pressure = None
@@ -123,36 +124,41 @@ class InputModule(AbstractInput):
         if self.led == 'measure':
             self.atlas_device.query('L,1')
 
-        # Read sensor via FTDI or UART
-        if self.interface in ['FTDI', 'UART']:
-            press_status, press_list = self.atlas_device.query('R')
-            if press_list:
-                self.logger.debug("Returned list: {lines}".format(lines=press_list))
+        # Read device
+        atlas_status, atlas_return = self.atlas_device.query('R')
+        self.logger.debug("Device Returned: {}: {}".format(atlas_status, atlas_return))
 
+        if self.led == 'measure':
+            self.atlas_device.query('L,0')
+
+        if atlas_status == 'error':
+            self.logger.debug("Sensor read unsuccessful: {err}".format(err=atlas_return))
+            return
+
+        # Parse device return data
+        if self.interface in ['FTDI', 'UART']:
             # Find float value in list
             float_value = None
-            for each_split in press_list:
+            for each_split in atlas_return:
                 if str_is_float(each_split):
                     float_value = each_split
                     break
 
-            if 'check probe' in press_list:
+            if 'check probe' in atlas_return:
                 self.logger.error('"check probe" returned from sensor')
             elif str_is_float(float_value):
                 pressure = float(float_value)
                 self.logger.debug('Found float value: {val}'.format(val=pressure))
             else:
-                self.logger.error('Value or "check probe" not found in list: {val}'.format(val=press_list))
+                self.logger.error('Value or "check probe" not found in list: {val}'.format(val=atlas_return))
 
         elif self.interface == 'I2C':
-            pressure_status, pressure_str = self.atlas_device.query('R')
-            if pressure_status == 'error':
-                self.logger.error("Sensor read unsuccessful: {err}".format(err=pressure_str))
-            elif pressure_status == 'success':
-                pressure = float(pressure_str)
-
-        if self.led == 'measure':
-            self.atlas_device.query('L,0')
+            value = self.atlas_device.build_string(atlas_return)
+            if str_is_float(value):
+                pressure = float(value)
+            else:
+                self.logger.debug("Could not determine pressure from returned value: '{}'".format(atlas_return))
+                return
 
         self.value_set(0, pressure)
 
@@ -165,7 +171,8 @@ class InputModule(AbstractInput):
         try:
             i2c_address = int(str(args_dict['new_i2c_address']), 16)
             write_cmd = "I2C,{}".format(i2c_address)
-            self.logger.debug("I2C Change command: {}".format(write_cmd))
-            self.atlas_device.atlas_write(write_cmd)
+            self.logger.info("I2C Change command: {}".format(write_cmd))
+            self.logger.info("Command returned: {}".format(self.atlas_device.query(write_cmd)))
+            self.atlas_device = None
         except:
             self.logger.exception("Exception changing I2C address")

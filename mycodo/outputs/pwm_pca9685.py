@@ -14,7 +14,7 @@ from mycodo.outputs.base_output import AbstractOutput
 from mycodo.utils.constraints_pass import constraints_pass_percent
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.influx import add_measurements_influxdb
-from mycodo.utils.influx import read_last_influxdb
+from mycodo.utils.influx import read_influxdb_single
 from mycodo.utils.system_pi import return_measurement_info
 
 
@@ -27,7 +27,7 @@ def constraints_pass_hertz(mod_dev, value):
     """
     errors = []
     all_passed = True
-    if 1600 < value < 40:
+    if value < 40 or value > 1600:
         all_passed = False
         errors.append("Must be a value between 40 and 1600")
     return all_passed, errors, mod_dev
@@ -35,160 +35,26 @@ def constraints_pass_hertz(mod_dev, value):
 
 # Measurements
 measurements_dict = {
-    0: {
-        'measurement': 'duty_cycle',
-        'unit': 'percent'
-    },
-    1: {
-        'measurement': 'duty_cycle',
-        'unit': 'percent'
-    },
-    2: {
-        'measurement': 'duty_cycle',
-        'unit': 'percent'
-    },
-    3: {
-        'measurement': 'duty_cycle',
-        'unit': 'percent'
-    },
-    4: {
-        'measurement': 'duty_cycle',
-        'unit': 'percent'
-    },
-    5: {
-        'measurement': 'duty_cycle',
-        'unit': 'percent'
-    },
-    6: {
-        'measurement': 'duty_cycle',
-        'unit': 'percent'
-    },
-    7: {
-        'measurement': 'duty_cycle',
-        'unit': 'percent'
-    },
-    8: {
-        'measurement': 'duty_cycle',
-        'unit': 'percent'
-    },
-    9: {
-        'measurement': 'duty_cycle',
-        'unit': 'percent'
-    },
-    10: {
-        'measurement': 'duty_cycle',
-        'unit': 'percent'
-    },
-    11: {
-        'measurement': 'duty_cycle',
-        'unit': 'percent'
-    },
-    12: {
-        'measurement': 'duty_cycle',
-        'unit': 'percent'
-    },
-    13: {
-        'measurement': 'duty_cycle',
-        'unit': 'percent'
-    },
-    14: {
-        'measurement': 'duty_cycle',
-        'unit': 'percent'
-    },
-    15: {
+    key: {
         'measurement': 'duty_cycle',
         'unit': 'percent'
     }
+    for key in range(16)
 }
 
 channels_dict = {
-    0: {
-        'name': 'Channel 0',
+    key: {
+        'name': f'Channel {key + 1}',
         'types': ['pwm'],
-        'measurements': [0]
-    },
-    1: {
-        'name': 'Channel 1',
-        'types': ['pwm'],
-        'measurements': [1]
-    },
-    2: {
-        'name': 'Channel 2',
-        'types': ['pwm'],
-        'measurements': [2]
-    },
-    3: {
-        'name': 'Channel 3',
-        'types': ['pwm'],
-        'measurements': [3]
-    },
-    4: {
-        'name': 'Channel 4',
-        'types': ['pwm'],
-        'measurements': [4]
-    },
-    5: {
-        'name': 'Channel 5',
-        'types': ['pwm'],
-        'measurements': [5]
-    },
-    6: {
-        'name': 'Channel 6',
-        'types': ['pwm'],
-        'measurements': [6]
-    },
-    7: {
-        'name': 'Channel 7',
-        'types': ['pwm'],
-        'measurements': [7]
-    },
-    8: {
-        'name': 'Channel 8',
-        'types': ['pwm'],
-        'measurements': [8]
-    },
-    9: {
-        'name': 'Channel 9',
-        'types': ['pwm'],
-        'measurements': [9]
-    },
-    10: {
-        'name': 'Channel 10',
-        'types': ['pwm'],
-        'measurements': [10]
-    },
-    11: {
-        'name': 'Channel 11',
-        'types': ['pwm'],
-        'measurements': [11]
-    },
-    12: {
-        'name': 'Channel 12',
-        'types': ['pwm'],
-        'measurements': [12]
-    },
-    13: {
-        'name': 'Channel 13',
-        'types': ['pwm'],
-        'measurements': [13]
-    },
-    14: {
-        'name': 'Channel 14',
-        'types': ['pwm'],
-        'measurements': [14]
-    },
-    15: {
-        'name': 'Channel 15',
-        'types': ['pwm'],
-        'measurements': [15]
+        'measurements': [key]
     }
+    for key in range(16)
 }
 
 # Output information
 OUTPUT_INFORMATION = {
     'output_name_unique': 'pwm_pca9685',
-    'output_name': "{}: PCA9685 (16 channels): {}".format(
-        lazy_gettext("LED Controller"), lazy_gettext('PWM')),
+    'output_name': "{}: PCA9685 16-Channel {}".format(lazy_gettext('PWM'), lazy_gettext('LED Controller')),
     'output_manufacturer': 'NXP Semiconductors',
     'output_library': 'adafruit-pca9685',
     'measurements_dict': measurements_dict,
@@ -214,7 +80,13 @@ OUTPUT_INFORMATION = {
     'interfaces': ['I2C'],
     'i2c_location': [
         '0x40', '0x41', '0x42', '0x43', '0x44', '0x45', '0x46', '0x47',
-        '0x48', '0x49', '0x4a', '0x4b', '0x4c', '0x4d', '0x4e', '0x4f'
+        '0x48', '0x49', '0x4a', '0x4b', '0x4c', '0x4d', '0x4e', '0x4f',
+        '0x50', '0x51', '0x52', '0x53', '0x54', '0x55', '0x56', '0x57',
+        '0x58', '0x59', '0x5a', '0x5b', '0x5c', '0x5d', '0x5e', '0x5f',
+        '0x60', '0x61', '0x62', '0x63', '0x64', '0x65', '0x66', '0x67',
+        '0x68', '0x69', '0x6a', '0x6b', '0x6c', '0x6d', '0x6e', '0x6f',
+        '0x70', '0x71', '0x72', '0x73', '0x74', '0x75', '0x76', '0x77',
+        '0x78', '0x79', '0x7a', '0x7b', '0x7c', '0x7d', '0x7e', '0x7f'
     ],
     'i2c_address_editable': False,
     'i2c_address_default': '0x40',
@@ -297,18 +169,11 @@ OUTPUT_INFORMATION = {
             'phrase': 'Invert the value that is saved to the measurement database'
         },
         {
-            'id': 'trigger_functions_startup',
-            'type': 'bool',
-            'default_value': False,
-            'name': lazy_gettext('Trigger Functions at Startup'),
-            'phrase': 'Whether to trigger functions when the output switches at startup'
-        },
-        {
             'id': 'amps',
             'type': 'float',
             'default_value': 0.0,
             'required': True,
-            'name': '{} ({})'.format(lazy_gettext('Current'), lazy_gettext('Amps')),
+            'name': "{} ({})".format(lazy_gettext('Current'), lazy_gettext('Amps')),
             'phrase': 'The current draw of the device being controlled'
         }
     ]
@@ -316,11 +181,9 @@ OUTPUT_INFORMATION = {
 
 
 class OutputModule(AbstractOutput):
-    """
-    An output support class that operates an output
-    """
+    """An output support class that operates an output."""
     def __init__(self, output, testing=False):
-        super(OutputModule, self).__init__(output, testing=testing, name=__name__)
+        super().__init__(output, testing=testing, name=__name__)
 
         self.pwm_duty_cycles = {}
         for i in range(16):
@@ -336,18 +199,10 @@ class OutputModule(AbstractOutput):
         self.options_channels = self.setup_custom_channel_options_json(
             OUTPUT_INFORMATION['custom_channel_options'], output_channels)
 
-    def setup_output(self):
+    def initialize(self):
         import Adafruit_PCA9685
 
         self.setup_output_variables(OUTPUT_INFORMATION)
-
-        error = []
-        if self.pwm_hertz < 40:
-            error.append("PWM Hertz must be a value between 40 and 1600")
-        if error:
-            for each_error in error:
-                self.logger.error(each_error)
-            return
 
         try:
             self.pwm_output = Adafruit_PCA9685.PCA9685(
@@ -377,12 +232,12 @@ class OutputModule(AbstractOutput):
                     last_measurement = None
                     if device_measurement:
                         channel, unit, measurement = return_measurement_info(device_measurement, None)
-                        last_measurement = read_last_influxdb(
+                        last_measurement = read_influxdb_single(
                             self.unique_id,
                             unit,
                             channel,
                             measure=measurement,
-                            duration_sec=None)
+                            value='LAST')
 
                     if last_measurement:
                         self.logger.debug("Setting channel {ch} startup duty cycle to last known value of {dc} %".format(
@@ -400,6 +255,11 @@ class OutputModule(AbstractOutput):
             self.logger.exception("Output was unable to be setup: {err}".format(err=except_msg))
 
     def output_switch(self, state, output_type=None, amount=0, output_channel=None):
+        if not self.is_setup():
+            msg = "Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info."
+            self.logger.error(msg)
+            return msg
+
         measure_dict = copy.deepcopy(measurements_dict)
 
         output_amount = 0
@@ -444,7 +304,7 @@ class OutputModule(AbstractOutput):
         return self.output_setup
 
     def stop_output(self):
-        """ Called when Output is stopped """
+        """Called when Output is stopped."""
         if self.is_setup():
             for i in range(16):
                 if self.options_channels['state_shutdown'][i] == 0:

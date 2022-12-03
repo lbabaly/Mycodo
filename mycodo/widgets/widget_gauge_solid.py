@@ -47,7 +47,7 @@ def execute_at_creation(error, new_widget, dict_widget):
     custom_options_json['range_colors'].append('{stop},{color}'.format(stop=stop, color=color_list[0]))
     for i in range(custom_options_json['stops'] - 1):
         stop += stop_size
-        if i < len(color_list):
+        if i + 1 < len(color_list):
             color = color_list[i + 1]
         else:
             color = "#DF5353"
@@ -127,7 +127,6 @@ WIDGET_INFORMATION = {
     'message': 'Displays a solid gauge. Be sure to set the Maximum option to the last Stop value for the gauge to display properly.',
 
     'dependencies_module': [
-        ('apt', 'unzip', 'unzip'),
         ('bash-commands',
         [
             '/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highstock-9.1.2.js',
@@ -136,7 +135,7 @@ WIDGET_INFORMATION = {
         ],
         [
             'rm -rf Highcharts-Stock-9.1.2.zip',
-            'wget https://code.highcharts.com/zips/Highcharts-Stock-9.1.2.zip',
+            'wget https://code.highcharts.com/zips/Highcharts-Stock-9.1.2.zip 2>&1',
             'unzip Highcharts-Stock-9.1.2.zip -d Highcharts-Stock-9.1.2',
             'cp -rf Highcharts-Stock-9.1.2/code/highstock.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highstock-9.1.2.js',
             'cp -rf Highcharts-Stock-9.1.2/code/highstock.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highstock.js.map',
@@ -169,7 +168,6 @@ WIDGET_INFORMATION = {
             'default_value': '',
             'options_select': [
                 'Input',
-                'Math',
                 'Function',
                 'PID'
             ],
@@ -182,15 +180,15 @@ WIDGET_INFORMATION = {
             'default_value': 120,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('{} {}'.format(lazy_gettext('Measurement'), lazy_gettext('Max Age'))),
-            'phrase': lazy_gettext('The maximum age (seconds) of the measurement')
+            'name': "{} ({})".format(lazy_gettext('Max Age'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
         },
         {
             'id': 'refresh_seconds',
             'type': 'float',
             'default_value': 30.0,
             'constraints_pass': constraints_pass_positive_value,
-            'name': 'Widget Refresh (seconds)',
+            'name': '{} ({})'.format(lazy_gettext("Refresh"), lazy_gettext("Seconds")),
             'phrase': 'The period of time between refreshing the widget'
         },
         {
@@ -272,7 +270,7 @@ WIDGET_INFORMATION = {
           widget[widget_id].series[0].points[0].update(null);
         }
         else {
-          const formattedTime = epoch_to_timestamp(data[0]);
+          const formattedTime = epoch_to_timestamp(data[0] * 1000);
           const measurement = data[1];
           widget[widget_id].series[0].points[0].update(measurement);
           //document.getElementById('timestamp-' + widget_id).innerHTML = formattedTime;
@@ -505,7 +503,7 @@ def is_rgb_color(color_hex):
 
 
 def custom_colors_gauge(form, error):
-    """ Get variable number of gauge color inputs, turn into CSV string """
+    """Get variable number of gauge color inputs, turn into CSV string."""
     sorted_colors = []
     colors_hex = {}
     # Combine all color form inputs to dictionary
@@ -540,7 +538,7 @@ def custom_colors_gauge(form, error):
 
 
 def gauge_reformat_stops(current_stops, new_stops, current_colors=None):
-    """Generate stops and colors for new and modified gauges"""
+    """Generate stops and colors for new and modified gauges."""
     if current_colors:
         colors = current_colors
     else:  # Default colors (adding new gauge)

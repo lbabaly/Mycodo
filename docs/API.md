@@ -21,11 +21,11 @@ curl -k -v -X GET "https://127.0.0.1/api/settings/users" -H "authorization: Basi
 ```
 
 ```bash
-curl -k -v -x GET "https://127.0.0.1/api/settings/users -H "X-API-KEY: 0scjVcxRGi0XczregANBRXG3VMMro+oolPYdauadLblaNThd79bzFPITJjYneU1yK/Ikc9ahHXmll9JiKZO9+hogKoIp2Q8a2cMFBGevgJSd5jYVYz5D83dFE5+OBvvKKaN1U5TvPOXXcj3lkjvPzgxOnEF0CZUsKfU3MA3cFEs=" -H "accept: application/vnd.mycodo.v1+json"
+curl -k -v -X GET "https://127.0.0.1/api/settings/users" -H "X-API-KEY: 0scjVcxRGi0XczregANBRXG3VMMro+oolPYdauadLblaNThd79bzFPITJjYneU1yK/Ikc9ahHXmll9JiKZO9+hogKoIp2Q8a2cMFBGevgJSd5jYVYz5D83dFE5+OBvvKKaN1U5TvPOXXcj3lkjvPzgxOnEF0CZUsKfU3MA3cFEs=" -H "accept: application/vnd.mycodo.v1+json"
 ```
 
 ```bash
-curl -k -v -x GET "https://127.0.0.1/api/settings/users?api_key=0scjVcxRGi0XczregANBRXG3VMMro+oolPYdauadLblaNThd79bzFPITJjYneU1yK/Ikc9ahHXmll9JiKZO9+hogKoIp2Q8a2cMFBGevgJSd5jYVYz5D83dFE5+OBvvKKaN1U5TvPOXXcj3lkjvPzgxOnEF0CZUsKfU3MA3cFEs=" -H "accept: application/vnd.mycodo.v1+json"
+curl -k -v -X GET "https://127.0.0.1/api/settings/users?api_key=0scjVcxRGi0XczregANBRXG3VMMro+oolPYdauadLblaNThd79bzFPITJjYneU1yK/Ikc9ahHXmll9JiKZO9+hogKoIp2Q8a2cMFBGevgJSd5jYVYz5D83dFE5+OBvvKKaN1U5TvPOXXcj3lkjvPzgxOnEF0CZUsKfU3MA3cFEs=" -H "accept: application/vnd.mycodo.v1+json"
 ```
 
 ### Python Example (GET)
@@ -38,8 +38,10 @@ ip_address = '127.0.0.1'
 api_key = 'YOUR_API_KEY'
 endpoint = 'settings/inputs'
 url = 'https://{ip}/api/{ep}'.format(ip=ip_address, ep=endpoint)
-headers = {'Accept': 'application/vnd.mycodo.v1+json',
-           'X-API-KEY': api_key}
+headers = {
+    'Accept': 'application/vnd.mycodo.v1+json',
+    'X-API-KEY': api_key
+}
 response = requests.get(url, headers=headers, verify=False)
 print("Response Status: {}".format(response.status_code))
 print("Response Headers: {}".format(response.headers))
@@ -61,8 +63,10 @@ api_key = 'YOUR_API_KEY'
 endpoint = 'outputs/3f5a4806-c830-432d-b329-7821da8336e4'
 url = 'https://{ip}/api/{ep}'.format(ip=ip_address, ep=endpoint)
 data = {"state": True}  # Turn Output On
-headers = {'Accept': 'application/vnd.mycodo.v1+json',
-           'X-API-KEY': api_key}
+headers = {
+    'Accept': 'application/vnd.mycodo.v1+json',
+    'X-API-KEY': api_key
+}
 response = requests.post(url, json=data, headers=headers, verify=False)
 print("Response Status: {}".format(response.status_code))
 print("Response Headers: {}".format(response.headers))
@@ -113,7 +117,7 @@ Activates a controller.
 
 Parameters:
 
--  **controller_type** - the type of controller being activated. Options are: "Function", "LCD", "Input", "Math", "Output", "PID", "Trigger", or "Function".
+-  **controller_type** - the type of controller being activated. Options are: "Function", "Input", "Output", "PID", "Trigger", or "Function".
 -  **controller_id** - the unique ID of the controller to activate.
 
 ### controller_deactivate()
@@ -124,14 +128,14 @@ Deactivates a controller.
 
 Parameters:
 
--  **controller_type** - the type of controller being deactivated. Options are: "Conditional", "LCD", "Input", "Math", "Output", "PID", "Trigger", or "Function".
+-  **controller_type** - the type of controller being deactivated. Options are: "Conditional", "Input", "Output", "PID", "Trigger", or "Function".
 -  **controller_id** - the unique ID of the controller to deactivate.
 
 ### get_condition_measurement()
 
 **get_condition_measurement**\ (*condition_id*)
 
-Gets the measurement from a Condition of a Conditional Controller.
+Gets the measurement from a Condition of a Conditional Function.
 
 Parameters:
 
@@ -141,7 +145,7 @@ Parameters:
 
 **get_condition_measurement_dict**\ (*condition_id*)
 
-Gets the measurement dictionary from a Condition of a Conditional Controller.
+Gets the measurement dictionary from a Condition of a Conditional Function.
 
 Parameters:
 
@@ -183,7 +187,7 @@ Parameters:
 
 **lcd_reset**\ (*lcd_id*)
 
-Reset an LCD to it's default startup state. This can be used to clear the screen, fix display issues, or turn off flashing.
+Reset an LCD to its default startup state. This can be used to clear the screen, fix display issues, or turn off flashing.
 
 Parameters:
 
@@ -321,17 +325,11 @@ Parameters:
 -  **setting** - Which option to set. Options are: "setpoint", "method", "integrator", "derivator", "kp", "ki", or "kd".
 -  **value** - The value to set.
 
-### refresh_daemon_camera_settings()
-
-**refresh_daemon_camera_settings**\ ()
-
-Refresh the camera settings stored in the running daemon from the database values.
-
 ### refresh_daemon_conditional_settings()
 
 **refresh_daemon_conditional_settings**\ (*unique_id*)
 
-Refresh the Conditional Controller settings of a running Conditional Controller.
+Refresh the settings of a running Conditional Function.
 
 Parameters:
 

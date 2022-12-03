@@ -28,7 +28,6 @@ import math
 import time
 import traceback
 
-from flask import flash
 from flask_babel import lazy_gettext
 
 from mycodo.config import MYCODO_VERSION
@@ -88,7 +87,7 @@ def execute_at_modification(
     dictionaries. Additionally, both the pre-saved and post-saved options are available, as it's
     sometimes useful to know what settings changed and from what values. You can modify the post-saved
     options and these will be stored in the database.
-    :param mod_output: The post-saved output database entry, minus the custom_options settings
+    :param mod_function: The post-saved output database entry, minus the custom_options settings
     :param request_form: The requests.form object the user submitted
     :param custom_options_dict_presave: dict of pre-saved custom output options
     :param custom_options_channels_dict_presave: dict of pre-saved custom output channel options
@@ -171,14 +170,51 @@ FUNCTION_INFORMATION = {
 
     'message': 'This Function outputs to the Grove 16x2 LCD display via I2C. Since this display can show 2 lines at a time, channels are added in sets of 2 when Number of Line Sets is modified. Every Period, the LCD will refresh and display the next set of lines. Therefore, the first 2 lines that are displayed are channels 0 and 1, then 2 and 3, and so on. After all channels have been displayed, it will cycle back to the beginning.',
 
+    'dependencies_module': [
+        ('pip-pypi', 'smbus2', 'smbus2==0.4.1')
+    ],
+
     'options_disabled': [
         'measurements_select',
         'measurements_configure'
     ],
 
     'function_actions': [
-        'lcd_backlight_on',
-        'lcd_backlight_off'
+        'backlight_on',
+        'backlight_off',
+        'display_backlight_color'
+    ],
+
+    'custom_commands': [
+        {
+            'id': 'backlight_on',
+            'type': 'button',
+            'wait_for_return': False,
+            'name': 'Backlight On',
+            'phrase': "Turn backlight on"
+        },
+        {
+            'id': 'backlight_off',
+            'type': 'button',
+            'wait_for_return': False,
+            'name': 'Backlight Off',
+            'phrase': "Turn backlight off"
+        },
+        {
+            'type': 'new_line'
+        },
+        {
+            'id': 'color',
+            'type': 'text',
+            'default_value': '255,0,0',
+            'name': 'Color (RGB)',
+            'phrase': 'Color as R,G,B values (e.g. "255,0,0" without quotes)'
+        },
+        {
+            'id': 'display_backlight_color',
+            'type': 'button',
+            'name': "Set Backlight Color"
+        }
     ],
 
     'custom_options': [
@@ -188,8 +224,8 @@ FUNCTION_INFORMATION = {
             'default_value': 10,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('Period (seconds)'),
-            'phrase': lazy_gettext('The duration (seconds) between measurements or actions')
+            'name': "{} ({})".format(lazy_gettext('Period'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The duration between measurements or actions')
         },
         {
             'id': 'i2c_address',
@@ -197,7 +233,7 @@ FUNCTION_INFORMATION = {
             'default_value': '0x3e',
             'required': True,
             'name': TRANSLATIONS['i2c_location']['title'],
-            'phrase': TRANSLATIONS['i2c_location']['phrase']
+            'phrase': ''
         },
         {
             'id': 'i2c_bus',
@@ -205,7 +241,7 @@ FUNCTION_INFORMATION = {
             'default_value': 1,
             'required': True,
             'name': TRANSLATIONS['i2c_bus']['title'],
-            'phrase': TRANSLATIONS['i2c_bus']['phrase']
+            'phrase': ''
         },
         {
             'id': 'location_backlight',
@@ -273,7 +309,6 @@ FUNCTION_INFORMATION = {
             'default_value': '',
             'options_select': [
                 'Input',
-                'Math',
                 'Function',
                 'Output',
                 'PID'
@@ -283,12 +318,20 @@ FUNCTION_INFORMATION = {
         },
         {
             'id': 'measure_max_age',
-            'type': 'float',
+            'type': 'integer',
             'default_value': 360,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('Max Age'),
-            'phrase': lazy_gettext('The maximum age (seconds) of the measurement to use')
+            'name': "{} ({})".format(lazy_gettext('Max Age'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
+        },
+        {
+            'id': 'measurement_label',
+            'type': 'text',
+            'default_value': '',
+            'required': False,
+            'name': 'Measurement Label',
+            'phrase': 'Set to overwrite the default measurement label'
         },
         {
             'id': 'measure_decimal',
@@ -307,6 +350,14 @@ FUNCTION_INFORMATION = {
             'name': TRANSLATIONS['text']['title'],
             'phrase': "Text to display"
         },
+        {
+            'id': 'display_unit',
+            'type': 'bool',
+            'default_value': True,
+            'required': True,
+            'name': 'Display Unit',
+            'phrase': "Display the measurement unit (if available)"
+        }
     ]
 }
 
@@ -316,7 +367,7 @@ class CustomModule(AbstractFunction):
     Class to operate custom controller
     """
     def __init__(self, function, testing=False):
-        super(CustomModule, self).__init__(function, testing=testing, name=__name__)
+        super().__init__(function, testing=testing, name=__name__)
 
         self.options_channels = {}
         self.lcd = None
@@ -345,9 +396,9 @@ class CustomModule(AbstractFunction):
             FUNCTION_INFORMATION['custom_options'], custom_function)
 
         if not testing:
-            self.initialize_variables()
+            self.try_initialize()
 
-    def initialize_variables(self):
+    def initialize(self):
         from mycodo.devices.lcd_grove_lcd_rgb import LCD_Grove_LCD_RGB
 
         try:
@@ -428,7 +479,7 @@ class CustomModule(AbstractFunction):
                     if self.options_channels['line_display_type'][current_channel] == 'measurement_value':
                         if measure_value:
                             if self.options_channels['measure_decimal'][current_channel] == 0:
-                                val_rounded = int(self.options_channels['measure_decimal'][current_channel])
+                                val_rounded = int(measure_value)
                             else:
                                 val_rounded = round(
                                     measure_value,
@@ -437,16 +488,15 @@ class CustomModule(AbstractFunction):
                             lines_display[current_line] = format_measurement_line(
                                 self.options_channels['select_measurement'][current_channel]['device_id'],
                                 self.options_channels['select_measurement'][current_channel]['measurement_id'],
-                                val_rounded, lcd_x_characters)
+                                val_rounded,
+                                lcd_x_characters,
+                                display_unit=self.options_channels['display_unit'][current_channel],
+                                label=self.options_channels['measurement_label'][current_channel])
 
                     elif self.options_channels['line_display_type'][current_channel] == 'measurement_ts':
                         if measure_ts:
                             # Convert UTC timestamp to local timezone
-                            utc_dt = datetime.datetime.strptime(
-                                measure_ts.split(".")[0], '%Y-%m-%dT%H:%M:%S')
-                            utc_timestamp = calendar.timegm(utc_dt.timetuple())
-                            lines_display[current_line] = str(
-                                datetime.datetime.fromtimestamp(utc_timestamp))
+                            lines_display[current_line] = str(datetime.datetime.fromtimestamp(measure_ts))
 
                 elif self.options_channels['line_display_type'][current_channel] == 'current_time':
                     lines_display[current_line] = time.strftime('%Y-%m-%d %H:%M:%S')
@@ -484,11 +534,6 @@ class CustomModule(AbstractFunction):
 
         self.lines_being_written = False
 
-    def lcd_backlight_color(self, color):
-        """ Set backlight color """
-        self.lcd.lcd_backlight_color(color)
-        self.timer_loop = time.time() - 1  # Induce LCD to update after turning backlight on
-
     def stop_function(self):
         self.lcd.lcd_init()
         self.lcd_is_on = True
@@ -499,13 +544,21 @@ class CustomModule(AbstractFunction):
     # Actions
     #
 
-    def lcd_backlight_on(self, args_dict):
-        """ Turn the backlight on """
+    def display_backlight_color(self, args_dict=None):
+        """Set backlight color."""
+        if 'color' not in args_dict or not args_dict['color']:
+            self.logger.error("color required")
+            return
+        self.lcd.display_backlight_color(args_dict['color'])
+        self.timer_loop = time.time() - 1  # Induce LCD to update after turning backlight on
+
+    def backlight_on(self, args_dict=None):
+        """Turn the backlight on."""
         self.lcd_is_on = True
         self.lcd.lcd_backlight(1)
 
-    def lcd_backlight_off(self, args_dict):
-        """ Turn the backlight off """
+    def backlight_off(self, args_dict=None):
+        """Turn the backlight off."""
         self.lcd_is_on = False
         while self.lines_being_written:
             time.sleep(0.1)  # Wait for lines to be written before turning backlight off

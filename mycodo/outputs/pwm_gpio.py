@@ -7,14 +7,12 @@ import copy
 from flask_babel import lazy_gettext
 from sqlalchemy import and_
 
-from mycodo.databases.models import DeviceMeasurements
-from mycodo.databases.models import OutputChannel
+from mycodo.databases.models import DeviceMeasurements, OutputChannel
 from mycodo.outputs.base_output import AbstractOutput
-from mycodo.utils.constraints_pass import constraints_pass_positive_or_zero_value
-from mycodo.utils.constraints_pass import constraints_pass_positive_value
+from mycodo.utils.constraints_pass import (
+    constraints_pass_positive_or_zero_value, constraints_pass_positive_value)
 from mycodo.utils.database import db_retrieve_table_daemon
-from mycodo.utils.influx import add_measurements_influxdb
-from mycodo.utils.influx import read_last_influxdb
+from mycodo.utils.influx import add_measurements_influxdb, read_influxdb_single
 from mycodo.utils.system_pi import return_measurement_info
 
 # Measurements
@@ -35,7 +33,7 @@ channels_dict = {
 # Output information
 OUTPUT_INFORMATION = {
     'output_name_unique': 'pwm',
-    'output_name': "GPIO: {}".format(lazy_gettext('PWM')),
+    'output_name': "{}: Raspberry Pi GPIO".format(lazy_gettext('PWM')),
     'output_library': 'pigpio',
     'measurements_dict': measurements_dict,
     'channels_dict': channels_dict,
@@ -47,12 +45,13 @@ OUTPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('internal', 'file-exists /opt/mycodo/pigpio_installed', 'pigpio')
+        ('internal', 'file-exists /opt/mycodo/pigpio_installed', 'pigpio'),
+        ('pip-pypi', 'pigpio', 'pigpio==1.78')
     ],
 
     'interfaces': ['GPIO'],
 
-    'custom_actions': [
+    'custom_commands': [
         {
             'type': 'message',
             'default_value': """Set the Duty Cycle."""
@@ -79,8 +78,8 @@ OUTPUT_INFORMATION = {
             'default_value': None,
             'required': False,
             'constraints_pass': constraints_pass_positive_or_zero_value,
-            'name': lazy_gettext('GPIO Pin (BCM)'),
-            'phrase': 'The pin to control the state of'
+            'name': "{}: {} ({})".format(lazy_gettext('Pin'), lazy_gettext('GPIO'), lazy_gettext('BCM')),
+            'phrase': lazy_gettext('The pin to control the state of')
         },
         {
             'id': 'state_startup',
@@ -158,18 +157,11 @@ OUTPUT_INFORMATION = {
             'phrase': 'Invert the value that is saved to the measurement database'
         },
         {
-            'id': 'trigger_functions_startup',
-            'type': 'bool',
-            'default_value': False,
-            'name': lazy_gettext('Trigger Functions at Startup'),
-            'phrase': 'Whether to trigger functions when the output switches at startup'
-        },
-        {
             'id': 'amps',
             'type': 'float',
             'default_value': 0.0,
             'required': True,
-            'name': lazy_gettext('Current (Amps)'),
+            'name': "{} ({})".format(lazy_gettext('Current'), lazy_gettext('Amps')),
             'phrase': 'The current draw of the device being controlled'
         }
     ]
@@ -177,11 +169,9 @@ OUTPUT_INFORMATION = {
 
 
 class OutputModule(AbstractOutput):
-    """
-    An output support class that operates an output
-    """
+    """An output support class that operates an output."""
     def __init__(self, output, testing=False):
-        super(OutputModule, self).__init__(output, testing=testing, name=__name__)
+        super().__init__(output, testing=testing, name=__name__)
 
         self.pigpio = None
         self.pwm_output = None
@@ -191,7 +181,7 @@ class OutputModule(AbstractOutput):
         self.options_channels = self.setup_custom_channel_options_json(
             OUTPUT_INFORMATION['custom_channel_options'], output_channels)
 
-    def setup_output(self):
+    def initialize(self):
         import pigpio
 
         self.pigpio = pigpio
@@ -245,12 +235,12 @@ class OutputModule(AbstractOutput):
                 last_measurement = None
                 if device_measurement:
                     channel, unit, measurement = return_measurement_info(device_measurement, None)
-                    last_measurement = read_last_influxdb(
+                    last_measurement = read_influxdb_single(
                         self.unique_id,
                         unit,
                         channel,
                         measure=measurement,
-                        duration_sec=None)
+                        value='LAST')
 
                 if last_measurement:
                     self.logger.info(
@@ -326,7 +316,7 @@ class OutputModule(AbstractOutput):
         return self.output_setup
 
     def stop_output(self):
-        """ Called when Output is stopped """
+        """Called when Output is stopped."""
         if self.is_setup():
             if self.options_channels['state_shutdown'][0] == 0:
                 self.output_switch('off')
@@ -356,9 +346,9 @@ class OutputModule(AbstractOutput):
         if 'duty_cycle' not in args_dict:
             self.logger.error("Cannot set without duty cycle")
             return
-        test = self.control.output_on(
+        return_str = self.control.output_on(
             self.output.unique_id,
             output_type='pwm',
             amount=args_dict["duty_cycle"],
             output_channel=0)
-        return "Setting duty cycle: {}".format(test)
+        return f"Setting duty cycle: {return_str}"

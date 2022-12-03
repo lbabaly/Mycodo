@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 
 def save_python_file(custom_options_json, unique_id):
-    """ Save python file """
+    """Save python file"""
     pre_statement_loop = """import os
 import sys
 sys.path.append(os.path.abspath('/var/mycodo-root'))
@@ -158,7 +158,7 @@ WIDGET_INFORMATION = {
             'type': 'float',
             'default_value': 60,
             'constraints_pass': constraints_pass_positive_value,
-            'name': 'Loop Period (seconds)',
+            'name': 'Loop Period ({})'.format(lazy_gettext("Seconds")),
             'phrase': 'The period of time between executing loop code'
         },
         {
@@ -166,7 +166,7 @@ WIDGET_INFORMATION = {
             'type': 'float',
             'default_value': 30.0,
             'constraints_pass': constraints_pass_positive_value,
-            'name': 'Widget Refresh (seconds)',
+            'name': '{} ({})'.format(lazy_gettext("Refresh"), lazy_gettext("Seconds")),
             'phrase': 'The period of time between refreshing the widget'
         },
         {
@@ -208,7 +208,7 @@ self.stored_value = current_value""",
 
 return self.return_string""",
             'required': True,
-            'name': lazy_gettext('Python Code (Refresh)'),
+            'name': lazy_gettext('Python Code (On Refresh)'),
             'phrase': lazy_gettext('Python code to execute every dashboard/widget refresh')
         },
     ],
@@ -259,10 +259,10 @@ return self.return_string""",
 
 
 class WidgetModule(AbstractWidget, threading.Thread):
-    """ Class to operate custom widget """
+    """Class to operate custom widget."""
     def __init__(self, widget, testing=False):
         threading.Thread.__init__(self)
-        super(WidgetModule, self).__init__(widget, testing=testing, name=__name__)
+        super().__init__(widget, testing=testing, name=__name__)
 
         self.running = False
         self.unique_id = widget.unique_id

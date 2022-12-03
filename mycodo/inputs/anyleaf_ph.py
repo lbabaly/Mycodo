@@ -40,9 +40,9 @@ INPUT_INFORMATION = {
         ('apt', 'libjpeg-dev', 'libjpeg-dev'),
         ('apt', 'zlib1g-dev', 'zlib1g-dev'),
         ('pip-pypi', 'PIL', 'Pillow==8.1.2'),
-        ('apt', 'python3-scipy', 'python3-scipy'),
+        ('pip-pypi', 'scipy', 'scipy==1.8.0'),
         ('pip-pypi', 'usb.core', 'pyusb==1.1.1'),
-        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.1'),
+        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.2'),
         ('pip-pypi', 'anyleaf', 'anyleaf==0.1.9')
     ],
 
@@ -57,8 +57,7 @@ INPUT_INFORMATION = {
             'default_value': '',
             'options_select': [
                 'Input',
-                'Function',
-                'Math'
+                'Function'
             ],
             'name': "{}: {}".format(lazy_gettext('Temperature Compensation'), lazy_gettext('Measurement')),
             'phrase': lazy_gettext('Select a measurement for temperature compensation')
@@ -69,8 +68,8 @@ INPUT_INFORMATION = {
             'default_value': 120,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': "{}: {}".format(lazy_gettext('Temperature Compensation'), lazy_gettext('Max Age')),
-            'phrase': lazy_gettext('The maximum age (seconds) of the measurement to use')
+            'name': "{}: {} ({})".format(lazy_gettext('Temperature Compensation'), lazy_gettext('Max Age'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
         },
         {
             'id': 'cal1_v',
@@ -139,11 +138,11 @@ INPUT_INFORMATION = {
             'phrase': 'Calibration data: Temperature'
         },
     ],
-    'custom_actions_message': """Calibrate: Place your probe in a solution of known pH. Set 
+    'custom_commands_message': """Calibrate: Place your probe in a solution of known pH. Set 
 the known pH value in the `Calibration buffer pH` field, and press `Calibrate, slot 1`. Repeat with a second buffer,
 and press `Calibrate, slot 2`. Optionally, repeat a third time with `Calibrate, slot 3`. You don't need to change
  the values under `Custom Options`.""",
-    'custom_actions': [
+    'custom_commands': [
         {
             'id': 'calibration_ph',
             'type': 'float',
@@ -180,9 +179,9 @@ and press `Calibrate, slot 2`. Optionally, repeat a third time with `Calibrate, 
 
 
 class InputModule(AbstractInput):
-    """A sensor support class that monitors AnyLeaf sensor pH or ORP"""
+    """A sensor support class that monitors AnyLeaf sensor pH or ORP."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
 
@@ -203,9 +202,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         from adafruit_extended_bus import ExtendedI2C
         from anyleaf import PhSensor, CalPt
 
@@ -229,7 +228,7 @@ class InputModule(AbstractInput):
         )
 
     def calibrate(self, cal_slot, args_dict):
-        """Calibration helper method"""
+        """Calibration helper method."""
         from anyleaf import CalSlot
 
         if 'calibration_ph' not in args_dict:
@@ -260,17 +259,17 @@ class InputModule(AbstractInput):
             self.set_custom_option("cal3_t", t)
 
     def calibrate_slot_1(self, args_dict):
-        # """ Auto-calibrate """
+        """calibrate."""
         from anyleaf import CalSlot
         self.calibrate(CalSlot.ONE, args_dict)
 
     def calibrate_slot_2(self, args_dict):
-        """ Auto-calibrate """
+        """calibrate"""
         from anyleaf import CalSlot
         self.calibrate(CalSlot.TWO, args_dict)
 
     def calibrate_slot_3(self, args_dict):
-        """ Auto-calibrate """
+        """calibrate"""
         from anyleaf import CalSlot
         self.calibrate(CalSlot.THREE, args_dict)
 
@@ -318,11 +317,11 @@ class InputModule(AbstractInput):
             return OnBoard()
 
     def get_measurement(self):
-        """ Gets the measurement """
+        """Gets the measurement."""
         self.return_dict = copy.deepcopy(measurements_dict)
 
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.value_set(0, self.sensor.read(self.get_temp_data()))

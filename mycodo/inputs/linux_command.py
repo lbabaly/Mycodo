@@ -22,6 +22,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'LinuxCommand',
     'input_manufacturer': 'Linux',
     'input_name': 'Bash Command',
+    'input_name_short': 'Bash',
     'measurements_name': 'Return Value',
     'measurements_dict': measurements_dict,
 
@@ -55,7 +56,7 @@ INPUT_INFORMATION = {
             'default_value': 'mycodo',
             'required': True,
             'name': lazy_gettext('User'),
-            'phrase': 'The user to execute the command'
+            'phrase': lazy_gettext('The user to execute the command')
         },
         {
             'id': 'current_working_dir',
@@ -70,9 +71,9 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that returns a value from a command """
+    """A sensor support class that returns a value from a command."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.command = None
 
@@ -83,13 +84,13 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.command = self.input_dev.cmd_command
 
     def get_measurement(self):
-        """ Determine if the return value of the command is a number """
+        """Determine if the return value of the command is a number."""
         self.return_dict = copy.deepcopy(measurements_dict)
 
         self.logger.debug("Command being executed: {}".format(self.command))

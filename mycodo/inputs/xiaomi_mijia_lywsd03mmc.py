@@ -16,6 +16,7 @@ import time
 from errno import EALREADY
 
 from mycodo.inputs.base_input import AbstractInput
+from mycodo.utils.lockfile import LockFile
 
 measurement_values = {}
 
@@ -45,6 +46,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'MIJIA_LYWSD03MMC',
     'input_manufacturer': 'Xiaomi',
     'input_name': 'Mijia LYWSD03MMC (ATC and non-ATC modes)',
+    'input_name_short': 'Mijia LYWSD03MMC',
     'input_library': 'bluepy/bluez',
     'measurements_name': 'Battery/Humidity/Temperature',
     'measurements_dict': measurements_dict,
@@ -64,7 +66,7 @@ INPUT_INFORMATION = {
         ('apt', 'bluetooth', 'bluetooth'),
         ('apt', 'libbluetooth-dev', 'libbluetooth-dev'),
         ('pip-pypi', 'bluepy', 'bluepy==1.3.0'),
-        ('pip-pypi', 'bluetooth', 'pybluez==0.23')
+        ('pip-pypi', 'bluetooth', 'git+https://github.com/pybluez/pybluez.git')
     ],
 
     'interfaces': ['BT'],
@@ -88,7 +90,7 @@ class InputModule(AbstractInput):
     A sensor support class that measures
     """
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
         self.lock_file = None
@@ -99,9 +101,9 @@ class InputModule(AbstractInput):
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
             self.setup_logger(testing=testing, name=__name__, input_dev=input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.lock_file = '/var/lock/bluetooth_dev_hci{}'.format(self.input_dev.bt_adapter)
         try:
             self.sensor = LYWSD03MMC(
@@ -113,14 +115,15 @@ class InputModule(AbstractInput):
             self.logger.exception("Initializing Input")
 
     def get_measurement(self):
-        """ Gets the battery. humidity, and temperature """
+        """Gets the battery. humidity, and temperature."""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)
 
-        if self.lock_acquire(self.lock_file, timeout=3600):
+        lf = LockFile()
+        if lf.lock_acquire(self.lock_file, timeout=3600):
             try:
                 self.sensor.run()
 
@@ -140,7 +143,7 @@ class InputModule(AbstractInput):
             except:
                 self.logger.exception("Acquiring measurements")
             finally:
-                self.lock_release(self.lock_file)
+                lf.lock_release(self.lock_file)
 
 
 class LYWSD03MMC:
@@ -473,10 +476,10 @@ class LYWSD03MMC:
             batteryVoltage = int(data_str[30:34], 16) / 1000
             batteryPercent = int(data_str[28:30], 16)
 
-            self.logger.debug("Temperature: ", temperature)
-            self.logger.debug("Humidity: ", humidity)
-            self.logger.debug("Battery: {} volts, {}%".format(batteryVoltage, batteryPercent))
-            self.logger.debug("RSSI:", rssi, "dBm")
+            self.logger.debug("Temperature: {}".format(temperature))
+            self.logger.debug("Humidity: {}".format(humidity))
+            self.logger.debug("Battery: {} volts, {} %".format(batteryVoltage, batteryPercent))
+            self.logger.debug("RSSI: {} dBm".format(rssi))
 
             global measurement_values
             measurement_values = {

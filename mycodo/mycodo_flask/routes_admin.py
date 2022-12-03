@@ -1,5 +1,5 @@
 # coding=utf-8
-""" collection of Admin endpoints """
+"""collection of Admin endpoints."""
 import datetime
 import io
 import logging
@@ -31,11 +31,8 @@ from mycodo.config import DEPENDENCY_INIT_FILE
 from mycodo.config import DEPENDENCY_LOG_FILE
 from mycodo.config import FINAL_RELEASES
 from mycodo.config import FORCE_UPGRADE_MASTER
-from mycodo.config import FUNCTION_ACTION_INFO
 from mycodo.config import FUNCTION_INFO
 from mycodo.config import INSTALL_DIRECTORY
-from mycodo.config import LCD_INFO
-from mycodo.config import MATH_INFO
 from mycodo.config import METHOD_INFO
 from mycodo.config import MYCODO_VERSION
 from mycodo.config import RESTORE_LOG_FILE
@@ -49,6 +46,7 @@ from mycodo.mycodo_flask.forms import forms_dependencies
 from mycodo.mycodo_flask.forms import forms_misc
 from mycodo.mycodo_flask.routes_static import inject_variables
 from mycodo.mycodo_flask.utils import utils_general
+from mycodo.utils.actions import parse_action_information
 from mycodo.utils.functions import parse_function_information
 from mycodo.utils.github_release_info import MycodoRelease
 from mycodo.utils.inputs import parse_input_information
@@ -79,7 +77,7 @@ def inject_dictionary():
 @blueprint.route('/admin/backup', methods=('GET', 'POST'))
 @flask_login.login_required
 def admin_backup():
-    """ Load the backup management page """
+    """Load the backup management page"""
     if not utils_general.user_has_permission('edit_settings'):
         return redirect(url_for('routes_general.home'))
 
@@ -146,11 +144,11 @@ def admin_backup():
                 else:
                     # Zip all files in the_backup directory
                     data = io.BytesIO()
-                    with zipfile.ZipFile(data, 'w') as zip:
+                    with zipfile.ZipFile(data, 'w') as zipf:
                         # writing each file one by one
                         for file in file_paths:
                             # Remove first two directory names from zip file, so the Mycodo root is the zip root
-                            zip.write(file, file.replace(string_remove, ""))
+                            zipf.write(file, file.replace(string_remove, ""))
                     data.seek(0)
 
                     # Send zip file to user
@@ -158,7 +156,7 @@ def admin_backup():
                         data,
                         mimetype='application/zip',
                         as_attachment=True,
-                        attachment_filename=save_file
+                        download_name=save_file
                     )
             except Exception as err:
                 flash("Error: {}".format(err), "error")
@@ -198,8 +196,8 @@ def install_dependencies(dependencies):
             time=now, deps=", ".join(dependency_list)))
 
     for each_dep in dependencies:
-        if each_dep[1] == 'bash-commands':
-            for each_command in each_dep[2]:
+        if each_dep[2] == 'bash-commands':
+            for each_command in each_dep[1]:
                 command = "{cmd} | ts '[%Y-%m-%d %H:%M:%S]' >> {log} 2>&1".format(
                     cmd=each_command,
                     log=DEPENDENCY_LOG_FILE)
@@ -256,7 +254,7 @@ def install_dependencies(dependencies):
 @blueprint.route('/admin/dependency_install/<device>', methods=('GET', 'POST'))
 @flask_login.login_required
 def admin_dependency_install(device):
-    """ Install Dependencies """
+    """Install Dependencies."""
     messages = {
         "success": [],
         "info": [],
@@ -290,7 +288,7 @@ def admin_dependencies_main():
 @blueprint.route('/admin/dependencies/<device>', methods=('GET', 'POST'))
 @flask_login.login_required
 def admin_dependencies(device):
-    """ Display Dependency page """
+    """Display Dependency page"""
     form_dependencies = forms_dependencies.Dependencies()
 
     if device != '0':
@@ -327,14 +325,12 @@ def admin_dependencies(device):
 
     list_dependencies = [
         parse_function_information(),
+        parse_action_information(),
         parse_input_information(),
         parse_output_information(),
         parse_widget_information(),
         CAMERA_INFO,
-        FUNCTION_ACTION_INFO,
         FUNCTION_INFO,
-        LCD_INFO,
-        MATH_INFO,
         METHOD_INFO,
         DEPENDENCIES_GENERAL
     ]
@@ -376,7 +372,15 @@ def admin_dependencies(device):
                 # Find all the devices that use each unmet dependency
                 if unmet_dependencies[each_device]:
                     for each_dep in unmet_dependencies[each_device]:
-                        # Determine if the third element of the tuple is a list, convert it to a tuple
+                        # Determine if the second element of a 4-element tuple is a list, convert it to a tuple
+                        if (type(each_dep) == tuple and
+                                len(each_dep) == 4 and
+                                type(each_dep[1]) == list):
+                            each_dep = list(each_dep)
+                            each_dep[1] = tuple(each_dep[1])
+                            each_dep = tuple(each_dep)
+
+                        # Determine if the third element of a 3-element tuple is a list, convert it to a tuple
                         if (type(each_dep) == tuple and
                                 len(each_dep) == 3 and
                                 type(each_dep[2]) == list):
@@ -421,7 +425,7 @@ def admin_dependencies(device):
 @blueprint.route('/admin/dependency_status', methods=('GET', 'POST'))
 @flask_login.login_required
 def admin_dependency_status():
-    """ Return the last 30 lines of the dependency log """
+    """Return the last 30 lines of the dependency log."""
     if os.path.isfile(DEPENDENCY_LOG_FILE):
         command = 'tail -n 40 {log}'.format(log=DEPENDENCY_LOG_FILE)
         log = subprocess.Popen(
@@ -440,7 +444,7 @@ def admin_dependency_status():
 @blueprint.route('/admin/statistics', methods=('GET', 'POST'))
 @flask_login.login_required
 def admin_statistics():
-    """ Display collected statistics """
+    """Display collected statistics."""
     if not utils_general.user_has_permission('view_stats'):
         return redirect(url_for('routes_general.home'))
 
@@ -455,7 +459,7 @@ def admin_statistics():
 @blueprint.route('/admin/upgrade_status', methods=('GET', 'POST'))
 @flask_login.login_required
 def admin_upgrade_status():
-    """ Return the last 30 lines of the upgrade log """
+    """Return the last 30 lines of the upgrade log."""
     if os.path.isfile(UPGRADE_TMP_LOG_FILE):
         command = 'cat {log}'.format(log=UPGRADE_TMP_LOG_FILE)
         log = subprocess.Popen(
@@ -474,7 +478,7 @@ def admin_upgrade_status():
 @blueprint.route('/admin/upgrade', methods=('GET', 'POST'))
 @flask_login.login_required
 def admin_upgrade():
-    """ Display any available upgrades and option to upgrade """
+    """Display any available upgrades and option to upgrade"""
     if not utils_general.user_has_permission('edit_settings'):
         return redirect(url_for('routes_general.home'))
 

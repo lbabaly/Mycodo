@@ -74,13 +74,15 @@ INPUT_INFORMATION = {
         }
     ],
 
-    'custom_actions_message': 'Zero point calibration: activate the sensor in a 400 ppmv CO2 environment, allow to run '
-                              'for 20 minutes, then press the Calibrate Zero Point button.<br>Span point calibration: '
-                              'activate the sensor in an environment with a stable CO2 concentration in the 1000 to '
-                              '2000 ppmv range, allow to run for 20 minutes, enter the ppmv value in the Span Point '
-                              '(ppmv) input field, then press the Calibrate Span Point button. If running a span '
-                              'point calibration, run a zero point calibration first.',
-    'custom_actions': [
+    'custom_commands_message': 'Zero point calibration: activate the sensor in a 400 ppmv CO2 environment (outside '
+                              'air), allow to run for 20 minutes, then press the Calibrate Zero Point button.<br>Span '
+                              'point calibration: activate the sensor in an environment with a stable CO2 concentration'
+                              ' between 1000 and 2000 ppmv (2000 recommended), allow to run for 20 minutes, enter the '
+                              'ppmv value in the Span Point (ppmv) input field, then press the Calibrate Span Point '
+                              'button. If running a span point calibration, run a zero point calibration first. A span '
+                              'point calibration is not necessary and should only be performed if you know what you are'
+                              ' doing and can accurately produce a 2000 ppmv environment.',
+    'custom_commands': [
         {
             'id': 'calibrate_zero_point',
             'type': 'button',
@@ -89,7 +91,7 @@ INPUT_INFORMATION = {
         {
             'id': 'span_point_value_ppmv',
             'type': 'integer',
-            'default_value': 1500,
+            'default_value': 2000,
             'name': 'Span Point (ppmv)',
             'phrase': 'The ppmv concentration for a span point calibration'
         },
@@ -103,10 +105,10 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that monitors the MH-Z19's CO2 concentration """
+    """A sensor support class that monitors the MH-Z19's CO2 concentration."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.ser = None
         self.measuring = None
@@ -117,9 +119,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import serial
 
         if is_device(self.input_dev.uart_location):
@@ -141,9 +143,9 @@ class InputModule(AbstractInput):
         time.sleep(0.1)
 
     def get_measurement(self):
-        """ Gets the MH-Z19's CO2 concentration in ppmv """
+        """Gets the MH-Z19's CO2 concentration in ppmv."""
         if not self.ser:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)

@@ -20,20 +20,20 @@
 #  along with Mycodo. If not, see <http://www.gnu.org/licenses/>.
 #
 #  Contact at kylegabriel.com
-
-
 import logging
 import os
 
 from mycodo.config import PATH_FUNCTIONS
 from mycodo.config import PATH_FUNCTIONS_CUSTOM
+from mycodo.utils.logging_utils import set_log_level
 from mycodo.utils.modules import load_module_from_file
 
 logger = logging.getLogger("mycodo.utils.functions")
+logger.setLevel(set_log_level(logging))
 
 
 def parse_function_information(exclude_custom=False):
-    """Parses the variables assigned in each Function and return a dictionary of IDs and values"""
+    """Parses the variables assigned in each Function and return a dictionary of IDs and values."""
     def dict_has_value(dict_inp, controller_cus, key):
         if (key in controller_cus.FUNCTION_INFORMATION and
                 (controller_cus.FUNCTION_INFORMATION[key] or
@@ -63,7 +63,7 @@ def parse_function_information(exclude_custom=False):
                 continue
 
             full_path = "{}/{}".format(real_path, each_file)
-            function_custom = load_module_from_file(full_path, 'functions')
+            function_custom, status = load_module_from_file(full_path, 'functions')
 
             if not function_custom or not hasattr(function_custom, 'FUNCTION_INFORMATION'):
                 continue
@@ -79,6 +79,7 @@ def parse_function_information(exclude_custom=False):
             dict_controllers[function_custom.FUNCTION_INFORMATION['function_name_unique']]['file_path'] = full_path
 
             dict_controllers = dict_has_value(dict_controllers, function_custom, 'function_name')
+            dict_controllers = dict_has_value(dict_controllers, function_custom, 'function_name_short')
             dict_controllers = dict_has_value(dict_controllers, function_custom, 'function_manufacturer')
             dict_controllers = dict_has_value(dict_controllers, function_custom, 'measurements_dict')
             dict_controllers = dict_has_value(dict_controllers, function_custom, 'channels_dict')
@@ -95,6 +96,8 @@ def parse_function_information(exclude_custom=False):
             dict_controllers = dict_has_value(dict_controllers, function_custom, 'function_actions')
             dict_controllers = dict_has_value(dict_controllers, function_custom, 'custom_options')
             dict_controllers = dict_has_value(dict_controllers, function_custom, 'custom_channel_options')
-            dict_controllers = dict_has_value(dict_controllers, function_custom, 'custom_actions')
+
+            dict_controllers = dict_has_value(dict_controllers, function_custom, 'custom_commands_message')
+            dict_controllers = dict_has_value(dict_controllers, function_custom, 'custom_commands')
 
     return dict_controllers

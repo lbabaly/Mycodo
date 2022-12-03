@@ -97,16 +97,16 @@ FUNCTION_INFORMATION = {
             'default_value': 60,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('Period (seconds)'),
-            'phrase': lazy_gettext('The duration (seconds) between measurements or actions')
+            'name': "{} ({})".format(lazy_gettext('Period'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The duration between measurements or actions')
         },
         {
             'id': 'max_measure_age',
             'type': 'integer',
             'default_value': 360,
             'required': True,
-            'name': lazy_gettext('Max Age'),
-            'phrase': lazy_gettext('The maximum age (seconds) of the measurement to use')
+            'name': "{} ({})".format(lazy_gettext('Max Age'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
         },
         {
             'id': 'select_measurement',
@@ -114,7 +114,6 @@ FUNCTION_INFORMATION = {
             'default_value': '',
             'options_select': [
                 'Input',
-                'Math',
                 'Function'
             ],
             'name': 'Measurement',
@@ -129,7 +128,7 @@ class CustomModule(AbstractFunction):
     Class to operate custom controller
     """
     def __init__(self, function, testing=False):
-        super(CustomModule, self).__init__(function, testing=testing, name=__name__)
+        super().__init__(function, testing=testing, name=__name__)
 
         self.timer_loop = time.time()
 

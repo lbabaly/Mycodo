@@ -1,8 +1,6 @@
 # coding=utf-8
-""" collection of Method endpoints """
-import datetime
+"""collection of Method endpoints."""
 import logging
-import time
 
 import flask_login
 from flask import Blueprint
@@ -62,7 +60,7 @@ def method_data(method_id):
 @blueprint.route('/method', methods=('GET', 'POST'))
 @flask_login.login_required
 def method_list():
-    """ List all methods on one page with a graph for each """
+    """List all methods on one page with a graph for each."""
     form_create_method = forms_method.MethodCreate()
 
     method = Method.query.all()
@@ -221,7 +219,7 @@ def method_builder(method_id):
 @blueprint.route('/method-delete/<method_id>')
 @flask_login.login_required
 def method_delete(method_id):
-    """Delete a method"""
+    """Delete a method."""
     action = '{action} {controller}'.format(
         action=TRANSLATIONS['delete']['title'],
         controller=gettext("Method"))

@@ -27,7 +27,7 @@ channels_dict = {
 # Output information
 OUTPUT_INFORMATION = {
     'output_name_unique': 'wired',
-    'output_name': "GPIO: {}".format(lazy_gettext('On/Off')),
+    'output_name': "{}: Raspberry Pi GPIO".format(lazy_gettext('On/Off')),
     'output_library': 'RPi.GPIO',
     'measurements_dict': measurements_dict,
     'channels_dict': channels_dict,
@@ -43,7 +43,7 @@ OUTPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('pip-pypi', 'RPi.GPIO', 'RPi.GPIO==0.7.0')
+        ('pip-pypi', 'RPi.GPIO', 'RPi.GPIO==0.7.1')
     ],
 
     'interfaces': ['GPIO'],
@@ -55,8 +55,8 @@ OUTPUT_INFORMATION = {
             'default_value': None,
             'required': False,
             'constraints_pass': constraints_pass_positive_or_zero_value,
-            'name': lazy_gettext('GPIO Pin (BCM)'),
-            'phrase': 'The pin to control the state of'
+            'name': "{}: {} ({})".format(lazy_gettext('Pin'), lazy_gettext('GPIO'), lazy_gettext('BCM')),
+            'phrase': lazy_gettext('The pin to control the state of')
         },
         {
             'id': 'state_startup',
@@ -103,7 +103,7 @@ OUTPUT_INFORMATION = {
             'type': 'float',
             'default_value': 0.0,
             'required': True,
-            'name': '{} ({})'.format(lazy_gettext('Current'), lazy_gettext('Amps')),
+            'name': "{} ({})".format(lazy_gettext('Current'), lazy_gettext('Amps')),
             'phrase': 'The current draw of the device being controlled'
         }
     ]
@@ -111,11 +111,9 @@ OUTPUT_INFORMATION = {
 
 
 class OutputModule(AbstractOutput):
-    """
-    An output support class that operates an output
-    """
+    """An output support class that operates an output."""
     def __init__(self, output, testing=False):
-        super(OutputModule, self).__init__(output, testing=testing, name=__name__)
+        super().__init__(output, testing=testing, name=__name__)
 
         self.GPIO = None
 
@@ -124,7 +122,7 @@ class OutputModule(AbstractOutput):
         self.options_channels = self.setup_custom_channel_options_json(
             OUTPUT_INFORMATION['custom_channel_options'], output_channels)
 
-    def setup_output(self):
+    def initialize(self):
         import RPi.GPIO as GPIO
 
         self.GPIO = GPIO
@@ -193,7 +191,7 @@ class OutputModule(AbstractOutput):
         return self.output_setup
 
     def stop_output(self):
-        """ Called when Output is stopped """
+        """Called when Output is stopped."""
         if self.is_setup():
             if self.options_channels['state_shutdown'][0] == 1:
                 self.output_switch('on', output_channel=0)

@@ -1,3 +1,6 @@
+<div class="col-12">
+  <strong>[{{_('Condition')}}] {{_('Measurement')}} ({{_('Single')}}, {{_('Last')}})</strong>: <strong>self.condition("{{each_condition.unique_id.split('-')[0]}}")</strong> {{_('returns the last value found within the Max Age, otherwise returns None.')}}
+</div>
 <div class="col-auto">
   {{form_conditional_conditions.measurement.label(class_='control-label')}}
   <div>
@@ -6,8 +9,8 @@
       {% for each_input_form in choices_input if each_input_form['value'].split(',')[1] != 'edge' -%}
         <option value="{{each_input_form['value']}}"{% if each_condition.measurement == each_input_form['value'] %} selected{% endif %}>{{each_input_form['item']}}</option>
       {% endfor -%}
-      {% for each_math_form in choices_math -%}
-        <option value="{{each_math_form['value']}}"{% if each_condition.measurement == each_math_form['value'] %} selected{% endif %}>{{each_math_form['item']}}</option>
+      {% for each_output_form in choices_output -%}
+        <option value="{{each_output_form['value']}}"{% if each_condition.measurement == each_output_form['value'] %} selected{% endif %}>{{each_output_form['item']}}</option>
       {% endfor -%}
       {% for each_function_form in choices_function -%}
         <option value="{{each_function_form['value']}}"{% if each_condition.measurement == each_function_form['value'] %} selected{% endif %}>{{each_function_form['item']}}</option>
@@ -23,7 +26,4 @@
   <div>
     {{form_conditional_conditions.max_age(class_='form-control', value=each_condition.max_age, **{'title':_('Do not accept measurements older than this age')})}}
   </div>
-</div>
-<div class="col-12">
-  <strong>{{_('Measurement')}} ({{_('Single')}}, {{_('Last')}})</strong>: <strong>self.condition("{{'{' + each_condition.unique_id.split('-')[0] + '}'}}")</strong> {{_('returns the last value found within the Max Age, otherwise returns None.')}}
 </div>

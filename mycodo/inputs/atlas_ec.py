@@ -58,7 +58,7 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('pip-pypi', 'pylibftdi', 'pylibftdi==0.19.0')
+        ('pip-pypi', 'pylibftdi', 'pylibftdi==0.20.0')
     ],
 
     'interfaces': ['I2C', 'UART', 'FTDI'],
@@ -75,8 +75,7 @@ INPUT_INFORMATION = {
             'default_value': '',
             'options_select': [
                 'Input',
-                'Function',
-                'Math'
+                'Function'
             ],
             'name': "{}: {}".format(lazy_gettext('Temperature Compensation'), lazy_gettext('Measurement')),
             'phrase': lazy_gettext('Select a measurement for temperature compensation')
@@ -87,24 +86,26 @@ INPUT_INFORMATION = {
             'default_value': 120,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': "{}: {}".format(lazy_gettext('Temperature Compensation'), lazy_gettext('Max Age')),
-            'phrase': lazy_gettext('The maximum age (seconds) of the measurement to use')
+            'name': "{}: {} ({})".format(lazy_gettext('Temperature Compensation'), lazy_gettext('Max Age'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
         }
     ],
 
-    'custom_actions': [
+    'custom_commands': [
         {
             'type': 'message',
-            'default_value': """Calibration: a one- or two-point calibration can be performed. It's a good idea to clear the calibration before calibrating. Always perform a dry calibration with the probe in the air (not in any fluid). Then perform either a one- or two-point calibration with calibrated solutions. If performing a one-point calibration, use the Single Point Calibration field and button. If performing a two-point calibration, use the Low and High Point Calibration fields and buttons. Allow a minute or two after submerging your probe in a calibration solution for the measurements to equilibrate before calibrating to that solution. The EZO EC circuit default temperature compensation is set to 25 °C. If the temperature of the calibration solution is +/- 2 °C from 25 °C, consider setting the temperature compensation first. Note that at no point should you change the temperature compensation value during calibration. Therefore, if you have previously enabled temperature compensation, allow at least one measurement to occur (to set the compensation value), then disable the temperature compensation measurement while you calibrate."""
+            'default_value': """Calibration: a one- or two-point calibration can be performed. It's a good idea to clear the calibration before calibrating. Always perform a dry calibration with the probe in the air (not in any fluid). Then perform either a one- or two-point calibration with calibrated solutions. If performing a one-point calibration, use the Single Point Calibration field and button. If performing a two-point calibration, use the Low and High Point Calibration fields and buttons. Allow a minute or two after submerging your probe in a calibration solution for the measurements to equilibrate before calibrating to that solution. The EZO EC circuit default temperature compensation is set to 25 °C. If the temperature of the calibration solution is +/- 2 °C from 25 °C, consider setting the temperature compensation first. Note that at no point should you change the temperature compensation value during calibration. Therefore, if you have previously enabled temperature compensation, allow at least one measurement to occur (to set the compensation value), then disable the temperature compensation measurement while you calibrate. Status messages will be sent to the Daemon Log, accessible from Config -> Mycodo Logs -> Daemon Log."""
         },
         {
             'id': 'clear_calibrate',
             'type': 'button',
+            'wait_for_return': True,
             'name': 'Clear Calibration'
         },
         {
             'id': 'dry_calibrate',
             'type': 'button',
+            'wait_for_return': True,
             'name': 'Calibrate Dry'
         },
         {
@@ -120,6 +121,7 @@ INPUT_INFORMATION = {
         {
             'id': 'single_calibrate',
             'type': 'button',
+            'wait_for_return': True,
             'name': 'Calibrate Single Point'
         },
         {
@@ -135,6 +137,7 @@ INPUT_INFORMATION = {
         {
             'id': 'low_calibrate',
             'type': 'button',
+            'wait_for_return': True,
             'name': 'Calibrate Low Point'
         },
         {
@@ -150,6 +153,7 @@ INPUT_INFORMATION = {
         {
             'id': 'high_calibrate',
             'type': 'button',
+            'wait_for_return': True,
             'name': 'Calibrate High Point'
         },
         {
@@ -173,10 +177,10 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """A sensor support class that monitors the Atlas Scientific sensor ElectricalConductivity"""
+    """A sensor support class that monitors the Atlas Scientific sensor ElectricalConductivity."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.atlas_device = None
         self.interface = None
@@ -188,9 +192,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.interface = self.input_dev.interface
 
         try:
@@ -232,9 +236,9 @@ class InputModule(AbstractInput):
             self.atlas_device.query('O?')))
 
     def get_measurement(self):
-        """ Gets the sensor's Electrical Conductivity measurement """
+        """Gets the sensor's Electrical Conductivity measurement"""
         if not self.atlas_device.setup:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         return_string = None
@@ -278,34 +282,32 @@ class InputModule(AbstractInput):
                     "Calibration measurement not found within the past "
                     "{} seconds".format(self.max_age))
 
-        # Read sensor via FTDI or UART
-        if self.interface in ['FTDI', 'UART']:
-            ec_status, ec_list = self.atlas_device.query('R')
-            if ec_list:
-                self.logger.debug("Return list: '{}'".format(ec_list))
+        # Read device
+        atlas_status, atlas_return = self.atlas_device.query('R')
+        self.logger.debug("Device Returned: {}: {}".format(atlas_status, atlas_return))
 
+        if atlas_status == 'error':
+            self.logger.debug("Sensor read unsuccessful: {err}".format(err=atlas_return))
+            return
+
+        # Parse device return data
+        if self.interface in ['FTDI', 'UART']:
             # Check for "check probe"
-            for each_split in ec_list:
+            for each_split in atlas_return:
                 if 'check probe' in each_split:
                     self.logger.error('"check probe" returned from sensor')
                     return
 
             # Find float value in list
-            for each_split in ec_list:
+            for each_split in atlas_return:
                 if "," in each_split or str_is_float(each_split):
                     return_string = each_split
                     break
 
-        # Read sensor via I2C
         elif self.interface == 'I2C':
-            ec_status, return_string = self.atlas_device.query('R')
-            if ec_status == 'error':
-                self.logger.error("Sensor read unsuccessful: {err}".format(
-                    err=return_string))
+            return_string = self.atlas_device.build_string(atlas_return)
 
-        self.logger.debug("Return string: '{}'".format(return_string))
-
-        if ',' in return_string:
+        if return_string and ',' in return_string:
             # Multiple values returned
             index_place = 0
             return_list = return_string.split(',')
@@ -348,18 +350,21 @@ class InputModule(AbstractInput):
             elif level == "dry":
                 write_cmd = "Cal,dry"
             elif level == "single":
-                write_cmd = "Cal,{}".format(level, ec)
+                write_cmd = "Cal,{}".format(ec)
             else:
                 write_cmd = "Cal,{},{}".format(level, ec)
-            self.logger.debug("Calibration command: {}".format(write_cmd))
-            ret_val = self.atlas_device.atlas_write(write_cmd)
-            self.logger.info("Command returned: {}".format(ret_val))
-            # Verify calibration saved
-            write_cmd = "Cal,?"
-            self.logger.info("Device Calibrated?: {}".format(
-                self.atlas_device.atlas_write(write_cmd)))
-        except:
-            self.logger.exception("Exception calibrating")
+
+            self.logger.debug(f"Command to send: {write_cmd}")
+            cmd_status, cmd_return = self.atlas_device.query(write_cmd)
+            cmd_return = self.atlas_device.build_string(cmd_return)
+            self.logger.info(f"Command returned: {cmd_status}:{cmd_return}")
+            cal_status, cal_return = self.atlas_device.query("Cal,?")
+            cal_return = self.atlas_device.build_string(cal_return)
+            self.logger.info(f"Device Calibrated?: {cal_status}:{cal_return}")
+            return f"Command: {write_cmd}, Returned: {cmd_status}:{cmd_return}, Calibrated?: {cal_status}:{cal_return}"
+        except Exception as err:
+            self.logger.exception("Exception calibrating sensor")
+            return f"Exception calibrating sensor: {err}"
 
     def clear_calibrate(self, args_dict):
         self.calibrate('clear', None)
@@ -392,9 +397,8 @@ class InputModule(AbstractInput):
         try:
             i2c_address = int(str(args_dict['new_i2c_address']), 16)
             write_cmd = "I2C,{}".format(i2c_address)
-            self.logger.debug("I2C Change command: {}".format(write_cmd))
-            ret_val = self.atlas_device.atlas_write(write_cmd)
-            self.logger.info("Command returned: {}".format(ret_val))
+            self.logger.info("I2C Change command: {}".format(write_cmd))
+            self.logger.info("Command returned: {}".format(self.atlas_device.query(write_cmd)))
             self.atlas_device = None
         except:
             self.logger.exception("Exception changing I2C address")

@@ -12,7 +12,7 @@ from wtforms import StringField
 from wtforms import SubmitField
 from wtforms import widgets
 from wtforms.validators import DataRequired
-from wtforms.widgets.html5 import NumberInput
+from wtforms.widgets import NumberInput
 
 from mycodo.config import METHODS
 from mycodo.config_translations import TRANSLATIONS
@@ -55,10 +55,10 @@ class MethodAdd(FlaskForm):
         lazy_gettext('End Setpoint (optional)'),
         widget=NumberInput(step='any'))
     duration = DecimalField(
-        lazy_gettext('Duration (seconds)'),
+        "{} ({})".format(lazy_gettext('Duration'), lazy_gettext('Seconds')),
         widget=NumberInput(step='any'))
     duration_end = DecimalField(
-        lazy_gettext('Duration to End (seconds)'),
+        "{} ({})".format(lazy_gettext('Duration to End'), lazy_gettext('Seconds')),
         widget=NumberInput(step='any'))
     amplitude = DecimalField(
         lazy_gettext('Amplitude'),
@@ -116,10 +116,10 @@ class MethodMod(FlaskForm):
         lazy_gettext('Time YYYY-MM-DD HH:MM:SS'),
         render_kw={"placeholder": "YYYY-MM-DD HH:MM:SS"})
     duration = DecimalField(
-        lazy_gettext('Duration (seconds)'),
+        "{} ({})".format(lazy_gettext('Duration'), lazy_gettext('Seconds')),
         widget=NumberInput(step='any'))
     duration_end = DecimalField(
-        lazy_gettext('Duration to End (seconds)'),
+        "{} ({})".format(lazy_gettext('Duration to End'), lazy_gettext('Seconds')),
         widget=NumberInput(step='any'))
     setpoint_start = DecimalField(
         lazy_gettext('Start Setpoint'),

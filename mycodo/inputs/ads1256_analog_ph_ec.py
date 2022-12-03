@@ -3,7 +3,7 @@ import traceback
 
 from flask_babel import lazy_gettext
 
-from mycodo.config import SQL_DATABASE_MYCODO
+from mycodo.config import MYCODO_DB_PATH
 from mycodo.databases.models import Conversion
 from mycodo.databases.models import DeviceMeasurements
 from mycodo.databases.utils import session_scope
@@ -12,8 +12,6 @@ from mycodo.inputs.sensorutils import convert_from_x_to_y_unit
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.system_pi import get_measurement
 from mycodo.utils.system_pi import return_measurement_info
-
-MYCODO_DB_PATH = 'sqlite:///' + SQL_DATABASE_MYCODO
 
 
 def constraints_pass_positive_value(mod_input, value):
@@ -119,6 +117,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'ADS1256_ANALOG_PH_EC',
     'input_manufacturer': 'Texas Instruments',
     'input_name': 'ADS1256: Generic Analog pH/EC',
+    'input_name_short': 'ADS1256 pH/EC',
     'input_library': 'wiringpi, kizniche/PiPyADC-py3',
     'measurements_name': 'Ion Concentration/Electrical Conductivity',
     'measurements_dict': measurements_dict,
@@ -218,8 +217,7 @@ INPUT_INFORMATION = {
             'default_value': '',
             'options_select': [
                 'Input',
-                'Function',
-                'Math'
+                'Function'
             ],
             'name': "{}: {}".format(lazy_gettext('Temperature Compensation'), lazy_gettext('Measurement')),
             'phrase': lazy_gettext('Select a measurement for temperature compensation')
@@ -230,8 +228,8 @@ INPUT_INFORMATION = {
             'default_value': 120,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': "{}: {}".format(lazy_gettext('Temperature Compensation'), lazy_gettext('Max Age')),
-            'phrase': lazy_gettext('The maximum age (seconds) of the measurement to use')
+            'name': "{}: {} ({})".format(lazy_gettext('Temperature Compensation'), lazy_gettext('Max Age'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
         },
         {
             'type': 'message',
@@ -350,7 +348,7 @@ INPUT_INFORMATION = {
             'phrase': lazy_gettext('Set the calibration method to perform during Input activation')
         },
     ],
-    'custom_actions': [
+    'custom_commands': [
         {
             'type': 'message',
             'default_value': """pH Calibration Actions: Place your probe in a solution of known pH.
@@ -421,7 +419,7 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ Read ADC
+    """Read ADC
         Choose a gain of 1 for reading measurements from 0 to 4.09V.
         Or pick a different gain to change the range of measurements that are read:
          -   1 = ±5 V
@@ -434,7 +432,7 @@ class InputModule(AbstractInput):
         See table 3 in the ADS1256 datasheet for more info on gain.
         """
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
         self.CH_SEQUENCE = None
@@ -479,9 +477,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         #import adafruit_ads1x15.ads1115 as ADS
         #from adafruit_ads1x15.analog_in import AnalogIn
         #from adafruit_extended_bus import ExtendedI2C
@@ -560,7 +558,7 @@ class InputModule(AbstractInput):
 #            address=int(str(self.input_dev.i2c_location), 16))
 
     def calibrate_ph(self, cal_slot, args_dict):
-        """Calibration helper method"""
+        """Calibration helper method."""
         if 'calibration_ph' not in args_dict:
             self.logger.error("Cannot conduct calibration without a buffer pH value")
             return
@@ -601,11 +599,11 @@ class InputModule(AbstractInput):
             self.set_custom_option("ph_cal_t2", t)
 
     def calibrate_ph_slot_1(self, args_dict):
-        """ Auto-calibrate """
+        """calibrate."""
         self.calibrate_ph(1, args_dict)
 
     def calibrate_ph_slot_2(self, args_dict):
-        """ Auto-calibrate """
+        """calibrate."""
         self.calibrate_ph(2, args_dict)
 
     def clear_ph_calibrate_slots(self, args_dict):
@@ -619,7 +617,7 @@ class InputModule(AbstractInput):
             INPUT_INFORMATION['custom_options'], self.input_dev)
 
     def calibrate_ec(self, cal_slot, args_dict):
-        """Calibration helper method"""
+        """Calibration helper method."""
         if 'calibration_ec' not in args_dict:
             self.logger.error("Cannot conduct calibration without a standard EC value")
             return
@@ -659,11 +657,11 @@ class InputModule(AbstractInput):
             self.set_custom_option("ec_cal_t2", t)
 
     def calibrate_ec_slot_1(self, args_dict):
-        """ Auto-calibrate """
+        """calibrate."""
         self.calibrate_ec(1, args_dict)
 
     def calibrate_ec_slot_2(self, args_dict):
-        """ Auto-calibrate """
+        """calibrate."""
         self.calibrate_ec(2, args_dict)
 
     def clear_ec_calibrate_slots(self, args_dict):
@@ -706,15 +704,14 @@ class InputModule(AbstractInput):
         return voltages_list
 
     def get_temp_data(self):
-        """Get the temperature"""
+        """Get the temperature."""
         if self.temperature_comp_meas_measurement_id:
             self.logger.debug("Temperature corrections will be applied")
 
             last_measurement = self.get_last_measurement(
                 self.temperature_comp_meas_device_id,
                 self.temperature_comp_meas_measurement_id,
-                max_age=self.max_age
-            )
+                max_age=self.max_age)
 
             if last_measurement and len(last_measurement) > 1:
                 device_measurement = get_measurement(
@@ -764,7 +761,7 @@ class InputModule(AbstractInput):
         return volt_data
 
     def convert_volt_to_ph(self, volt, temp):
-        """Convert voltage to pH"""
+        """Convert voltage to pH."""
         # Calculate slope and intercept from calibration points.
         self.slope = ((self.ph_cal_ph1 - self.ph_cal_ph2) /
                       (self.nernst_correction(self.ph_cal_v1, self.ph_cal_t1) -
@@ -782,7 +779,7 @@ class InputModule(AbstractInput):
         return ph
 
     def convert_volt_to_ec(self, volt, temp):
-        """Convert voltage to EC"""
+        """Convert voltage to EC."""
         # Calculate slope and intercept from calibration points.
         self.slope = ((self.ec_cal_ec1 - self.ec_cal_ec2) /
                       (self.viscosity_correction(self.ec_cal_v1, self.ec_cal_t1) -
@@ -812,9 +809,9 @@ class InputModule(AbstractInput):
         return return_dict
 
     def get_measurement(self):
-        """ Gets the measurement """
+        """Gets the measurement."""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = self.generate_dict()

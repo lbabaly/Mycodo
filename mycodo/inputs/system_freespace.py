@@ -15,7 +15,7 @@ measurements_dict = {
 # Input information
 INPUT_INFORMATION = {
     'input_name_unique': 'RPiFreeSpace',
-    'input_manufacturer': 'System',
+    'input_manufacturer': 'Mycodo',
     'input_name': 'Free Space',
     'input_library': 'os.statvfs()',
     'measurements_name': 'Unallocated Disk Space',
@@ -25,9 +25,7 @@ INPUT_INFORMATION = {
         'location',
         'period'
     ],
-    'options_disabled': ['interface'],
 
-    'interfaces': ['MYCODO'],
     'location': {
         'title': 'Path',
         'phrase': 'The path to monitor the free space of',
@@ -37,23 +35,23 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that monitors the free space of a path """
+    """A sensor support class that monitors the free space of a path."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.path = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.path = self.input_dev.location
 
     def get_measurement(self):
-        """ Gets the free space """
+        """Gets the free space"""
         if not self.path:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)

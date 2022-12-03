@@ -41,7 +41,7 @@ class FunctionController(AbstractController, threading.Thread):
     """
     def __init__(self, ready, unique_id):
         threading.Thread.__init__(self)
-        super(FunctionController, self).__init__(ready, unique_id=unique_id, name=__name__)
+        super().__init__(ready, unique_id=unique_id, name=__name__)
 
         self.unique_id = unique_id
         self.run_function = None
@@ -64,13 +64,18 @@ class FunctionController(AbstractController, threading.Thread):
 
     def loop(self):
         if self.timer_loop < time.time():
+            if not self.run_function:
+                self.logger.error("Function could not be initialized. Shutting controller down.")
+                self.running = False
+                return
+
             while self.timer_loop < time.time():
                 self.timer_loop += self.sample_rate
 
             try:
                 self.run_function.loop()
-            except Exception as err:
-                self.logger.exception("Exception while running loop(): {}".format(err))
+            except Exception:
+                self.logger.exception("Exception while running loop()")
 
     def run_finally(self):
         try:
@@ -102,54 +107,61 @@ class FunctionController(AbstractController, threading.Thread):
         self.device = function.device
 
         if self.device in self.dict_function:
-            function_loaded = load_module_from_file(
+            function_loaded, status = load_module_from_file(
                 self.dict_function[self.device]['file_path'],
                 'function')
 
             if function_loaded:
                 self.run_function = function_loaded.CustomModule(self.function)
-        else:
-            self.logger.debug("Device '{device}' not recognized".format(
-                device=self.device))
-            raise Exception("'{device}' is not a valid device type.".format(
-                device=self.device))
 
-    def custom_button_exec_function(self, button_id, args_dict, thread=True):
-        """Execute function from custom action button press"""
+            self.ready.set()
+            self.running = True
+        else:
+            self.ready.set()
+            self.running = False
+            self.logger.error(f"'{self.device}' is not a valid device type. Deactivating controller.")
+            return
+
+    def call_module_function(self, button_id, args_dict, thread=True):
+        """Execute function from custom action button press."""
         try:
-            run_action = getattr(self.run_function, button_id)
+            run_command = getattr(self.run_function, button_id)
             if thread:
-                thread_run_action = threading.Thread(
-                    target=run_action,
+                thread_run_command = threading.Thread(
+                    target=run_command,
                     args=(args_dict,))
-                thread_run_action.start()
+                thread_run_command.start()
                 return 0, "Command sent to Function Controller and is running in the background."
             else:
-                return_val = run_action(args_dict)
-                return 0, "Command sent to Function Controller. Returned: {}".format(return_val)
+                return_val = run_command(args_dict)
+                return 0, ["Command sent to Function Controller.", return_val]
         except:
             self.logger.exception(
-                "Error executing button press function '{}'".format(
-                    button_id))
+                f"Error executing button press function '{button_id}'")
 
     def function_action(self, action_string, args_dict=None, thread=True):
-        """Execute function action"""
+        """Execute function action."""
         if args_dict is None:
             args_dict = {}
         try:
-            run_action = getattr(self.run_function, action_string)
+            run_command = getattr(self.run_function, action_string)
             if thread:
-                thread_run_action = threading.Thread(
-                    target=run_action,
+                thread_run_command = threading.Thread(
+                    target=run_command,
                     args=(args_dict,))
-                thread_run_action.start()
+                thread_run_command.start()
                 return 0, "Command sent to Function Controller and is running in the background."
             else:
-                return_val = run_action(args_dict)
-                return 0, "Command sent to Function Controller. Returned: {}".format(return_val)
+                return_val = run_command(args_dict)
+                return 0, ["Command sent to Function Controller.", return_val]
         except:
-            self.logger.exception(
-                "Error executing function action '{}'".format(action_string))
+            self.logger.exception(f"Error executing function action '{action_string}'")
 
     def function_status(self):
-        return self.run_function.function_status()
+        func_exists = getattr(self.run_function, "function_status", None)
+        if callable(func_exists):
+            return self.run_function.function_status()
+        else:
+            return {
+                'error': ["function_status() missing from Function Class"]
+            }

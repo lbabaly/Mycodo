@@ -89,25 +89,25 @@ class InputModule(AbstractInput):
 
     """
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
         self.powered = False
         self.control = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         from mycodo.mycodo_client import DaemonControl
 
         self.control = DaemonControl()
         self.sensor = AM2315(self.input_dev.i2c_bus)
 
     def get_measurement(self):
-        """ Gets the humidity and temperature """
+        """Gets the humidity and temperature."""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)
@@ -175,7 +175,8 @@ class AM2315:
         self.debug = debug       				  # Debug flag
 
     def data(self):
-        """ Reads the humidity and temperature from the AS2315.
+        """
+        Reads the humidity and temperature from the AS2315.
 
         Returns:
             Tuple containing the following fields:
@@ -279,7 +280,7 @@ class AM2315:
 
     @staticmethod
     def verify_crc(char):
-        """Returns the 16-bit CRC of sensor data"""
+        """Returns the 16-bit CRC of sensor data."""
         crc = 0xFFFF
         for l in char:
             crc = crc ^ l

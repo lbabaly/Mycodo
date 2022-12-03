@@ -26,6 +26,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'CCS811',
     'input_manufacturer': 'AMS',
     'input_name': 'CCS811 (with Temperature)',
+    'input_name_short': 'CCS811 (w/ temp)',
     'input_library': 'Adafruit_CCS811',
     'measurements_name': 'CO2/VOC/Temperature',
     'measurements_dict': measurements_dict,
@@ -60,14 +61,14 @@ class InputModule(AbstractInput):
     A sensor support class that measures the CC2811's voc, temperature, and co2
     """
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         from Adafruit_CCS811 import Adafruit_CCS811
 
         self.sensor = Adafruit_CCS811(
@@ -80,9 +81,9 @@ class InputModule(AbstractInput):
         self.sensor.tempOffset = self.sensor.calculateTemperature() - 25.0
 
     def get_measurement(self):
-        """ Gets the CO2, VOC, and temperature """
+        """Gets the CO2, VOC, and temperature."""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)

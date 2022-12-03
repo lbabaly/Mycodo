@@ -12,7 +12,7 @@ from mycodo.databases.models import OutputChannel
 from mycodo.outputs.base_output import AbstractOutput
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.influx import add_measurements_influxdb
-from mycodo.utils.influx import read_last_influxdb
+from mycodo.utils.influx import read_influxdb_single
 from mycodo.utils.system_pi import cmd_output
 from mycodo.utils.system_pi import return_measurement_info
 
@@ -34,7 +34,7 @@ channels_dict = {
 # Output information
 OUTPUT_INFORMATION = {
     'output_name_unique': 'command_pwm',
-    'output_name': "Shell Script: {}".format(lazy_gettext('PWM')),
+    'output_name': "{}: Shell Script".format(lazy_gettext('PWM')),
     'output_library': 'subprocess.Popen',
     'measurements_dict': measurements_dict,
     'channels_dict': channels_dict,
@@ -124,25 +124,18 @@ OUTPUT_INFORMATION = {
             'phrase': 'Invert the value that is saved to the measurement database'
         },
         {
-            'id': 'trigger_functions_startup',
-            'type': 'bool',
-            'default_value': False,
-            'name': lazy_gettext('Trigger Functions at Startup'),
-            'phrase': lazy_gettext('Whether to trigger functions when the output switches at startup')
-        },
-        {
             'id': 'command_force',
             'type': 'bool',
             'default_value': False,
             'name': lazy_gettext('Force Command'),
-            'phrase': lazy_gettext('Always send the commad if instructed, regardless of the current state')
+            'phrase': lazy_gettext('Always send the command if instructed, regardless of the current state')
         },
         {
             'id': 'amps',
             'type': 'float',
             'default_value': 0.0,
             'required': True,
-            'name': lazy_gettext('Current (Amps)'),
+            'name': "{} ({})".format(lazy_gettext('Current'), lazy_gettext('Amps')),
             'phrase': lazy_gettext('The current draw of the device being controlled')
         }
     ]
@@ -150,18 +143,16 @@ OUTPUT_INFORMATION = {
 
 
 class OutputModule(AbstractOutput):
-    """
-    An output support class that operates an output
-    """
+    """An output support class that operates an output."""
     def __init__(self, output, testing=False):
-        super(OutputModule, self).__init__(output, testing=testing, name=__name__)
+        super().__init__(output, testing=testing, name=__name__)
 
         output_channels = db_retrieve_table_daemon(
             OutputChannel).filter(OutputChannel.output_id == self.output.unique_id).all()
         self.options_channels = self.setup_custom_channel_options_json(
             OUTPUT_INFORMATION['custom_channel_options'], output_channels)
 
-    def setup_output(self):
+    def initialize(self):
         self.setup_output_variables(OUTPUT_INFORMATION)
 
         if self.options_channels['pwm_command'][0]:
@@ -179,12 +170,12 @@ class OutputModule(AbstractOutput):
                 last_measurement = None
                 if device_measurement:
                     channel, unit, measurement = return_measurement_info(device_measurement, None)
-                    last_measurement = read_last_influxdb(
+                    last_measurement = read_influxdb_single(
                         self.unique_id,
                         unit,
                         channel,
                         measure=measurement,
-                        duration_sec=None)
+                        value='LAST')
 
                 if last_measurement:
                     self.logger.info(
@@ -248,7 +239,7 @@ class OutputModule(AbstractOutput):
         return self.output_setup
 
     def stop_output(self):
-        """ Called when Output is stopped """
+        """Called when Output is stopped."""
         if self.is_setup():
             if self.options_channels['state_shutdown'][0] == 0:
                 self.output_switch('off')

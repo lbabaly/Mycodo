@@ -23,7 +23,7 @@ class AbstractController(AbstractBaseController):
     in controllers.
     """
     def __init__(self, ready, unique_id=None, name=__name__):
-        super(AbstractController, self).__init__(unique_id, name=__name__)
+        super().__init__(unique_id, name=__name__)
 
         self.thread_startup_timer = timeit.default_timer()
         self.running = False
@@ -32,9 +32,9 @@ class AbstractController(AbstractBaseController):
         self.unique_id = unique_id
         self.ready = ready
 
-        logger_name = "{}".format(name)
+        logger_name = f"{name}"
         if self.unique_id:
-            logger_name += "_{}".format(unique_id.split('-')[0])
+            logger_name += f"_{unique_id.split('-')[0]}"
             self.setup_device_measurement(unique_id)
         self.logger = logging.getLogger(logger_name)
 
@@ -44,24 +44,22 @@ class AbstractController(AbstractBaseController):
 
     def initialize_variables(self):
         self.logger.error(
-            "{cls} did not overwrite the initialize_variables() method. All subclasses of the "
-            "AbstractController class are required to overwrite this "
-            "method".format(cls=type(self).__name__))
+            f"{type(self).__name__} did not overwrite the initialize_variables() method. "
+            f"All subclasses of the AbstractController class are required to overwrite this method")
         raise NotImplementedError
 
     def loop(self):
         self.logger.error(
-            "{cls} did not overwrite the loop() method. All subclasses of the "
-            "AbstractController class are required to overwrite this "
-            "method".format(cls=type(self).__name__))
+            f"{type(self).__name__} did not overwrite the loop() method. "
+            f"All subclasses of the AbstractController class are required to overwrite this method")
         raise NotImplementedError
 
     def run_finally(self):
-        """ Executed after loop() has finished """
+        """Executed after loop() has finished."""
         pass
 
     def pre_stop(self):
-        """ Executed when the controller is instructed to stop """
+        """Executed when the controller is instructed to stop."""
         pass
 
     #
@@ -73,13 +71,10 @@ class AbstractController(AbstractBaseController):
             try:
                 self.initialize_variables()
             except Exception as except_msg:
-                self.logger.exception("initialize_variables() Exception: {err}".format(err=except_msg))
+                self.logger.exception(f"initialize_variables() Exception: {except_msg}")
 
-            self.logger.info("Activated in {:.1f} ms".format(
-                (timeit.default_timer() - self.thread_startup_timer) * 1000))
-
-            self.ready.set()
-            self.running = True
+            dur = (timeit.default_timer() - self.thread_startup_timer) * 1000
+            self.logger.info(f"Activated in {dur:.1f} ms")
 
             while self.running:
                 try:
@@ -98,8 +93,8 @@ class AbstractController(AbstractBaseController):
             self.run_finally()
             self.running = False
             if self.thread_shutdown_timer:
-                self.logger.info("Deactivated in {:.1f} ms".format(
-                    (timeit.default_timer() - self.thread_shutdown_timer) * 1000))
+                dur = (timeit.default_timer() - self.thread_shutdown_timer) * 1000
+                self.logger.info(f"Deactivated in {dur:.1f} ms")
             else:
                 self.logger.error("Deactivated unexpectedly")
 
@@ -118,7 +113,7 @@ class AbstractController(AbstractBaseController):
             self.logger.setLevel(logging.INFO)
 
     def attempt_execute(self, func, times=3, delay_sec=10):
-        """ Attempt to execute a function several times with a delay between attempts """
+        """Attempt to execute a function several times with a delay between attempts."""
         for i in range(1, times + 1):
             try:
                 func()
@@ -126,9 +121,9 @@ class AbstractController(AbstractBaseController):
             except Exception:
                 if i < times:
                     self.logger.exception(
-                        "Exception executing {}() on attempt {} of {}. Waiting {} seconds and trying again.".format(
-                            func.__name__, i, times, delay_sec))
+                        f"Exception executing {func.__name__}() on attempt {i} of {times}. "
+                        f"Waiting {delay_sec} seconds and trying again.")
                     time.sleep(delay_sec)
                 else:
                     self.logger.exception(
-                        "Exception executing {}() on attempt {} of {}.".format(func.__name__, i, times))
+                        f"Exception executing {func.__name__}() on attempt {i} of {times}.")

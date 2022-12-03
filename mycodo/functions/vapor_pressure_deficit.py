@@ -63,16 +63,16 @@ FUNCTION_INFORMATION = {
             'default_value': 60,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('Period (seconds)'),
-            'phrase': lazy_gettext('The duration (seconds) between measurements or actions')
+            'name': "{} ({})".format(lazy_gettext('Period'), lazy_gettext('Seconds')),
+            'phrase': 'The duration between measurements or actions'
         },
         {
             'id': 'start_offset',
             'type': 'integer',
             'default_value': 10,
             'required': True,
-            'name': 'Start Offset',
-            'phrase': 'The duration (seconds) to wait before the first operation'
+            'name': "{} ({})".format(lazy_gettext('Start Offset'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The duration to wait before the first operation')
         },
         {
             'id': 'select_measurement_temperature_c',
@@ -80,7 +80,6 @@ FUNCTION_INFORMATION = {
             'default_value': '',
             'options_select': [
                 'Input',
-                'Math',
                 'Function'
             ],
             'required': False,
@@ -92,8 +91,8 @@ FUNCTION_INFORMATION = {
             'type': 'integer',
             'default_value': 360,
             'required': False,
-            'name': lazy_gettext('{} {}'.format(lazy_gettext('Temperature'), lazy_gettext('Max Age'))),
-            'phrase': lazy_gettext('The maximum age (seconds) of the measurement to use')
+            'name': "{}: {} ({})".format(lazy_gettext('Temperature'), lazy_gettext('Max Age'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
         },
         {
             'id': 'select_measurement_humidity',
@@ -101,7 +100,6 @@ FUNCTION_INFORMATION = {
             'default_value': '',
             'options_select': [
                 'Input',
-                'Math',
                 'Function'
             ],
             'required': False,
@@ -113,8 +111,8 @@ FUNCTION_INFORMATION = {
             'type': 'integer',
             'default_value': 360,
             'required': False,
-            'name': lazy_gettext('{} {}'.format(lazy_gettext('Humidity'), lazy_gettext('Max Age'))),
-            'phrase': lazy_gettext('The maximum age (seconds) of the measurement to use')
+            'name': "{}: {} ({})".format(lazy_gettext('Humidity'), lazy_gettext('Max Age'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
         }
     ]
 }
@@ -125,7 +123,7 @@ class CustomModule(AbstractFunction):
     Class to operate custom controller
     """
     def __init__(self, function, testing=False):
-        super(CustomModule, self).__init__(function, testing=testing, name=__name__)
+        super().__init__(function, testing=testing, name=__name__)
 
         self.timer_loop = time.time()
 
@@ -149,9 +147,9 @@ class CustomModule(AbstractFunction):
             FUNCTION_INFORMATION['custom_options'], custom_function)
 
         if not testing:
-            self.initialize_variables()
+            self.try_initialize()
 
-    def initialize_variables(self):
+    def initialize(self):
         self.timer_loop = time.time() + self.start_offset
 
     def loop(self):

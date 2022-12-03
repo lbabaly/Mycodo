@@ -5,7 +5,7 @@ from mycodo.databases.models import InputChannel
 from mycodo.inputs.base_input import AbstractInput
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.influx import add_measurements_influxdb
-from mycodo.utils.influx import parse_measurement
+from mycodo.utils.inputs import parse_measurement
 
 
 def constraints_pass_fan_seconds(mod_input, value):
@@ -60,7 +60,8 @@ INPUT_INFORMATION = {
 
     # Descriptive information
     'input_manufacturer': 'Company YY',
-    'input_name': 'Temp Sen02',
+    'input_name': 'Example Temperature Sensor 02',
+    'input_name_short': 'Ex. Temp. Sensor 02',  # A shorter name for display purposes
     'input_library': 'Library Name',
 
     # Measurement information
@@ -122,6 +123,7 @@ INPUT_INFORMATION = {
         ('apt', 'whiptail', 'whiptail'),
         ('apt', 'zsh', 'zsh'),
         ('internal', 'file-exists /opt/mycodo/pigpio_installed', 'pigpio'),
+        ('pip-pypi', 'pigpio', 'pigpio==1.78'),
         ('internal', 'pip-exists wiringpi', 'wiringpi'),
         ('internal', 'file-exists /usr/local/include/bcm2835.h', 'bcm2835')
     ],
@@ -234,8 +236,8 @@ INPUT_INFORMATION = {
             'type': 'float',
             'default_value': 5.0,
             'constraints_pass': constraints_pass_fan_seconds,
-            'name': 'Fan On Duration',
-            'phrase': 'How long to turn the fan on (seconds) before acquiring measurements'
+            'name': 'Fan On Duration (Seconds)',
+            'phrase': 'How long to turn the fan on before acquiring measurements'
         },
 
         {  # This message will be displayed on a new line
@@ -280,8 +282,8 @@ INPUT_INFORMATION = {
     # Custom actions are buttons and input fields that appear on the web UI for users to
     # execute functions within the Input class, such as to perform calibration. See the
     # button_one() and button_two() functions at the end of the class.
-    'custom_actions_message': 'This is a message displayed for custom actions.',
-    'custom_actions': [
+    'custom_commands_message': 'This is a message displayed for custom actions.',
+    'custom_commands': [
         {
             'id': 'button_one_value',
             'type': 'integer',
@@ -313,10 +315,10 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A dummy sensor support class """
+    """A dummy sensor support class."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         #
         # Initialize variables (set to None)
@@ -342,9 +344,9 @@ class InputModule(AbstractInput):
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
 
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.interface = self.input_dev.interface
 
         # Set custom channel option variables to defaults or user-set values
@@ -384,7 +386,7 @@ class InputModule(AbstractInput):
             pass
 
     def get_measurement(self):
-        """ Gets the temperature and humidity """
+        """Gets the temperature and humidity."""
         #
         # Initialize measurements dictionary
         #

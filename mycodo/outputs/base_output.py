@@ -34,9 +34,9 @@ class AbstractOutput(AbstractBaseController):
     """
     def __init__(self, output, testing=False, name=__name__):
         if not testing:
-            super(AbstractOutput, self).__init__(output.unique_id, testing=testing, name=__name__)
+            super().__init__(output.unique_id, testing=testing, name=__name__)
         else:
-            super(AbstractOutput, self).__init__(None, testing=testing, name=__name__)
+            super().__init__(None, testing=testing, name=__name__)
 
         self.output_setup = False
         self.startup_timer = timeit.default_timer()
@@ -62,74 +62,65 @@ class AbstractOutput(AbstractBaseController):
             self.unique_id = output.unique_id
             self.output_name = self.output.name
             self.output_type = self.output.output_type
-            self.output_force_command = self.output.force_command
 
     def __iter__(self):
-        """ Support the iterator protocol """
+        """Support the iterator protocol."""
         return self
 
     def __repr__(self):
-        """  Representation of object """
-        return_str = '<{cls}'.format(cls=type(self).__name__)
+        """Representation of object."""
+        return_str = f'<{type(self).__name__}'
         return_str += '>'
         return return_str
 
     def __str__(self):
-        """ Return measurement information """
+        """Return measurement information."""
         return_str = ''
         return return_str
 
-    def output_switch(self, state, output_type=None, amount=None, output_channel=None):
+    def output_switch(self, state, output_type=None, amount=None, duty_cycle=None, output_channel=None):
         self.logger.error(
-            "{cls} did not overwrite the output_switch() method. All "
+            f"{type(self).__name__} did not overwrite the output_switch() method. All "
             "subclasses of the AbstractOutput class are required to overwrite "
-            "this method".format(cls=type(self).__name__))
+            "this method")
         raise NotImplementedError
 
     def is_on(self, output_channel=None):
         self.logger.error(
-            "{cls} did not overwrite the is_on() method. All "
+            f"{type(self).__name__} did not overwrite the is_on() method. All "
             "subclasses of the AbstractOutput class are required to overwrite "
-            "this method".format(cls=type(self).__name__))
+            "this method")
         raise NotImplementedError
 
     def is_setup(self):
         self.logger.error(
-            "{cls} did not overwrite the is_setup() method. All "
+            f"{type(self).__name__} did not overwrite the is_setup() method. All "
             "subclasses of the AbstractOutput class are required to overwrite "
-            "this method".format(cls=type(self).__name__))
+            "this method")
         raise NotImplementedError
 
-    def setup_output(self):
+    def initialize(self):
         self.logger.error(
-            "{cls} did not overwrite the setup_output() method. All "
+            f"{type(self).__name__} did not overwrite the initialize() method. All "
             "subclasses of the AbstractOutput class are required to overwrite "
-            "this method".format(cls=type(self).__name__))
+            "this method")
         raise NotImplementedError
 
     def stop_output(self):
-        """ Called when Output is stopped """
+        """Called when Output is stopped."""
         self.running = False
-        try:
-            # Release all locks
-            for lockfile, lock_state in self.lockfile.locked.items():
-                if lock_state:
-                    self.lock_release(lockfile)
-        except:
-            pass
 
     #
     # Do not overwrite the function below
     #
 
     def init_post(self):
-        self.logger.info("Initialized in {:.1f} ms".format(
-            (timeit.default_timer() - self.startup_timer) * 1000))
+        self.logger.info(f"Initialized in {(timeit.default_timer() - self.startup_timer) * 1000:.1f} ms")
 
     def setup_logger(self, testing=None, name=None, output_dev=None):
         name = name if name else __name__
         if not testing and output_dev:
-            log_name = "{}_{}".format(name, output_dev.unique_id.split('-')[0])
+            log_name = f"{name}_{output_dev.unique_id.split('-')[0]}"
         else:
             log_name = name
         self.logger = logging.getLogger(log_name)
@@ -140,7 +131,7 @@ class AbstractOutput(AbstractBaseController):
                 self.logger.setLevel(logging.INFO)
 
     def setup_on_off_output(self, output_information):
-        """Deprecated TODO: Remove"""
+        """Deprecated TODO: Remove."""
         self.setup_output_variables(output_information)
 
     def setup_output_variables(self, output_information):
@@ -168,8 +159,7 @@ class AbstractOutput(AbstractBaseController):
 
     def shutdown(self, shutdown_timer):
         self.stop_output()
-        self.logger.info("Stopped in {:.1f} ms".format(
-            (timeit.default_timer() - shutdown_timer) * 1000))
+        self.logger.info(f"Stopped in {(timeit.default_timer() - shutdown_timer) * 1000:.1f} ms")
 
     def output_on_off(self,
                       state,
@@ -177,7 +167,8 @@ class AbstractOutput(AbstractBaseController):
                       output_type=None,
                       amount=0.0,
                       min_off=0.0,
-                      trigger_conditionals=True):
+                      trigger_conditionals=True,
+                      additional_options=None):
         """
         Manipulate an output by passing on/off, a volume, or a PWM duty cycle
         to the output module.
@@ -194,16 +185,14 @@ class AbstractOutput(AbstractBaseController):
         :type min_off: float
         :param trigger_conditionals: Whether to allow trigger conditionals to act or not
         :type trigger_conditionals: bool
+        :param additional_options: dict
+        :type additional_options: Additional options passed to the output controller
         """
         msg = ''
 
-        self.logger.debug("output_on_off({}, {}, {}, {}, {}, {})".format(
-            state,
-            output_channel,
-            output_type,
-            amount,
-            min_off,
-            trigger_conditionals))
+        self.logger.debug(
+            f"output_on_off({state}, {output_channel}, {output_type}, "
+            f"{amount}, {min_off}, {trigger_conditionals})")
 
         if state not in ['on', 1, True, 'off', 0, False]:
             return 1, 'state not "on", 1, True, "off", 0, or False'
@@ -221,14 +210,13 @@ class AbstractOutput(AbstractBaseController):
 
         # Check if output channel exists
         if output_channel not in self.output_states:
-            msg = "Cannot manipulate Output {id}: output channel doesn't exist: {ch}".format(
-                id=self.unique_id, ch=output_channel)
+            msg = f"Cannot manipulate Output {self.unique_id}: output channel doesn't exist: {output_channel}"
             self.logger.error(msg)
             return 1, msg
 
         # Check if output is set up
         if not self.is_setup():
-            msg = "Cannot manipulate Output {id}: Output not set up.".format(id=self.unique_id)
+            msg = f"Cannot manipulate Output {self.unique_id}: Output not set up."
             self.logger.error(msg)
             return 1, msg
 
@@ -248,13 +236,9 @@ class AbstractOutput(AbstractBaseController):
                 off_until_datetime = self.output_off_until[output_channel]
                 if off_until_datetime and off_until_datetime > current_time:
                     off_seconds = (off_until_datetime - current_time).total_seconds()
-                    msg = "Output {id} CH{ch} ({name}) instructed to turn on, " \
-                          "however the output has been instructed to stay " \
-                          "off for {off_sec:.2f} more seconds.".format(
-                            id=self.unique_id,
-                            ch=output_channel,
-                            name=self.output_name,
-                            off_sec=off_seconds)
+                    msg = f"Output {self.unique_id} CH{output_channel} ({self.output_name}) " \
+                          "instructed to turn on, however the output has been instructed to stay " \
+                          f"off for {off_seconds:.2f} more seconds."
                     self.logger.debug(msg)
                     return 1, msg
 
@@ -266,11 +250,8 @@ class AbstractOutput(AbstractBaseController):
                     amount=amount,
                     output_channel=output_channel)
 
-                msg = "Command sent: Output {id} CH{ch} ({name}) value: {v:.1f} ".format(
-                    id=self.unique_id,
-                    ch=output_channel,
-                    name=self.output_name,
-                    v=amount)
+                msg = f"Command sent: Output {self.unique_id} CH{output_channel} " \
+                      f"({self.output_name}) value: {amount:.1f} "
 
             # Output type: Volume, set amount
             if output_type == 'vol' and self.output_type in self.output_types['volume']:
@@ -280,11 +261,8 @@ class AbstractOutput(AbstractBaseController):
                     amount=amount,
                     output_channel=output_channel)
 
-                msg = "Command sent: Output {id} CH{ch} ({name}) volume: {v:.1f} ".format(
-                    id=self.unique_id,
-                    ch=output_channel,
-                    name=self.output_name,
-                    v=amount)
+                msg = f"Command sent: Output {self.unique_id} CH{output_channel} " \
+                      f"({self.output_name}) volume: {amount:.1f} "
 
             # Output type: PWM, set duty cycle
             elif output_type == 'pwm' and self.output_type in self.output_types['pwm']:
@@ -294,12 +272,8 @@ class AbstractOutput(AbstractBaseController):
                     amount=amount,
                     output_channel=output_channel)
 
-                msg = "Command sent: Output {id} CH{ch} ({name}) duty cycle: {dc:.2f} %. Output returned: {ret}".format(
-                    id=self.unique_id,
-                    ch=output_channel,
-                    name=self.output_name,
-                    dc=amount,
-                    ret=out_ret)
+                msg = f"Command sent: Output {self.unique_id} CH{output_channel} ({self.output_name}) " \
+                      f"duty cycle: {amount:.2f} %. Output returned: {out_ret}"
 
             # Output type: On/Off, set duration for on state
             elif (output_type in ['sec', None] and
@@ -319,19 +293,11 @@ class AbstractOutput(AbstractBaseController):
                         remaining_time = 0
 
                     time_on = abs(self.output_last_duration[output_channel]) - remaining_time
-                    msg = "Output {id} CH{ch} ({name}) is already on for an " \
-                          "amount of {on:.2f} seconds (with {remain:.2f} " \
-                          "seconds remaining). Recording the amount of time " \
-                          "the output has been on ({been_on:.2f} sec) and " \
-                          "updating the amount to {new_on:.2f} " \
-                          "seconds.".format(
-                            id=self.unique_id,
-                            ch=output_channel,
-                            name=self.output_name,
-                            on=abs(self.output_last_duration[output_channel]),
-                            remain=remaining_time,
-                            been_on=time_on,
-                            new_on=abs(amount))
+                    msg = f"Output {self.unique_id} CH{output_channel} ({self.output_name}) is already on for an " \
+                          f"amount of {abs(self.output_last_duration[output_channel]):.2f} seconds " \
+                          f"(with {remaining_time:.2f} seconds remaining). Recording the amount of time " \
+                          f"the output has been on ({time_on:.2f} sec) and updating the amount " \
+                          f"to {abs(amount):.2f} seconds."
                     self.logger.debug(msg)
                     self.output_on_until[output_channel] = (
                         current_time + datetime.timedelta(seconds=abs(amount)))
@@ -367,13 +333,8 @@ class AbstractOutput(AbstractBaseController):
                     self.output_on_until[output_channel] = (
                         current_time + datetime.timedelta(seconds=abs(amount)))
                     self.output_last_duration[output_channel] = amount
-                    msg = "Output {id} CH{ch} ({name}) is currently on without an " \
-                          "amount. Turning into an amount of {dur:.1f} " \
-                          "seconds.".format(
-                            id=self.unique_id,
-                            ch=output_channel,
-                            name=self.output_name,
-                            dur=abs(amount))
+                    msg = f"Output {self.unique_id} CH{output_channel} ({self.output_name}) is " \
+                          f"currently on without an amount. Turning into an amount of {abs(amount):.1f} seconds."
                     self.logger.debug(msg)
                     return 0, msg
 
@@ -382,13 +343,8 @@ class AbstractOutput(AbstractBaseController):
                     out_ret = self.output_switch(
                         'on', output_type='sec', amount=amount, output_channel=output_channel)
 
-                    msg = "Output {id} CH{ch} ({name}) on for {dur:.1f} " \
-                          "seconds. Output returned: {ret}".format(
-                            id=self.unique_id,
-                            ch=output_channel,
-                            name=self.output_name,
-                            dur=abs(amount),
-                            ret=out_ret)
+                    msg = f"Output {self.unique_id} CH{output_channel} ({self.output_name}) " \
+                          f"on for {abs(amount):.1f} seconds. Output returned: {out_ret}"
                     self.logger.debug(msg)
 
                     self.output_on_until[output_channel] = (
@@ -402,17 +358,19 @@ class AbstractOutput(AbstractBaseController):
                     amount in [None, 0] and
                     output_type in ['sec', None]):
 
+                try:
+                    force_output_channel = self.options_channels["command_force"][output_channel]
+                except:
+                    force_output_channel = False
+
                 # Don't turn on if already on, except if it can be forced on
-                if output_is_on and not self.output_force_command:
-                    msg = "Output {id} CH{ch} ({name}) is already on.".format(
-                        id=self.unique_id,
-                        ch=output_channel,
-                        name=self.output_name)
+                if output_is_on and not force_output_channel:
+                    msg = f"Output {self.unique_id} CH{output_channel} ({self.output_name}) is already on."
                     self.logger.debug(msg)
                     return 1, msg
                 else:
                     # Record the time the output was turned on in order to
-                    # calculate and log the total amount is was on, when
+                    # calculate and log the total amount was on, when
                     # it eventually turns off.
                     if not self.output_time_turned_on[output_channel]:
                         self.output_time_turned_on[output_channel] = current_time
@@ -420,12 +378,8 @@ class AbstractOutput(AbstractBaseController):
                     ret_value = self.output_switch(
                         'on', output_channel=output_channel, output_type='sec')
 
-                    msg = "Output {id} CH{ch} ({name}) ON at {on}. Output returned: {ret}".format(
-                        id=self.unique_id,
-                        ch=output_channel,
-                        name=self.output_name,
-                        on=self.output_time_turned_on[output_channel],
-                        ret=ret_value)
+                    msg = f"Output {self.unique_id} CH{output_channel} ({self.output_name}) " \
+                          f"ON at {self.output_time_turned_on[output_channel]}. Output returned: {ret_value}"
                     self.logger.debug(msg)
 
         #
@@ -436,12 +390,8 @@ class AbstractOutput(AbstractBaseController):
             ret_value = self.output_switch('off', output_type=output_type, output_channel=output_channel)
 
             timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
-            msg = "Output {id} CH{ch} ({name}) OFF at {time_off}. Output returned: {ret}".format(
-                id=self.unique_id,
-                ch=output_channel,
-                name=self.output_name,
-                time_off=timestamp,
-                ret=ret_value)
+            msg = f"Output {self.unique_id} CH{output_channel} ({self.output_name}) " \
+                  f"OFF at {timestamp}. Output returned: {ret_value}"
             self.logger.debug(msg)
 
             # Write output amount to database
@@ -500,8 +450,7 @@ class AbstractOutput(AbstractBaseController):
                 self.check_triggers(self.unique_id, amount=amount, output_channel=output_channel)
             except Exception as err:
                 self.logger.error(
-                    "Could not check Trigger for channel {} of output {}: {}".format(
-                        output_channel, self.unique_id, err))
+                    f"Could not check Trigger for channel {output_channel} of output {self.unique_id}: {err}")
 
         return 0, msg
 
@@ -585,14 +534,8 @@ class AbstractOutput(AbstractBaseController):
         # for this particular Output device
         for each_trigger in trigger_output.all():
             timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
-            message = "{ts}\n[Trigger {cid} ({cname})] Output {oid} CH{ch} ({name}) {state}".format(
-                ts=timestamp,
-                cid=each_trigger.unique_id.split('-')[0],
-                cname=each_trigger.name,
-                name=each_trigger.name,
-                oid=output_id,
-                ch=output_channel,
-                state=each_trigger.output_state)
+            message = f"{timestamp}\n[Trigger {each_trigger.unique_id.split('-')[0]} ({each_trigger.name})] " \
+                      f"Output {output_id} CH{output_channel} {each_trigger.output_state}"
 
             self.control.trigger_all_actions(
                 each_trigger.unique_id, message=message)
@@ -634,23 +577,15 @@ class AbstractOutput(AbstractBaseController):
                 continue
 
             timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
-            message = "{ts}\n[Trigger {cid} ({cname})] Output {oid} CH{ch} " \
-                      "({name}) Duty Cycle {actual_dc} {state} {duty_cycle}".format(
-                        ts=timestamp,
-                        cid=each_trigger.unique_id.split('-')[0],
-                        cname=each_trigger.name,
-                        name=each_trigger.name,
-                        oid=output_id,
-                        ch=output_channel,
-                        actual_dc=duty_cycle,
-                        state=each_trigger.output_state,
-                        duty_cycle=each_trigger.output_duty_cycle)
+            message = f"{timestamp}\n[Trigger {each_trigger.unique_id.split('-')[0]} ({each_trigger.name})] " \
+                      f"Output {output_id} CH{output_channel} Duty Cycle {duty_cycle} " \
+                      f"{each_trigger.output_state} {each_trigger.output_duty_cycle}"
 
             # Check triggers whenever an output is manipulated
             self.control.trigger_all_actions(each_trigger.unique_id, message=message)
 
     def output_sec_currently_on(self, output_channel):
-        """ Return how many seconds an output has been currently on for """
+        """Return how many seconds an output has been currently on for."""
         if not self.is_on(output_channel):
             return 0
         else:
@@ -691,7 +626,16 @@ class AbstractOutput(AbstractBaseController):
         return self._set_custom_option(Output, self.unique_id, option, value)
 
     def get_custom_option(self, option):
-        return self._get_custom_option(self.output.custom_options, option)
+        return self._get_custom_option(Output, self.unique_id, option)
 
     def delete_custom_option(self, option):
         return self._delete_custom_option(Output, self.unique_id, option)
+
+    def set_custom_channel_option(self, channel, option, value):
+        return self._set_custom_channel_option(Output, self.unique_id, channel, option, value)
+
+    def get_custom_channel_option(self, channel, option):
+        return self._get_custom_channel_option(Output, self.unique_id, channel, option)
+
+    def delete_custom_channel_option(self, channel, option):
+        return self._delete_custom_channel_option(Output, self.unique_id, channel, option)

@@ -28,7 +28,6 @@ import math
 import time
 import traceback
 
-from flask import flash
 from flask_babel import lazy_gettext
 
 from mycodo.config import MYCODO_VERSION
@@ -194,8 +193,8 @@ FUNCTION_INFORMATION = {
             'default_value': 10,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('Period (seconds)'),
-            'phrase': lazy_gettext('The duration (seconds) between measurements or actions')
+            'name': "{} ({})".format(lazy_gettext('Period'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The duration between measurements or actions')
         },
         {
             'id': 'i2c_address',
@@ -203,7 +202,7 @@ FUNCTION_INFORMATION = {
             'default_value': '0x3c',
             'required': True,
             'name': TRANSLATIONS['i2c_location']['title'],
-            'phrase': TRANSLATIONS['i2c_location']['phrase']
+            'phrase': ''
         },
         {
             'id': 'i2c_bus',
@@ -211,7 +210,7 @@ FUNCTION_INFORMATION = {
             'default_value': 1,
             'required': True,
             'name': TRANSLATIONS['i2c_bus']['title'],
-            'phrase': TRANSLATIONS['i2c_bus']['phrase']
+            'phrase': ''
         },
         {
             'id': 'number_line_sets',
@@ -255,7 +254,6 @@ FUNCTION_INFORMATION = {
             'default_value': '',
             'options_select': [
                 'Input',
-                'Math',
                 'Function',
                 'Output',
                 'PID'
@@ -265,12 +263,20 @@ FUNCTION_INFORMATION = {
         },
         {
             'id': 'measure_max_age',
-            'type': 'float',
+            'type': 'integer',
             'default_value': 360,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('Max Age'),
-            'phrase': lazy_gettext('The maximum age (seconds) of the measurement to use')
+            'name': "{} ({})".format(lazy_gettext('Max Age'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
+        },
+        {
+            'id': 'measurement_label',
+            'type': 'text',
+            'default_value': '',
+            'required': False,
+            'name': 'Measurement Label',
+            'phrase': 'Set to overwrite the default measurement label'
         },
         {
             'id': 'measure_decimal',
@@ -306,7 +312,7 @@ class CustomModule(AbstractFunction):
     Class to operate custom controller
     """
     def __init__(self, function, testing=False):
-        super(CustomModule, self).__init__(function, testing=testing, name=__name__)
+        super().__init__(function, testing=testing, name=__name__)
 
         self.options_channels = {}
         self.device = None
@@ -331,9 +337,9 @@ class CustomModule(AbstractFunction):
             FUNCTION_INFORMATION['custom_options'], custom_function)
 
         if not testing:
-            self.initialize_variables()
+            self.try_initialize()
 
-    def initialize_variables(self):
+    def initialize(self):
         from luma.core.interface.serial import i2c
         from luma.core.render import canvas
         from luma.oled.device import ssd1309
@@ -402,7 +408,7 @@ class CustomModule(AbstractFunction):
                     if self.options_channels['line_display_type'][current_channel] == 'measurement_value':
                         if measure_value:
                             if self.options_channels['measure_decimal'][current_channel] == 0:
-                                val_rounded = int(self.options_channels['measure_decimal'][current_channel])
+                                val_rounded = int(measure_value)
                             else:
                                 val_rounded = round(
                                     measure_value,
@@ -413,16 +419,13 @@ class CustomModule(AbstractFunction):
                                 self.options_channels['select_measurement'][current_channel]['measurement_id'],
                                 val_rounded,
                                 lcd_x_characters,
-                                display_unit=self.options_channels['display_unit'][current_channel])
+                                display_unit=self.options_channels['display_unit'][current_channel],
+                                label=self.options_channels['measurement_label'][current_channel])
 
                     elif self.options_channels['line_display_type'][current_channel] == 'measurement_ts':
                         if measure_ts:
                             # Convert UTC timestamp to local timezone
-                            utc_dt = datetime.datetime.strptime(
-                                measure_ts.split(".")[0], '%Y-%m-%dT%H:%M:%S')
-                            utc_timestamp = calendar.timegm(utc_dt.timetuple())
-                            lines_display[current_line] = str(
-                                datetime.datetime.fromtimestamp(utc_timestamp))
+                            lines_display[current_line] = str(datetime.datetime.fromtimestamp(measure_ts))
 
                 elif self.options_channels['line_display_type'][current_channel] == 'current_time':
                     lines_display[current_line] = time.strftime('%Y-%m-%d %H:%M:%S')

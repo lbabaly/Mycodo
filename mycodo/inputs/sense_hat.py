@@ -3,7 +3,6 @@ import copy
 
 from mycodo.inputs.base_input import AbstractInput
 
-# Measurements
 measurements_dict = {
     0: {
         'measurement': 'temperature',
@@ -77,8 +76,6 @@ measurements_dict = {
     }
 }
 
-
-# Input information
 INPUT_INFORMATION = {
     'input_name_unique': 'PI_SENSE_HAT',
     'input_manufacturer': 'Raspberry Pi Foundation',
@@ -92,7 +89,20 @@ INPUT_INFORMATION = {
                'which include the LPS25H, LSM9DS1, and HTS221.',
 
     'dependencies_module': [
-        ('pip-pypi', 'sense_hat', 'sense-hat==2.2.0'),
+        ('apt', 'git', 'git'),
+        ('bash-commands',
+         [
+             '/var/mycodo-root/env/RTIMULib_installed',
+         ],
+         [
+             'cd /tmp',
+             'git clone https://github.com/RPi-Distro/RTIMULib',
+             'cd ./RTIMULib/Linux/python/',
+             '~/Mycodo/env/bin/python setup.py build',
+             '~/Mycodo/env/bin/python setup.py install',
+             'touch /var/mycodo-root/env/RTIMULib_installed'
+         ]),
+        ('pip-pypi', 'sense_hat', 'sense-hat==2.2.0')
     ],
 
     'interfaces': ['I2C'],
@@ -106,25 +116,25 @@ INPUT_INFORMATION = {
 }
 
 class InputModule(AbstractInput):
-    """ A sensor support class that measures """
+    """A sensor support class that measures."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
-        """ Initialize the Sense HAT sensor class """
+    def initialize(self):
+        """Initialize the Sense HAT sensor class."""
         from sense_hat import SenseHat
 
         self.sensor = SenseHat()
 
     def get_measurement(self):
-        """ Get measurements and store in the database """
+        """Get measurements and store in the database."""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)

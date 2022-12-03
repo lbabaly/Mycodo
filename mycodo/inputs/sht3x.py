@@ -38,6 +38,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'SHT31',
     'input_manufacturer': 'Sensirion',
     'input_name': 'SHT3x (30, 31, 35)',
+    'input_name_short': 'SHT3x',
     'input_library': 'Adafruit_SHT31',
     'measurements_name': 'Humidity/Temperature',
     'measurements_dict': measurements_dict,
@@ -66,15 +67,15 @@ INPUT_INFORMATION = {
             'type': 'bool',
             'default_value': False,
             'name': 'Enable Heater',
-            'phrase': 'Enable heater to evaporate condensation. Turn on heater x seconds every y measurements.'
+            'phrase': 'Enable heater to evaporate condensation. Turn on heater x seconds every y measurements'
         },
         {
             'id': 'heater_seconds',
             'type': 'float',
             'default_value': 1.0,
             'constraints_pass': constraints_pass_positive_value,
-            'name': 'Heater On Seconds',
-            'phrase': 'How long to turn the heater on (seconds).'
+            'name': 'Heater On Seconds (Seconds)',
+            'phrase': 'How long to turn the heater on'
         },
         {
             'id': 'heater_measurements',
@@ -82,7 +83,7 @@ INPUT_INFORMATION = {
             'default_value': 10,
             'constraints_pass': constraints_pass_positive_value,
             'name': 'Heater On Period',
-            'phrase': 'After how many measurements to turn the heater on. This will repeat.'
+            'phrase': 'After how many measurements to turn the heater on. This will repeat'
         }
     ]
 }
@@ -94,7 +95,7 @@ class InputModule(AbstractInput):
     them calculates the dew point and vapor pressure deficit
     """
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
         self.measurement_count = 0
@@ -106,9 +107,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         from Adafruit_SHT31 import SHT31
 
         self.sensor = SHT31(
@@ -117,7 +118,7 @@ class InputModule(AbstractInput):
 
     def get_measurement(self):
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)

@@ -17,10 +17,13 @@ measurements_dict = {
 INPUT_INFORMATION = {
     'input_name_unique': 'SIGNAL_RPM',
     'input_manufacturer': 'Raspberry Pi',
-    'input_name': 'Signal (Revolutions)',
+    'input_name': 'Signal (Revolutions) (pigpio method #1)',
+    'input_name_short': 'Signal, RPM (#1)',
     'input_library': 'pigpio',
     'measurements_name': 'RPM',
     'measurements_dict': measurements_dict,
+
+'message': 'This calculates RPM from pulses on a pin using pigpio, but has been found to be less accurate than the method #2 module. This is typically used to measure the speed of a fan from a tachometer pin, however this can be used to measure any 3.3-volt pulses from a wire. Use a resistor to pull the measurement pin to 3.3 volts, set pigpio to the lowest latency (1 ms) on the Configure -> Raspberry Pi page. Note 1: Not setting pigpio to the lowest latency will hinder accuracy. Note 2: accuracy decreases as RPM increases.',
 
     'options_enabled': [
         'gpio_location',
@@ -33,7 +36,8 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('internal', 'file-exists /opt/mycodo/pigpio_installed', 'pigpio')
+        ('internal', 'file-exists /opt/mycodo/pigpio_installed', 'pigpio'),
+        ('pip-pypi', 'pigpio', 'pigpio==1.78')
     ],
 
     'interfaces': ['GPIO'],
@@ -44,10 +48,10 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that monitors rpm """
+    """A sensor support class that monitors rpm."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.pigpio = None
         self.gpio = None
@@ -56,9 +60,9 @@ class InputModule(AbstractInput):
         self.sample_time = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import pigpio
 
         self.pigpio = pigpio
@@ -69,7 +73,7 @@ class InputModule(AbstractInput):
         self.sample_time = self.input_dev.sample_time
 
     def get_measurement(self):
-        """ Gets the revolutions """
+        """Gets the revolutions."""
         pi = self.pigpio.pi()
         if not pi.connected:  # Check if pigpiod is running
             self.logger.error("Could not connect to pigpiod. Ensure it is running and try again.")

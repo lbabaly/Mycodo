@@ -74,18 +74,18 @@ ONE_TIME_LOW_RES_MODE = 0x23
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that monitors the DS18B20's lux """
+    """A sensor support class that monitors the DS18B20's lux."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.i2c_address = None
         self.i2c_bus = None
         self.resolution = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         from smbus2 import SMBus
 
         self.i2c_address = int(str(self.input_dev.i2c_location), 16)
@@ -96,13 +96,13 @@ class InputModule(AbstractInput):
 
     @property
     def lux(self):
-        """ BH1750 luminosity in lux """
+        """BH1750 luminosity in lux."""
         if self._measurements is None:  # update if needed
             self.read()
         return self._measurements
 
     def get_measurement(self):
-        """ Gets the BH1750's lux """
+        """Gets the BH1750's lux."""
         self.return_dict = copy.deepcopy(measurements_dict)
 
         if self.resolution == 0:
@@ -167,7 +167,7 @@ class InputModule(AbstractInput):
         self.power_down()
 
     def get_result(self):
-        """ Return current measurement result in lx. """
+        """Return current measurement result in lux."""
         data = self.i2c_bus.read_word_data(self.i2c_address, self.mode)
         count = data >> 8 | (data & 0xff) << 8
         mode2coeff = 2 if (self.mode & 0x03) == 0x01 else 1

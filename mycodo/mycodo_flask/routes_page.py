@@ -1,5 +1,5 @@
 # coding=utf-8
-""" collection of Page endpoints """
+"""collection of Page endpoints."""
 import calendar
 import datetime
 import glob
@@ -14,87 +14,44 @@ from collections import OrderedDict
 from importlib import import_module
 
 import flask_login
-from flask import current_app
-from flask import flash
-from flask import jsonify
-from flask import redirect
-from flask import render_template
-from flask import request
-from flask import send_file
-from flask import url_for
+from flask import (current_app, flash, jsonify, redirect, render_template,
+                   request, send_file, url_for)
 from flask.blueprints import Blueprint
 from flask_babel import gettext
 from sqlalchemy import and_
 
-from mycodo.config import ALEMBIC_VERSION
-from mycodo.config import BACKUP_LOG_FILE
-from mycodo.config import CAMERA_INFO
-from mycodo.config import DAEMON_LOG_FILE
-from mycodo.config import DAEMON_PID_FILE
-from mycodo.config import DEPENDENCY_LOG_FILE
-from mycodo.config import FRONTEND_PID_FILE
-from mycodo.config import HTTP_ACCESS_LOG_FILE
-from mycodo.config import HTTP_ERROR_LOG_FILE
-from mycodo.config import KEEPUP_LOG_FILE
-from mycodo.config import LCD_INFO
-from mycodo.config import LOGIN_LOG_FILE
-from mycodo.config import MYCODO_VERSION
-from mycodo.config import RESTORE_LOG_FILE
-from mycodo.config import THEMES_DARK
-from mycodo.config import UPGRADE_LOG_FILE
-from mycodo.config import USAGE_REPORTS_PATH
+from mycodo.config import (ALEMBIC_VERSION, BACKUP_LOG_FILE, CAMERA_INFO,
+                           DAEMON_LOG_FILE, DAEMON_PID_FILE,
+                           DEPENDENCY_LOG_FILE, DOCKER_CONTAINER,
+                           FRONTEND_PID_FILE, HTTP_ACCESS_LOG_FILE,
+                           HTTP_ERROR_LOG_FILE, KEEPUP_LOG_FILE,
+                           LOGIN_LOG_FILE, MYCODO_VERSION, RESTORE_LOG_FILE,
+                           THEMES_DARK, UPGRADE_LOG_FILE, USAGE_REPORTS_PATH)
 from mycodo.config_devices_units import MEASUREMENTS
-from mycodo.databases.models import AlembicVersion
-from mycodo.databases.models import Camera
-from mycodo.databases.models import Conversion
-from mycodo.databases.models import CustomController
-from mycodo.databases.models import DeviceMeasurements
-from mycodo.databases.models import DisplayOrder
-from mycodo.databases.models import EnergyUsage
-from mycodo.databases.models import Input
-from mycodo.databases.models import LCD
-from mycodo.databases.models import LCDData
-from mycodo.databases.models import Math
-from mycodo.databases.models import Measurement
-from mycodo.databases.models import Misc
-from mycodo.databases.models import NoteTags
-from mycodo.databases.models import Notes
-from mycodo.databases.models import Output
-from mycodo.databases.models import OutputChannel
-from mycodo.databases.models import PID
-from mycodo.databases.models import Unit
-from mycodo.databases.models import Widget
+from mycodo.databases.models import (PID, AlembicVersion, Camera, Conversion,
+                                     CustomController, DeviceMeasurements,
+                                     DisplayOrder, EnergyUsage, Input,
+                                     Measurement, Misc, Notes, NoteTags,
+                                     Output, OutputChannel, Unit, Widget)
 from mycodo.devices.camera import camera_record
-from mycodo.mycodo_client import DaemonControl
-from mycodo.mycodo_client import daemon_active
+from mycodo.mycodo_client import DaemonControl, daemon_active
 from mycodo.mycodo_flask.extensions import db
-from mycodo.mycodo_flask.forms import forms_camera
-from mycodo.mycodo_flask.forms import forms_lcd
-from mycodo.mycodo_flask.forms import forms_misc
-from mycodo.mycodo_flask.forms import forms_notes
+from mycodo.mycodo_flask.forms import forms_camera, forms_misc, forms_notes
 from mycodo.mycodo_flask.routes_static import inject_variables
-from mycodo.mycodo_flask.utils import utils_camera
-from mycodo.mycodo_flask.utils import utils_dashboard
-from mycodo.mycodo_flask.utils import utils_export
-from mycodo.mycodo_flask.utils import utils_general
-from mycodo.mycodo_flask.utils import utils_lcd
-from mycodo.mycodo_flask.utils import utils_misc
-from mycodo.mycodo_flask.utils import utils_notes
+from mycodo.mycodo_flask.utils import (utils_camera, utils_dashboard,
+                                       utils_export, utils_general, utils_misc,
+                                       utils_notes)
 from mycodo.mycodo_flask.utils.utils_general import return_dependencies
 from mycodo.utils.functions import parse_function_information
-from mycodo.utils.inputs import list_analog_to_digital_converters
-from mycodo.utils.inputs import parse_input_information
-from mycodo.utils.outputs import output_types
-from mycodo.utils.outputs import parse_output_information
-from mycodo.utils.system_pi import add_custom_measurements
-from mycodo.utils.system_pi import add_custom_units
-from mycodo.utils.system_pi import csv_to_list_of_str
-from mycodo.utils.system_pi import parse_custom_option_values
-from mycodo.utils.system_pi import parse_custom_option_values_output_channels_json
-from mycodo.utils.system_pi import return_measurement_info
-from mycodo.utils.tools import calc_energy_usage
-from mycodo.utils.tools import return_energy_usage
-from mycodo.utils.tools import return_output_usage
+from mycodo.utils.inputs import (list_analog_to_digital_converters,
+                                 parse_input_information)
+from mycodo.utils.outputs import output_types, parse_output_information
+from mycodo.utils.system_pi import (
+    add_custom_measurements, add_custom_units, csv_to_list_of_str,
+    parse_custom_option_values,
+    parse_custom_option_values_output_channels_json, return_measurement_info)
+from mycodo.utils.tools import (calc_energy_usage, return_energy_usage,
+                                return_output_usage)
 
 logger = logging.getLogger('mycodo.mycodo_flask.routes_page')
 
@@ -113,8 +70,11 @@ def inject_dictionary():
 @blueprint.context_processor
 def inject_functions():
     def epoch_to_time_string(epoch):
-        return datetime.datetime.fromtimestamp(epoch).strftime(
-            "%Y-%m-%d %H:%M:%S")
+        try:
+            return datetime.datetime.fromtimestamp(epoch).strftime(
+                "%Y-%m-%d %H:%M:%S")
+        except:
+            return "EPOCH ERROR"
 
     def get_note_tag_from_unique_id(tag_unique_id):
         tag = NoteTags.query.filter(NoteTags.unique_id == tag_unique_id).first()
@@ -188,7 +148,9 @@ def page_camera():
         return redirect(url_for('routes_general.home'))
 
     form_camera = forms_camera.Camera()
+
     camera = Camera.query.all()
+    misc = Misc.query.first()
     output = Output.query.all()
     output_channel = OutputChannel.query.all()
 
@@ -217,7 +179,6 @@ def page_camera():
         if not utils_general.user_has_permission('edit_controllers'):
             return redirect(url_for('routes_page.page_camera'))
 
-        control = DaemonControl()
         mod_camera = Camera.query.filter(
             Camera.unique_id == form_camera.camera_id.data).first()
         if form_camera.camera_add.data:
@@ -231,7 +192,11 @@ def page_camera():
                 if camera_stream(unique_id=mod_camera.unique_id).is_running(mod_camera.unique_id):
                     camera_stream(unique_id=mod_camera.unique_id).stop(mod_camera.unique_id)
                 time.sleep(2)
-            camera_record('photo', mod_camera.unique_id)
+            path, filename = camera_record('photo', mod_camera.unique_id)
+            if not path and not filename:
+                msg = "Could not acquire image."
+                flash(msg, "error")
+                logger.error(msg)
         elif form_camera.start_timelapse.data:
             if mod_camera.stream_started:
                 flash(gettext("Cannot start time-lapse if stream is active."), "error")
@@ -239,23 +204,21 @@ def page_camera():
             now = time.time()
             mod_camera.timelapse_started = True
             mod_camera.timelapse_start_time = now
-            if form_camera.timelapse_runtime_sec.data:
-                mod_camera.timelapse_end_time = now + float(form_camera.timelapse_runtime_sec.data)
+            timelapse_runtime_sec = float(form_camera.timelapse_runtime_sec.data)
+            if form_camera.timelapse_runtime_sec.data and timelapse_runtime_sec < 315360000:
+                mod_camera.timelapse_end_time = now + timelapse_runtime_sec
             else:
                 mod_camera.timelapse_end_time = now + 315360000
             mod_camera.timelapse_interval = form_camera.timelapse_interval.data
             mod_camera.timelapse_next_capture = now
             mod_camera.timelapse_capture_number = 0
             db.session.commit()
-            control.refresh_daemon_camera_settings()
         elif form_camera.pause_timelapse.data:
             mod_camera.timelapse_paused = True
             db.session.commit()
-            control.refresh_daemon_camera_settings()
         elif form_camera.resume_timelapse.data:
             mod_camera.timelapse_paused = False
             db.session.commit()
-            control.refresh_daemon_camera_settings()
         elif form_camera.stop_timelapse.data:
             mod_camera.timelapse_started = False
             mod_camera.timelapse_start_time = None
@@ -264,7 +227,6 @@ def page_camera():
             mod_camera.timelapse_next_capture = None
             mod_camera.timelapse_capture_number = None
             db.session.commit()
-            control.refresh_daemon_camera_settings()
         elif form_camera.start_stream.data:
             if mod_camera.timelapse_started:
                 flash(gettext(
@@ -288,7 +250,7 @@ def page_camera():
         else:
             return redirect(url_for('routes_page.page_camera'))
 
-    # Get the full path and timestamps of latest still and time-lapse images
+    # Get the full path and timestamps of the latest still and time-lapse images
     (latest_img_still_ts,
      latest_img_still_size,
      latest_img_still,
@@ -314,6 +276,7 @@ def page_camera():
                            latest_img_tl=latest_img_tl,
                            latest_img_tl_ts=latest_img_tl_ts,
                            latest_img_tl_size=latest_img_tl_size,
+                           misc=misc,
                            opencv_devices=opencv_devices,
                            output=output,
                            pi_camera_enabled=pi_camera_enabled,
@@ -355,7 +318,7 @@ def page_notes():
                     data,
                     mimetype='application/zip',
                     as_attachment=True,
-                    attachment_filename=
+                    download_name=
                     'Mycodo_Notes_{mv}_{host}_{dt}.zip'.format(
                         mv=MYCODO_VERSION,
                         host=socket.gethostname().replace(' ', ''),
@@ -455,25 +418,23 @@ def page_export():
     form_export_settings = forms_misc.ExportSettings()
     form_import_settings = forms_misc.ImportSettings()
     form_export_influxdb = forms_misc.ExportInfluxdb()
-    form_import_influxdb = forms_misc.ImportInfluxdb()
 
     function = CustomController.query.all()
     input_dev = Input.query.all()
-    math = Math.query.all()
     output = Output.query.all()
 
     # Generate all measurement and units used
     dict_measurements = add_custom_measurements(Measurement.query.all())
     dict_units = add_custom_units(Unit.query.all())
 
+    dict_outputs = parse_output_information()
+
     choices_function = utils_general.choices_functions(
         function, dict_units, dict_measurements)
     choices_input = utils_general.choices_inputs(
         input_dev, dict_units, dict_measurements)
-    choices_math = utils_general.choices_maths(
-        math, dict_units, dict_measurements)
     choices_output = utils_general.choices_outputs(
-        output, dict_units, dict_measurements)
+        output, OutputChannel, dict_outputs, dict_units, dict_measurements)
 
     if request.method == 'POST':
         if not utils_general.user_has_permission('edit_controllers'):
@@ -484,7 +445,7 @@ def page_export():
             if url:
                 return redirect(url)
         elif form_export_settings.export_settings_zip.data:
-            file_send = utils_export.export_settings(form_export_settings)
+            file_send = utils_export.export_settings()
             if file_send:
                 return file_send
             else:
@@ -504,24 +465,12 @@ def page_export():
                 flash('An error occurred during the settings database import.',
                       'error')
         elif form_export_influxdb.export_influxdb_zip.data:
-            file_send = utils_export.export_influxdb(form_export_influxdb)
+            file_send = utils_export.export_influxdb()
             if file_send:
                 return file_send
             else:
                 flash('Unknown error creating zipped influxdb database '
                       'and metastore', 'error')
-        elif form_import_influxdb.influxdb_import_upload.data:
-            restore_influxdb = utils_export.import_influxdb(
-                form_import_influxdb)
-            if restore_influxdb == 'success':
-                flash('The influxdb database import has been initialized. '
-                      'This process may take an extended time to complete '
-                      'if there is a lot of data. Please allow ample time '
-                      'for it to complete.',
-                      'success')
-            else:
-                flash('Errors occurred during the influxdb database import.',
-                      'error')
 
     # Generate start end end times for date/time picker
     end_picker = datetime.datetime.now().strftime('%m/%d/%Y %H:%M')
@@ -534,18 +483,16 @@ def page_export():
                            form_export_influxdb=form_export_influxdb,
                            form_export_measurements=form_export_measurements,
                            form_export_settings=form_export_settings,
-                           form_import_influxdb=form_import_influxdb,
                            form_import_settings=form_import_settings,
                            choices_function=choices_function,
                            choices_input=choices_input,
-                           choices_math=choices_math,
                            choices_output=choices_output)
 
 
 @blueprint.route('/graph-async', methods=('GET', 'POST'))
 @flask_login.login_required
 def page_graph_async():
-    """ Generate graphs using asynchronous data retrieval """
+    """Generate graphs using asynchronous data retrieval."""
     if not current_app.config['TESTING']:
         dep_unmet, _, _ = return_dependencies('highstock')
         if dep_unmet:
@@ -555,7 +502,6 @@ def page_graph_async():
     function = CustomController.query.all()
     input_dev = Input.query.all()
     device_measurements = DeviceMeasurements.query.all()
-    math = Math.query.all()
     output = Output.query.all()
     pid = PID.query.all()
     tag = NoteTags.query.all()
@@ -566,16 +512,16 @@ def page_graph_async():
 
     # Get what each measurement uses for a unit
     use_unit = utils_general.use_unit_generate(
-        device_measurements, input_dev, output, math, function)
+        device_measurements, input_dev, output, function)
+
+    dict_outputs = parse_output_information()
 
     choices_function = utils_general.choices_functions(
         function, dict_units, dict_measurements)
     choices_input = utils_general.choices_inputs(
         input_dev, dict_units, dict_measurements)
-    choices_math = utils_general.choices_maths(
-        math, dict_units, dict_measurements)
     choices_output = utils_general.choices_outputs(
-        output, dict_units, dict_measurements)
+        output, OutputChannel, dict_outputs, dict_units, dict_measurements)
     choices_pid = utils_general.choices_pids(
         pid, dict_units, dict_measurements)
     choices_tag = utils_general.choices_tags(tag)
@@ -634,13 +580,11 @@ def page_graph_async():
                            dict_units=dict_units,
                            use_unit=use_unit,
                            input=input_dev,
-                           math=math,
                            function=function,
                            output=output,
                            pid=pid,
                            tag=tag,
                            choices_input=choices_input,
-                           choices_math=choices_math,
                            choices_function=choices_function,
                            choices_output=choices_output,
                            choices_pid=choices_pid,
@@ -652,7 +596,7 @@ def page_graph_async():
 @blueprint.route('/info', methods=('GET', 'POST'))
 @flask_login.login_required
 def page_info():
-    """ Display page with system information from command line tools """
+    """Display page with system information from command line tools."""
     if not utils_general.user_has_permission('view_stats'):
         return redirect(url_for('routes_general.home'))
 
@@ -689,16 +633,17 @@ def page_info():
     else:
         gpio_output = ''
 
-        # Search for /dev/i2c- devices and compile a sorted dictionary of each
+    # Search for /dev/i2c- devices and compile a sorted dictionary of each
     # device's integer device number and the corresponding 'i2cdetect -y ID'
     # output for display on the info page
-    i2c_devices_sorted = {}
+    i2c_devices_sorted = OrderedDict()
     if not current_app.config['TESTING']:
         try:
             i2c_devices = glob.glob("/dev/i2c-*")
-            i2c_devices_sorted = OrderedDict()
             for each_dev in i2c_devices:
                 device_int = int(each_dev.replace("/dev/i2c-", ""))
+                if device_int in [20, 21]:
+                    continue
                 i2cdetect = subprocess.Popen(
                     "i2cdetect -y {dev}".format(dev=device_int),
                     stdout=subprocess.PIPE,
@@ -819,97 +764,21 @@ def output_pstree_top(pid):
     return pstree_output, top_output
 
 
-@blueprint.route('/lcd', methods=('GET', 'POST'))
-@flask_login.login_required
-def page_lcd():
-    """ Display LCD output settings """
-    lcd = LCD.query.all()
-    lcd_data = LCDData.query.all()
-    math = Math.query.all()
-    pid = PID.query.all()
-    output = Output.query.all()
-    input_dev = Input.query.all()
-
-    display_order = csv_to_list_of_str(DisplayOrder.query.first().lcd)
-
-    dict_units = add_custom_units(Unit.query.all())
-    dict_measurements = add_custom_measurements(Measurement.query.all())
-
-    choices_lcd = utils_general.choices_lcd(
-        input_dev, math, pid, output, dict_units, dict_measurements)
-
-    form_lcd_add = forms_lcd.LCDAdd()
-    form_lcd_mod = forms_lcd.LCDMod()
-    form_lcd_display = forms_lcd.LCDModDisplay()
-
-    if request.method == 'POST':
-        unmet_dependencies = None
-        if not utils_general.user_has_permission('edit_controllers'):
-            return redirect(url_for('routes_general.home'))
-
-        if form_lcd_add.add.data:
-            unmet_dependencies = utils_lcd.lcd_add(form_lcd_add)
-        elif form_lcd_mod.save.data:
-            utils_lcd.lcd_mod(form_lcd_mod)
-        elif form_lcd_mod.delete.data:
-            utils_lcd.lcd_del(form_lcd_mod.lcd_id.data)
-        elif form_lcd_mod.reorder_up.data:
-            utils_lcd.lcd_reorder(form_lcd_mod.lcd_id.data,
-                                  display_order, 'up')
-        elif form_lcd_mod.reorder_down.data:
-            utils_lcd.lcd_reorder(form_lcd_mod.lcd_id.data,
-                                  display_order, 'down')
-        elif form_lcd_mod.activate.data:
-            utils_lcd.lcd_activate(form_lcd_mod.lcd_id.data)
-        elif form_lcd_mod.deactivate.data:
-            utils_lcd.lcd_deactivate(form_lcd_mod.lcd_id.data)
-        elif form_lcd_mod.reset_flashing.data:
-            utils_lcd.lcd_reset_flashing(form_lcd_mod.lcd_id.data)
-        elif form_lcd_mod.add_display.data:
-            utils_lcd.lcd_display_add(form_lcd_mod)
-        elif form_lcd_display.save_display.data:
-            utils_lcd.lcd_display_mod(form_lcd_display)
-        elif form_lcd_display.delete_display.data:
-            utils_lcd.lcd_display_del(form_lcd_display.lcd_data_id.data)
-
-        if unmet_dependencies:
-            return redirect(url_for('routes_admin.admin_dependencies',
-                                    device=form_lcd_add.lcd_type.data.split(",")[0]))
-        else:
-            return redirect(url_for('routes_page.page_lcd'))
-
-    return render_template('pages/lcd.html',
-                           choices_lcd=choices_lcd,
-                           lcd=lcd,
-                           lcd_data=lcd_data,
-                           lcd_info=LCD_INFO,
-                           math=math,
-                           measurements=parse_input_information(),
-                           pid=pid,
-                           output=output,
-                           sensor=input_dev,
-                           display_order=display_order,
-                           form_lcd_add=form_lcd_add,
-                           form_lcd_mod=form_lcd_mod,
-                           form_lcd_display=form_lcd_display)
-
-
 @blueprint.route('/live', methods=('GET', 'POST'))
 @flask_login.login_required
 def page_live():
-    """ Page of recent and updating input data """
+    """Page of recent and updating input data."""
     # Get what each measurement uses for a unit
     function = CustomController.query.all()
     device_measurements = DeviceMeasurements.query.all()
     input_dev = Input.query.all()
     output = Output.query.all()
-    math = Math.query.all()
 
     activated_inputs = Input.query.filter(Input.is_activated).count()
     activated_functions = CustomController.query.filter(CustomController.is_activated).count()
 
     use_unit = utils_general.use_unit_generate(
-        device_measurements, input_dev, output, math, function)
+        device_measurements, input_dev, output, function)
 
     # Display orders
     display_order_input = csv_to_list_of_str(DisplayOrder.query.first().inputs)
@@ -920,6 +789,7 @@ def page_live():
     dict_units = add_custom_units(Unit.query.all())
 
     dict_controllers = parse_function_information()
+    dict_inputs = parse_input_information()
 
     custom_options_values_controllers = parse_custom_option_values(
         function, dict_controller=dict_controllers)
@@ -942,6 +812,7 @@ def page_live():
                            table_device_measurements=DeviceMeasurements,
                            table_input=Input,
                            table_function=CustomController,
+                           dict_inputs=dict_inputs,
                            dict_measurements=dict_measurements,
                            dict_units=dict_units,
                            dict_measure_measurements=dict_measure_measurements,
@@ -956,7 +827,7 @@ def page_live():
 @blueprint.route('/logview', methods=('GET', 'POST'))
 @flask_login.login_required
 def page_logview():
-    """ Display the last (n) lines from a log file """
+    """Display the last (n) lines from a log file."""
     if not utils_general.user_has_permission('view_logs'):
         return redirect(url_for('routes_general.home'))
 
@@ -975,22 +846,24 @@ def page_logview():
             log_field = form_log_view.log.data
 
             # Find which log file was requested, generate command to execute
-            if form_log_view.log.data == 'log_pid_settings':
+            if form_log_view.log.data == 'log_nginx':
+                if DOCKER_CONTAINER:
+                    command = f'docker logs -n {lines} mycodo_nginx'
+                else:
+                    command = f'journalctl -u nginx -n {lines} --no-pager'
+            elif form_log_view.log.data == 'log_flask':
+                if DOCKER_CONTAINER:
+                    command = f'docker logs -n {lines} mycodo_flask'
+                else:
+                    command = f'journalctl -u mycodoflask -n {lines} --no-pager'
+            elif form_log_view.log.data == 'log_pid_settings':
                 logfile = DAEMON_LOG_FILE
                 logrotate_file = logfile + '.1'
                 if (logrotate_file and os.path.exists(logrotate_file) and
                         logfile and os.path.isfile(logfile)):
-                    command = 'cat {lrlog} {log} | grep -a "PID Settings" | tail -n {lines}'.format(
-                        lrlog=logrotate_file, log=logfile, lines=lines)
+                    command = f'cat {logrotate_file} {logfile} | grep -a "PID Settings" | tail -n {lines}'
                 else:
-                    command = 'grep -a "PID Settings" {log} | tail -n {lines}'.format(
-                        lines=lines, log=logfile)
-            elif form_log_view.log.data == 'log_nginx':
-                command = 'journalctl -u nginx | tail -n {lines}'.format(
-                    lines=lines)
-            elif form_log_view.log.data == 'log_flask':
-                command = 'journalctl -u mycodoflask | tail -n {lines}'.format(
-                    lines=lines)
+                    command = f'grep -a "PID Settings" {logfile} | tail -n {lines}'
             else:
                 if form_log_view.log.data == 'log_login':
                     logfile = LOGIN_LOG_FILE
@@ -1014,16 +887,15 @@ def page_logview():
                 logrotate_file = logfile + '.1'
                 if (logrotate_file and os.path.exists(logrotate_file) and
                         logfile and os.path.isfile(logfile)):
-                    command = 'cat {lrlog} {log} | tail -n {lines}'.format(
-                        lrlog=logrotate_file, log=logfile, lines=lines)
+                    command = f'cat {logrotate_file} {logfile} | tail -n {lines}'
                 elif os.path.isfile(logfile):
-                    command = 'tail -n {lines} {log}'.format(lines=lines,
-                                                             log=logfile)
+                    command = f'tail -n {lines} {logfile}'
 
             # Execute command and generate the output to display to the user
             if command:
                 log = subprocess.Popen(
-                    command, stdout=subprocess.PIPE, shell=True)
+                    command,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
                 (log_output, _) = log.communicate()
                 log.wait()
                 log_output = str(log_output, 'latin-1')
@@ -1038,10 +910,10 @@ def page_logview():
                            log_output=log_output)
 
 
-@blueprint.route('/usage', methods=('GET', 'POST'))
+@blueprint.route('/energy_usage_input_amp', methods=('GET', 'POST'))
 @flask_login.login_required
-def page_usage():
-    """ Display output usage (duration and energy usage/cost) """
+def page_energy_usage_input_amps():
+    """Display output usage (duration and energy usage/cost)"""
     if not utils_general.user_has_permission('view_stats'):
         return redirect(url_for('routes_general.home'))
 
@@ -1069,15 +941,12 @@ def page_usage():
             calculate_pass = True
 
         if not calculate_pass:
-            return redirect(url_for('routes_page.page_usage'))
+            return redirect(url_for('routes_page.page_energy_usage_input_amps'))
 
     energy_usage = EnergyUsage.query.all()
     input_dev = Input.query.all()
     function = CustomController.query.all()
-    math = Math.query.all()
     misc = Misc.query.first()
-    output = Output.query.all()
-    output_channel = OutputChannel.query.all()
 
     # Generate all measurement and units used
     dict_measurements = add_custom_measurements(Measurement.query.all())
@@ -1087,26 +956,9 @@ def page_usage():
         function, dict_units, dict_measurements)
     choices_input = utils_general.choices_inputs(
         input_dev, dict_units, dict_measurements)
-    choices_math = utils_general.choices_maths(
-        math, dict_units, dict_measurements)
-
-    dict_outputs = parse_output_information()
-
-    custom_options_values_output_channels = parse_custom_option_values_output_channels_json(
-        output_channel, dict_controller=dict_outputs, key_name='custom_channel_options')
 
     energy_usage_stats, graph_info = return_energy_usage(
         energy_usage, DeviceMeasurements.query, Conversion.query)
-    output_stats = return_output_usage(
-        dict_outputs, misc, output, OutputChannel, custom_options_values_output_channels)
-
-    day = misc.output_usage_dayofmonth
-    if 4 <= day <= 20 or 24 <= day <= 30:
-        date_suffix = 'th'
-    else:
-        date_suffix = ['st', 'nd', 'rd'][day % 10 - 1]
-
-    display_order = csv_to_list_of_str(DisplayOrder.query.first().output)
 
     if calculate_pass:
         start_string = form_energy_usage_mod.energy_usage_date_range.data.split(' - ')[0]
@@ -1132,43 +984,62 @@ def page_usage():
     picker_start['default'] = datetime.datetime.now() - datetime.timedelta(hours=6)
     picker_start['default'] = picker_start['default'].strftime('%m/%d/%Y %H:%M')
 
-    return render_template('pages/usage.html',
+    return render_template('pages/energy_usage_input_amps.html',
                            calculate_usage=calculate_usage,
                            choices_function=choices_function,
                            choices_input=choices_input,
-                           choices_math=choices_math,
-                           custom_options_values_output_channels=custom_options_values_output_channels,
-                           date_suffix=date_suffix,
-                           dict_outputs=dict_outputs,
-                           display_order=display_order,
                            energy_usage=energy_usage,
                            energy_usage_stats=energy_usage_stats,
                            form_energy_usage_add=form_energy_usage_add,
                            form_energy_usage_mod=form_energy_usage_mod,
                            graph_info=graph_info,
                            misc=misc,
-                           output=output,
-                           output_stats=output_stats,
-                           output_types=output_types(),
                            picker_end=picker_end,
-                           picker_start=picker_start,
-                           table_output_channel=OutputChannel,
-                           timestamp=time.strftime("%c"))
+                           picker_start=picker_start)
 
 
-@blueprint.route('/usage_reports')
+@blueprint.route('/energy_usage_outputs', methods=('GET', 'POST'))
 @flask_login.login_required
-def page_usage_reports():
-    """ Display output usage (duration and energy usage/cost) """
+def page_energy_usage_outputs():
+    """Display output usage (duration and energy usage/cost)"""
     if not utils_general.user_has_permission('view_stats'):
         return redirect(url_for('routes_general.home'))
 
-    report_location = os.path.normpath(USAGE_REPORTS_PATH)
-    reports = [0, 0]
+    energy_usage = EnergyUsage.query.all()
+    misc = Misc.query.first()
+    output = Output.query.all()
+    output_channel = OutputChannel.query.all()
 
-    return render_template('pages/usage_reports.html',
-                           report_location=report_location,
-                           reports=reports)
+    dict_outputs = parse_output_information()
+
+    custom_options_values_output_channels = parse_custom_option_values_output_channels_json(
+        output_channel, dict_controller=dict_outputs, key_name='custom_channel_options')
+
+    output_stats = return_output_usage(
+        dict_outputs, misc, output, OutputChannel, custom_options_values_output_channels)
+
+    day = misc.output_usage_dayofmonth
+    if 4 <= day <= 20 or 24 <= day <= 30:
+        date_suffix = 'th'
+    else:
+        date_suffix = ['st', 'nd', 'rd'][day % 10 - 1]
+
+    # Generate the order to display Outputs
+    display_order = []
+    for each_output in Output.query.order_by(Output.position_y).all():
+        display_order.append(each_output.unique_id)
+
+    return render_template('pages/energy_usage_outputs.html',
+                           custom_options_values_output_channels=custom_options_values_output_channels,
+                           date_suffix=date_suffix,
+                           dict_outputs=dict_outputs,
+                           display_order=display_order,
+                           misc=misc,
+                           output=output,
+                           output_stats=output_stats,
+                           output_types=output_types(),
+                           table_output_channel=OutputChannel,
+                           timestamp=time.strftime("%c"))
 
 
 def dict_custom_colors():
@@ -1254,54 +1125,6 @@ def dict_custom_colors():
                             'measure_id': input_measure_id,
                             'type': 'Input',
                             'name': input_dev.name,
-                            'channel': channel,
-                            'unit': unit,
-                            'measure': measurement,
-                            'measure_name': measurement_name,
-                            'color': color,
-                            'disable_data_grouping': disable_data_grouping})
-                        index += 1
-                index_sum += index
-
-            if each_graph.math_ids:
-                index = 0
-                for each_set in each_graph.math_ids.split(';'):
-                    math_unique_id = each_set.split(',')[0]
-                    math_measure_id = each_set.split(',')[1]
-
-                    device_measurement = DeviceMeasurements.query.filter(
-                        DeviceMeasurements.unique_id == math_measure_id).first()
-                    if device_measurement:
-                        measurement_name = device_measurement.name
-                        conversion = Conversion.query.filter(
-                            Conversion.unique_id == device_measurement.conversion_id).first()
-                    else:
-                        measurement_name = None
-                        conversion = None
-                    channel, unit, measurement = return_measurement_info(
-                        device_measurement, conversion)
-
-                    math = Math.query.filter_by(
-                        unique_id=math_unique_id).first()
-
-                    # Custom colors
-                    if (index < len(each_graph.math_ids.split(';')) and
-                            len(colors) > index_sum + index):
-                        color = colors[index_sum + index]
-                    else:
-                        color = '#FF00AA'
-
-                    # Data grouping
-                    disable_data_grouping = False
-                    if math_measure_id in each_graph.disable_data_grouping:
-                        disable_data_grouping = True
-
-                    if math is not None:
-                        total.append({
-                            'unique_id': math_unique_id,
-                            'measure_id': math_measure_id,
-                            'type': 'Math',
-                            'name': math.name,
                             'channel': channel,
                             'unit': unit,
                             'measure': measurement,
@@ -1445,7 +1268,7 @@ def dict_custom_colors():
 
 
 def gen(camera):
-    """ Video streaming generator function """
+    """Video streaming generator function."""
     while True:
         frame = camera.get_frame()
         yield (b'--frame\r\n'

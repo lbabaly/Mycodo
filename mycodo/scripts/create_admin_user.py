@@ -1,21 +1,20 @@
 # -*- coding: utf-8 -*-
-"""Create admin user"""
+"""Create admin user."""
+import os
 import sys
 import traceback
 from getpass import getpass
 
 import bcrypt
-import os
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 
 from mycodo.databases.models import User
 from mycodo.databases.utils import session_scope
-from mycodo.config import SQL_DATABASE_MYCODO
 from mycodo.databases import set_uuid
 from mycodo.utils.utils import test_username
 
-MYCODO_DB_PATH = 'sqlite:///' + SQL_DATABASE_MYCODO
+from mycodo.config import MYCODO_DB_PATH
 
 passwords_match = False
 password_valid = False
@@ -23,7 +22,7 @@ user_valid = False
 
 
 def set_password(new_password):
-    """ saves a password hash  """
+    """saves a password hash  """
     if isinstance(new_password, str):
         new_password = new_password.encode('utf-8')
     return bcrypt.hashpw(new_password, bcrypt.gensalt())

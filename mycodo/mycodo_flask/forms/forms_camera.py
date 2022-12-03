@@ -12,7 +12,7 @@ from wtforms import StringField
 from wtforms import SubmitField
 from wtforms import validators
 from wtforms import widgets
-from wtforms.widgets.html5 import NumberInput
+from wtforms.widgets import NumberInput
 
 from mycodo.config_translations import TRANSLATIONS
 
@@ -29,7 +29,7 @@ class Camera(FlaskForm):
     resume_timelapse = SubmitField(lazy_gettext('Resume Timelapse'))
     stop_timelapse = SubmitField(lazy_gettext('Stop Timelapse'))
     timelapse_interval = DecimalField(
-        lazy_gettext('Interval (seconds)'),
+        "{} ({})".format(lazy_gettext('Interval'), lazy_gettext('Seconds')),
         validators=[validators.NumberRange(
             min=0,
             message=lazy_gettext('Photo Interval must be a positive value')
@@ -37,7 +37,7 @@ class Camera(FlaskForm):
         widget=NumberInput(step='any')
     )
     timelapse_runtime_sec = DecimalField(
-        lazy_gettext('Run Time (seconds)'),
+        "{} ({})".format(lazy_gettext('Run Time'), lazy_gettext('Seconds')),
         validators=[validators.NumberRange(
             min=0,
             message=lazy_gettext('Total Run Time must be a positive value')
@@ -114,6 +114,7 @@ class Camera(FlaskForm):
     # HTTP Address
     url_still = StringField(lazy_gettext('Still HTTP Address'))
     url_stream = StringField(lazy_gettext('Stream HTTP Address'))
+    json_headers = StringField(lazy_gettext('Headers (JSON)'))
 
     # Timelapse video generation
     timelapse_image_set = StringField(lazy_gettext('Image Set'))

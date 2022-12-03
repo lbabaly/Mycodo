@@ -12,14 +12,19 @@ from pylibftdi.driver import FtdiError
 sys.path.append(os.path.abspath(os.path.join(os.path.realpath(__file__), '../../..')))
 
 from mycodo.devices.base_atlas import AbstractBaseAtlasScientific
+from mycodo.utils.lockfile import LockFile
 
 
 class AtlasScientificFTDI(AbstractBaseAtlasScientific, Device):
-    """A Class to communicate with Atlas Scientific sensors via FTDI"""
+    """A Class to communicate with Atlas Scientific sensors via FTDI."""
 
     def __init__(self, serial_device):
         Device.__init__(self, mode='t', device_id=serial_device)
-        super(AtlasScientificFTDI, self).__init__(interface='FTDI', name=serial_device.replace("/", "_"))
+        super().__init__(interface='FTDI', name=serial_device.replace("/", "_"))
+
+        self.lock_timeout = 10
+        self.lock_file = '/var/lock/atlas_FTDI_{}_{}.lock'.format(
+            __name__.replace(".", "_"), serial_device)
 
         self.logger = logging.getLogger(
             "{}_{}".format(__name__, serial_device))
@@ -41,17 +46,21 @@ class AtlasScientificFTDI(AbstractBaseAtlasScientific, Device):
         self.setup = True
 
     def query(self, query_str):
-        """ Send command and return reply """
-        try:
-            self.send_cmd(query_str)
-            time.sleep(1.3)
-            response = self.read_lines()
-            return 'success', response
-        except Exception as err:
-            self.logger.exception(
-                "{cls} raised an exception when taking a reading: "
-                "{err}".format(cls=type(self).__name__, err=err))
-            return 'error', err
+        """Send command and return reply."""
+        lf = LockFile()
+        if lf.lock_acquire(self.lock_file, timeout=self.lock_timeout):
+            try:
+                self.send_cmd(query_str)
+                time.sleep(1.3)
+                response = self.read_lines()
+                return 'success', response
+            except Exception as err:
+                self.logger.exception(
+                    "{cls} raised an exception when taking a reading: "
+                    "{err}".format(cls=type(self).__name__, err=err))
+                return 'error', err
+            finally:
+                lf.lock_release(self.lock_file)
 
     def read_line(self, size=0):
         """
@@ -87,9 +96,6 @@ class AtlasScientificFTDI(AbstractBaseAtlasScientific, Device):
         except FtdiError:
             print("Failed to read from the sensor.")
             return ''
-
-    def atlas_write(self, cmd):
-        self.send_cmd(cmd)
 
     def send_cmd(self, cmd):
         """

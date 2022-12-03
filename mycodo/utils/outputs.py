@@ -20,20 +20,20 @@
 #  along with Mycodo. If not, see <http://www.gnu.org/licenses/>.
 #
 #  Contact at kylegabriel.com
-
 import logging
-
 import os
 
 from mycodo.config import PATH_OUTPUTS
 from mycodo.config import PATH_OUTPUTS_CUSTOM
+from mycodo.utils.logging_utils import set_log_level
 from mycodo.utils.modules import load_module_from_file
 
 logger = logging.getLogger("mycodo.utils.outputs")
+logger.setLevel(set_log_level(logging))
 
 
 def parse_output_information(exclude_custom=False):
-    """Parses the variables assigned in each Output and return a dictionary of IDs and values"""
+    """Parses the variables assigned in each Output and return a dictionary of IDs and values."""
     def dict_has_value(dict_inp, output_cus, key, force_type=None):
         if (key in output_cus.OUTPUT_INFORMATION and
                 (output_cus.OUTPUT_INFORMATION[key] is not None)):
@@ -70,7 +70,7 @@ def parse_output_information(exclude_custom=False):
                 continue
 
             full_path = "{}/{}".format(real_path, each_file)
-            output_custom = load_module_from_file(full_path, 'outputs')
+            output_custom, status = load_module_from_file(full_path, 'outputs')
 
             if not output_custom or not hasattr(output_custom, 'OUTPUT_INFORMATION'):
                 continue
@@ -144,8 +144,8 @@ def parse_output_information(exclude_custom=False):
             dict_outputs = dict_has_value(dict_outputs, output_custom, 'custom_channel_options_message')
             dict_outputs = dict_has_value(dict_outputs, output_custom, 'custom_channel_options')
 
-            dict_outputs = dict_has_value(dict_outputs, output_custom, 'custom_actions_message')
-            dict_outputs = dict_has_value(dict_outputs, output_custom, 'custom_actions')
+            dict_outputs = dict_has_value(dict_outputs, output_custom, 'custom_commands_message')
+            dict_outputs = dict_has_value(dict_outputs, output_custom, 'custom_commands')
 
     return dict_outputs
 

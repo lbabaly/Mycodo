@@ -54,10 +54,7 @@ TIMER_START_update_pip3_packages=$SECONDS
 ${INSTALL_CMD} update-pip3-packages
 TIMER_TOTAL_update_pip3_packages=$((SECONDS - TIMER_START_update_pip3_packages))
 
-TIMER_START_update_influxdb=$SECONDS
-${INSTALL_CMD} update-influxdb
-TIMER_TOTAL_update_influxdb=$((SECONDS - TIMER_START_update_influxdb))
-
+# Upgrade database
 TIMER_START_update_alembic=$SECONDS
 ${INSTALL_CMD} update-alembic
 TIMER_TOTAL_update_alembic=$((SECONDS - TIMER_START_update_alembic))
@@ -65,6 +62,21 @@ TIMER_TOTAL_update_alembic=$((SECONDS - TIMER_START_update_alembic))
 TIMER_START_update_alembic_post=$SECONDS
 ${INSTALL_CMD} update-alembic-post
 TIMER_TOTAL_update_alembic_post=$((SECONDS - TIMER_START_update_alembic_post))
+
+# Must upgrade database before attempting to access DB with the following script
+DB_INFO=$( ${INSTALL_DIRECTORY}/env/bin/python ${INSTALL_DIRECTORY}/mycodo/scripts/measurement_db.py -i )
+INFLUXDB_INSTALLED=$( jq -r  '.influxdb_installed' <<< "${DB_INFO}" )
+INFLUXDB_VERSION=$( jq -r  '.influxdb_version' <<< "${DB_INFO}" )
+
+if [ "$INFLUXDB_INSTALLED" == "true" ] && [[ ${INFLUXDB_VERSION} == 1* ]]; then
+    TIMER_START_update_influxdb=$SECONDS
+    ${INSTALL_CMD} update-influxdb-1
+    TIMER_TOTAL_update_influxdb=$((SECONDS - TIMER_START_update_influxdb))
+elif [ "$INFLUXDB_INSTALLED" == "true" ] && [[ ${INFLUXDB_VERSION} == 2* ]]; then
+    TIMER_START_update_influxdb=$SECONDS
+    ${INSTALL_CMD} update-influxdb-2
+    TIMER_TOTAL_update_influxdb=$((SECONDS - TIMER_START_update_influxdb))
+fi
 
 TIMER_START_update_dependencies=$SECONDS
 ${INSTALL_CMD} update-dependencies
@@ -81,10 +93,6 @@ TIMER_TOTAL_compile_translations=$((SECONDS - TIMER_START_compile_translations))
 TIMER_START_generate_widget_html=$SECONDS
 ${INSTALL_CMD} generate-widget-html
 TIMER_TOTAL_generate_widget_html=$((SECONDS - TIMER_START_generate_widget_html))
-
-TIMER_START_update_cron=$SECONDS
-${INSTALL_CMD} update-cron
-TIMER_TOTAL_update_cron=$((SECONDS - TIMER_START_update_cron))
 
 TIMER_START_update_permissions=$SECONDS
 ${INSTALL_CMD} update-permissions
@@ -119,7 +127,6 @@ printf "\nupdate-alembic-post:          %s s" "${TIMER_TOTAL_update_alembic_post
 printf "\nupdate-mycodo-startup-script: %s s" "${TIMER_TOTAL_update_mycodo_startup_script}"
 printf "\ncompile-translations:         %s s" "${TIMER_TOTAL_compile_translations}"
 printf "\ngenerate-widget-html:         %s s" "${TIMER_TOTAL_generate_widget_html}"
-printf "\nupdate-cron:                  %s s" "${TIMER_TOTAL_update_cron}"
 printf "\nupdate-permissions:           %s s" "${TIMER_TOTAL_update_permissions}"
 printf "\nrestart-daemon:               %s s" "${TIMER_TOTAL_restart_daemon}"
 printf "\nweb-server_reload:            %s s" "${TIMER_TOTAL_web_server_reload}"

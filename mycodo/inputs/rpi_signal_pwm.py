@@ -41,7 +41,8 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('internal', 'file-exists /opt/mycodo/pigpio_installed', 'pigpio')
+        ('internal', 'file-exists /opt/mycodo/pigpio_installed', 'pigpio'),
+        ('pip-pypi', 'pigpio', 'pigpio==1.78')
     ],
 
     'interfaces': ['GPIO'],
@@ -51,9 +52,9 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that monitors pwm """
+    """A sensor support class that monitors pwm."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.pigpio = None
         self.gpio = None
@@ -61,9 +62,9 @@ class InputModule(AbstractInput):
         self.sample_time = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import pigpio
 
         self.pigpio = pigpio
@@ -73,7 +74,7 @@ class InputModule(AbstractInput):
         self.sample_time = self.input_dev.sample_time
 
     def get_measurement(self):
-        """ Gets the pwm """
+        """Gets the pwm."""
         pi = self.pigpio.pi()
         if not pi.connected:  # Check if pigpiod is running
             self.logger.error("Could not connect to pigpiod. Ensure it is running and try again.")

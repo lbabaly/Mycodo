@@ -33,9 +33,9 @@ INPUT_INFORMATION = {
         ('apt', 'libjpeg-dev', 'libjpeg-dev'),
         ('apt', 'zlib1g-dev', 'zlib1g-dev'),
         ('pip-pypi', 'PIL', 'Pillow==8.1.2'),
-        ('apt', 'python3-scipy', 'python3-scipy'),
+        ('pip-pypi', 'scipy', 'scipy==1.8.0'),
         ('pip-pypi', 'usb.core', 'pyusb==1.1.1'),
-        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.1'),
+        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.2'),
         ('pip-pypi', 'anyleaf', 'anyleaf==0.1.9')
     ],
 
@@ -59,7 +59,7 @@ class InputModule(AbstractInput):
     """A sensor support class that monitors AnyLeaf sensor conductivity (EC)"""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
         self.constant_k = None
@@ -67,19 +67,19 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         from anyleaf import EcSensor
 
         self.sensor = EcSensor(K=self.constant_k)
 
     def get_measurement(self):
-        """ Gets the measurement """
+        """Gets the measurement."""
         self.return_dict = copy.deepcopy(measurements_dict)
 
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         # todo: Adjust this line once you've added temperature compensation.

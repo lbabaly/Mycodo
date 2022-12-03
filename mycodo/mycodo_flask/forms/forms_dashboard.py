@@ -13,7 +13,7 @@ from wtforms import SubmitField
 from wtforms import validators
 from wtforms import widgets
 from wtforms.validators import DataRequired
-from wtforms.widgets.html5 import NumberInput
+from wtforms.widgets import NumberInput
 
 from mycodo.config_translations import TRANSLATIONS
 from mycodo.mycodo_flask.utils.utils_general import generate_form_widget_list
@@ -24,7 +24,7 @@ class DashboardBase(FlaskForm):
     choices_widgets = []
     dict_widgets = parse_widget_information()
     list_widgets_sorted = generate_form_widget_list(dict_widgets)
-    choices_widgets.append(('', lazy_gettext('Add Dashboard Widget'))),
+    choices_widgets.append(('', lazy_gettext('Add Dashboard Widget')))
 
     for each_widget in list_widgets_sorted:
         choices_widgets.append((each_widget, dict_widgets[each_widget]['widget_name']))

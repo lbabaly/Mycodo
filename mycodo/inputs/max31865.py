@@ -65,7 +65,7 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('pip-pypi', 'RPi.GPIO', 'RPi.GPIO==0.7.0')
+        ('pip-pypi', 'RPi.GPIO', 'RPi.GPIO==0.7.1')
     ],
 
     'interfaces': ['UART'],
@@ -82,18 +82,18 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that measures the MAX31865's temperature """
+    """A sensor support class that measures the MAX31865's temperature."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
         self.thermocouple_type = None
         self.ref_ohm = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.thermocouple_type = self.input_dev.thermocouple_type
         self.ref_ohm = self.input_dev.ref_ohm
 
@@ -105,9 +105,9 @@ class InputModule(AbstractInput):
             self.input_dev.pin_clock)
 
     def get_measurement(self):
-        """ Gets the measurement in units by reading the """
+        """Gets the measurement in units by reading the."""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)
@@ -117,7 +117,7 @@ class InputModule(AbstractInput):
         return self.return_dict
 
     def stop_input(self):
-        """ Called by InputController class when sensors are deactivated """
+        """Called by InputController class when sensors are deactivated."""
         self.sensor.cleanupGPIO()
         self.running = False
 

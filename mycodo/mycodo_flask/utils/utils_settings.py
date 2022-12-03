@@ -2,10 +2,12 @@
 import logging
 import os
 import re
+import stat
 import subprocess
 import threading
 import time
 import traceback
+from tempfile import NamedTemporaryFile
 
 import bcrypt
 import flask_login
@@ -21,6 +23,7 @@ from mycodo.config import DAEMON_LOG_FILE
 from mycodo.config import DEPENDENCY_INIT_FILE
 from mycodo.config import DEPENDENCY_LOG_FILE
 from mycodo.config import INSTALL_DIRECTORY
+from mycodo.config import PATH_ACTIONS_CUSTOM
 from mycodo.config import PATH_FUNCTIONS_CUSTOM
 from mycodo.config import PATH_INPUTS_CUSTOM
 from mycodo.config import PATH_OUTPUTS_CUSTOM
@@ -30,13 +33,13 @@ from mycodo.config_devices_units import MEASUREMENTS
 from mycodo.config_devices_units import UNITS
 from mycodo.config_translations import TRANSLATIONS
 from mycodo.databases import set_api_key
+from mycodo.databases.models import Actions
 from mycodo.databases.models import Conversion
 from mycodo.databases.models import CustomController
 from mycodo.databases.models import Dashboard
 from mycodo.databases.models import DeviceMeasurements
 from mycodo.databases.models import DisplayOrder
 from mycodo.databases.models import Input
-from mycodo.databases.models import Math
 from mycodo.databases.models import Measurement
 from mycodo.databases.models import Misc
 from mycodo.databases.models import NoteTags
@@ -58,6 +61,7 @@ from mycodo.mycodo_flask.utils.utils_general import controller_activate_deactiva
 from mycodo.mycodo_flask.utils.utils_general import delete_entry_with_id
 from mycodo.mycodo_flask.utils.utils_general import flash_form_errors
 from mycodo.mycodo_flask.utils.utils_general import flash_success_errors
+from mycodo.utils.actions import parse_action_information
 from mycodo.utils.database import db_retrieve_table
 from mycodo.utils.functions import parse_function_information
 from mycodo.utils.inputs import parse_input_information
@@ -68,6 +72,7 @@ from mycodo.utils.system_pi import all_conversions
 from mycodo.utils.system_pi import assure_path_exists
 from mycodo.utils.system_pi import base64_encode_bytes
 from mycodo.utils.system_pi import cmd_output
+from mycodo.utils.system_pi import set_user_grp
 from mycodo.utils.utils import test_password
 from mycodo.utils.utils import test_username
 from mycodo.utils.widget_generate_html import generate_widget_html
@@ -328,7 +333,7 @@ def user_mod(form):
 
 
 def user_del(form):
-    """ Delete user from SQL database """
+    """Delete user from SQL database"""
     messages = {
         "success": [],
         "info": [],
@@ -359,7 +364,7 @@ def user_del(form):
 #
 
 def settings_general_mod(form):
-    """ Modify General settings """
+    """Modify General settings."""
     messages = {
         "success": [],
         "info": [],
@@ -387,6 +392,30 @@ def settings_general_mod(form):
                 mod_misc.hide_alert_info = form.hide_info.data
                 mod_misc.hide_alert_warning = form.hide_warning.data
                 mod_misc.hide_tooltips = form.hide_tooltips.data
+
+                mod_misc.sample_rate_controller_conditional = form.sample_rate_controller_conditional.data
+                mod_misc.sample_rate_controller_function = form.sample_rate_controller_function.data
+                mod_misc.sample_rate_controller_input = form.sample_rate_controller_input.data
+                mod_misc.sample_rate_controller_output = form.sample_rate_controller_output.data
+                mod_misc.sample_rate_controller_pid = form.sample_rate_controller_pid.data
+                mod_misc.sample_rate_controller_widget = form.sample_rate_controller_widget.data
+
+                if form.use_database.data == "influxdb_1":
+                    mod_misc.measurement_db_name = "influxdb"
+                    mod_misc.measurement_db_version = "1"
+                elif form.use_database.data == "influxdb_2":
+                    mod_misc.measurement_db_name = "influxdb"
+                    mod_misc.measurement_db_version = "2"
+
+                mod_misc.measurement_db_retention_policy = form.measurement_db_retention_policy.data
+                mod_misc.measurement_db_host = form.measurement_db_host.data
+                mod_misc.measurement_db_port = form.measurement_db_port.data
+                mod_misc.measurement_db_dbname = form.measurement_db_dbname.data
+                mod_misc.measurement_db_user = form.measurement_db_user.data
+                if (form.measurement_db_password.data and
+                        form.measurement_db_password.data != mod_misc.measurement_db_password):
+                    mod_misc.measurement_db_password = form.measurement_db_password.data
+
                 mod_misc.grid_cell_height = form.grid_cell_height.data
                 mod_misc.max_amps = form.max_amps.data
                 mod_misc.output_usage_volts = form.output_stats_volts.data
@@ -438,7 +467,7 @@ def settings_general_mod(form):
 
 def settings_function_import(form):
     """
-    Receive an controller module file, check it for errors, add it to Mycodo controller list
+    Receive a function module file, check it for errors, add it to Mycodo controller list
     """
     action = '{action} {controller}'.format(
         action=gettext("Import"),
@@ -448,7 +477,6 @@ def settings_function_import(form):
     controller_info = None
 
     try:
-        # correct_format = 'Mycodo_MYCODOVERSION_Settings_DBVERSION_HOST_DATETIME.zip'
         install_dir = os.path.abspath(INSTALL_DIRECTORY)
         tmp_directory = os.path.join(install_dir, 'mycodo/functions/tmp_functions')
         assure_path_exists(tmp_directory)
@@ -464,7 +492,7 @@ def settings_function_import(form):
             form.import_controller_file.data.save(full_path_tmp)
 
         try:
-            controller_info = load_module_from_file(full_path_tmp, 'functions')
+            controller_info, status = load_module_from_file(full_path_tmp, 'functions')
             if not controller_info or not hasattr(controller_info, 'FUNCTION_INFORMATION'):
                 error.append("Could not load FUNCTION_INFORMATION dictionary from "
                              "the uploaded controller module")
@@ -508,10 +536,10 @@ def settings_function_import(form):
                             error.append(
                                 "'dependencies_module': tuples in list must "
                                 "not be empty")
-                        elif each_dep[0] not in ['internal', 'pip-pypi', 'pip-git', 'apt']:
+                        elif each_dep[0] not in ['internal', 'pip-pypi', 'apt']:
                             error.append(
                                 "'dependencies_module': first in tuple "
-                                "must be 'internal', 'pip-pypi', 'pip-git', "
+                                "must be 'internal', 'pip-pypi', "
                                 "or 'apt'")
 
         if not error:
@@ -567,6 +595,135 @@ def settings_function_delete(form):
     flash_success_errors(error, action, url_for('routes_settings.settings_function'))
 
 
+def settings_action_import(form):
+    """
+    Receive an action module file, check it for errors, add it to Mycodo controller list
+    """
+    action = '{action} {controller}'.format(
+        action=gettext("Import"),
+        controller=TRANSLATIONS['actions']['title'])
+    error = []
+
+    action_info = None
+
+    try:
+        install_dir = os.path.abspath(INSTALL_DIRECTORY)
+        tmp_directory = os.path.join(install_dir, 'mycodo/actions/tmp_actions')
+        assure_path_exists(tmp_directory)
+        assure_path_exists(PATH_ACTIONS_CUSTOM)
+        tmp_name = 'tmp_action_testing.py'
+        full_path_tmp = os.path.join(tmp_directory, tmp_name)
+
+        if not form.import_action_file.data:
+            error.append('No file present')
+        elif form.import_action_file.data.filename == '':
+            error.append('No file name')
+        else:
+            form.import_action_file.data.save(full_path_tmp)
+
+        try:
+            action_info, status = load_module_from_file(full_path_tmp, 'actions')
+            if not action_info or not hasattr(action_info, 'ACTION_INFORMATION'):
+                error.append("Could not load ACTION_INFORMATION dictionary from "
+                             "the uploaded action module")
+        except Exception:
+            error.append("Could not load uploaded file as a python module:\n"
+                         "{}".format(traceback.format_exc()))
+
+        dict_actions = parse_action_information()
+        list_actions = []
+        for each_key in dict_actions.keys():
+            list_actions.append(each_key.lower())
+
+        if not error:
+            if 'name_unique' not in action_info.ACTION_INFORMATION:
+                error.append(
+                    "'name_unique' not found in "
+                    "ACTION_INFORMATION dictionary")
+            elif action_info.ACTION_INFORMATION['name_unique'] == '':
+                error.append("'name_unique' is empty")
+            elif action_info.ACTION_INFORMATION['name_unique'].lower() in list_actions:
+                error.append(
+                    "'name_unique' is not unique, there "
+                    "is already an action with that name ({})".format(
+                        action_info.ACTION_INFORMATION['name_unique'].lower()))
+
+            if 'name' not in action_info.ACTION_INFORMATION:
+                error.append("'name' not found in ACTION_INFORMATION dictionary")
+            elif action_info.ACTION_INFORMATION['name'] == '':
+                error.append("'name' is empty")
+
+            if 'dependencies_module' in action_info.ACTION_INFORMATION:
+                if not isinstance(action_info.ACTION_INFORMATION['dependencies_module'], list):
+                    error.append("'dependencies_module' must be a list of tuples")
+                else:
+                    for each_dep in action_info.ACTION_INFORMATION['dependencies_module']:
+                        if not isinstance(each_dep, tuple):
+                            error.append("'dependencies_module' must be a list of tuples")
+                        elif len(each_dep) != 3:
+                            error.append("'dependencies_module': tuples in list must have 3 items")
+                        elif not each_dep[0] or not each_dep[1] or not each_dep[2]:
+                            error.append(
+                                "'dependencies_module': tuples in list must "
+                                "not be empty")
+                        elif each_dep[0] not in ['internal', 'pip-pypi', 'apt']:
+                            error.append(
+                                "'dependencies_module': first in tuple "
+                                "must be 'internal', 'pip-pypi', "
+                                "or 'apt'")
+
+        if not error:
+            # Determine filename
+            unique_name = '{}.py'.format(action_info.ACTION_INFORMATION['name_unique'].lower())
+
+            # Move module from temp directory to function directory
+            full_path_final = os.path.join(PATH_ACTIONS_CUSTOM, unique_name)
+            os.rename(full_path_tmp, full_path_final)
+
+            # Reload frontend to refresh the actions
+            cmd = '{path}/mycodo/scripts/mycodo_wrapper frontend_reload 2>&1'.format(
+                path=install_dir)
+            subprocess.Popen(cmd, shell=True)
+            flash('Frontend reloaded to scan for new Action Modules', 'success')
+
+    except Exception as err:
+        logger.exception("Action Import")
+        error.append("Exception: {}".format(err))
+
+    flash_success_errors(error, action, url_for('routes_settings.settings_action'))
+
+
+def settings_action_delete(form):
+    action = '{action} {controller}'.format(
+        action=gettext("Import"),
+        controller=TRANSLATIONS['actions']['title'])
+    error = []
+
+    action_device_name = form.action_id.data
+    file_name = '{}.py'.format(form.action_id.data.lower())
+    full_path_file = os.path.join(PATH_ACTIONS_CUSTOM, file_name)
+
+    # Check if any action entries exist
+    action_dev = Actions.query.filter(
+        Actions.action_type == action_device_name).count()
+    if action_dev:
+        error.append("Cannot delete Action Module if there are still "
+                     "Action entries using it. Delete all "
+                     "Action entries that use this module before deleting "
+                     "the module.")
+
+    if not error:
+        os.remove(full_path_file)
+
+        # Reload frontend to refresh the actions
+        cmd = '{path}/mycodo/scripts/mycodo_wrapper frontend_reload 2>&1'.format(
+            path=os.path.abspath(INSTALL_DIRECTORY))
+        subprocess.Popen(cmd, shell=True)
+        flash('Frontend reloaded to scan for new Action Modules', 'success')
+
+    flash_success_errors(error, action, url_for('routes_settings.settings_function'))
+
+
 def settings_input_import(form):
     """
     Receive an input module file, check it for errors, add it to Mycodo input list
@@ -595,8 +752,10 @@ def settings_input_import(form):
             form.import_input_file.data.save(full_path_tmp)
 
         try:
-            input_info = load_module_from_file(full_path_tmp, 'inputs')
-            if not input_info or not hasattr(input_info, 'INPUT_INFORMATION'):
+            input_info, status = load_module_from_file(full_path_tmp, 'inputs')
+            if not input_info and status != "success":
+                error.append(status)
+            if input_info and not hasattr(input_info, 'INPUT_INFORMATION'):
                 error.append("Could not load INPUT_INFORMATION dictionary from "
                              "the uploaded input module")
         except Exception:
@@ -677,10 +836,10 @@ def settings_input_import(form):
                             error.append("'dependencies_module': tuples in list must have 3 items")
                         elif not each_dep[0] or not each_dep[1] or not each_dep[2]:
                             error.append("'dependencies_module': tuples in list must not be empty")
-                        elif each_dep[0] not in ['internal', 'pip-pypi', 'pip-git', 'apt']:
+                        elif each_dep[0] not in ['internal', 'pip-pypi', 'apt']:
                             error.append(
                                 "'dependencies_module': first in tuple "
-                                "must be 'internal', 'pip-pypi', 'pip-git', "
+                                "must be 'internal', 'pip-pypi', "
                                 "or 'apt'")
 
         if not error:
@@ -762,7 +921,7 @@ def settings_output_import(form):
             form.import_output_file.data.save(full_path_tmp)
 
         try:
-            output_info = load_module_from_file(full_path_tmp, 'outputs')
+            output_info, status = load_module_from_file(full_path_tmp, 'outputs')
             if not output_info or not hasattr(output_info, 'OUTPUT_INFORMATION'):
                 error.append("Could not load OUTPUT_INFORMATION dictionary from "
                              "the uploaded output module")
@@ -828,10 +987,10 @@ def settings_output_import(form):
                             error.append("'dependencies_module': tuples in list must have 3 items")
                         elif not each_dep[0] or not each_dep[1] or not each_dep[2]:
                             error.append("'dependencies_module': tuples in list must not be empty")
-                        elif each_dep[0] not in ['internal', 'pip-pypi', 'pip-git', 'apt']:
+                        elif each_dep[0] not in ['internal', 'pip-pypi', 'apt']:
                             error.append(
                                 "'dependencies_module': first in tuple "
-                                "must be 'internal', 'pip-pypi', 'pip-git', "
+                                "must be 'internal', 'pip-pypi', "
                                 "or 'apt'")
 
         if not error:
@@ -912,7 +1071,7 @@ def settings_widget_import(form):
             form.import_widget_file.data.save(full_path_tmp)
 
         try:
-            widget_info = load_module_from_file(full_path_tmp, 'widgets')
+            widget_info, status = load_module_from_file(full_path_tmp, 'widgets')
             if not widget_info or not hasattr(widget_info, 'WIDGET_INFORMATION'):
                 error.append("Could not load WIDGET_INFORMATION dictionary from "
                              "the uploaded widget module")
@@ -952,10 +1111,10 @@ def settings_widget_import(form):
                             error.append("'dependencies_module': tuples in list must have 3 items")
                         elif not each_dep[0] or not each_dep[1] or not each_dep[2]:
                             error.append("'dependencies_module': tuples in list must not be empty")
-                        elif each_dep[0] not in ['internal', 'pip-pypi', 'pip-git', 'apt']:
+                        elif each_dep[0] not in ['internal', 'pip-pypi', 'apt']:
                             error.append(
                                 "'dependencies_module': first in tuple "
-                                "must be 'internal', 'pip-pypi', 'pip-git', "
+                                "must be 'internal', 'pip-pypi', "
                                 "or 'apt'")
 
         if not error:
@@ -1357,11 +1516,7 @@ def check_conversion_being_used(conv, error, state=None):
     try:
         device_measurements = DeviceMeasurements.query.all()
 
-        list_measurements = [
-            Input,
-            Math,
-            PID,
-        ]
+        list_measurements = [Input, PID,]
 
         for each_device_type in list_measurements:
             for each_device in each_device_type.query.all():
@@ -1410,17 +1565,7 @@ def settings_pi_mod(form):
     status = None
     action_str = None
 
-    if form.save_sample_rates.data:
-        mod_misc = Misc.query.first()
-        mod_misc.sample_rate_controller_conditional = form.sample_rate_controller_conditional.data
-        mod_misc.sample_rate_controller_function = form.sample_rate_controller_function.data
-        mod_misc.sample_rate_controller_input = form.sample_rate_controller_input.data
-        mod_misc.sample_rate_controller_math = form.sample_rate_controller_math.data
-        mod_misc.sample_rate_controller_output = form.sample_rate_controller_output.data
-        mod_misc.sample_rate_controller_pid = form.sample_rate_controller_pid.data
-        mod_misc.sample_rate_controller_widget = form.sample_rate_controller_widget.data
-        db.session.commit()
-    elif form.enable_i2c.data:
+    if form.enable_i2c.data:
         _, _, status = cmd_output("raspi-config nonint do_i2c 0", user='root')
         action_str = "Enable I2C"
     elif form.disable_i2c.data:
@@ -1549,7 +1694,7 @@ def settings_pi_mod(form):
 
 
 def settings_alert_mod(form_mod_alert):
-    """ Modify Alert settings """
+    """Modify Alert settings."""
     action = '{action} {controller}'.format(
         action=TRANSLATIONS['modify']['title'],
         controller=gettext("Alert Settings"))
@@ -1627,45 +1772,6 @@ def settings_diagnostic_delete_inputs():
             db.session.commit()
         except Exception as except_msg:
             messages["error"].append(str(except_msg))
-
-    flash_success_errors(
-        messages["error"],
-        action,
-        url_for('routes_settings.settings_diagnostic'))
-
-
-def settings_diagnostic_delete_maths():
-    action = '{action} {controller}'.format(
-        action=TRANSLATIONS['delete']['title'],
-        controller=TRANSLATIONS['math']['title'])
-    messages = {
-        "success": [],
-        "info": [],
-        "warning": [],
-        "error": []
-    }
-
-    maths = db_retrieve_table(Math)
-    device_measurements = db_retrieve_table(DeviceMeasurements)
-    display_order = db_retrieve_table(DisplayOrder, entry='first')
-
-    if not messages["error"]:
-        try:
-            for each_math in maths:
-                # Deactivate any active controllers using the input
-                if each_math.is_activated:
-                    messages = controller_activate_deactivate(
-                        messages, 'deactivate', 'Math', each_math.unique_id)
-
-                # Delete all measurements associated
-                for each_measurement in device_measurements:
-                    if each_measurement.device_id == each_math.unique_id:
-                        db.session.delete(each_measurement)
-                db.session.delete(each_math)
-            display_order.math = ''
-            db.session.commit()
-        except Exception as except_msg:
-            messages["error"].append(except_msg)
 
     flash_success_errors(
         messages["error"],
@@ -1851,6 +1957,62 @@ def settings_diagnostic_install_dependencies():
           "At completion, the frontend and backend will be restarted.", "success")
     flash_success_errors(
         error, action, url_for('routes_settings.settings_diagnostic'))
+
+
+def settings_regenerate_widget_html():
+    action = gettext("Regenerate Widget HTML")
+    error = []
+
+    if not error:
+        try:
+            command = f'/bin/bash {INSTALL_DIRECTORY}/mycodo/scripts/upgrade_commands.sh generate-widget-html'
+            p = subprocess.Popen(command, shell=True)
+            p.communicate()
+
+            cmd = f"{INSTALL_DIRECTORY}/mycodo/scripts/mycodo_wrapper frontend_reload" \
+                  f" | ts '[%Y-%m-%d %H:%M:%S]' >> {DEPENDENCY_LOG_FILE} 2>&1"
+            p = subprocess.Popen(cmd, shell=True)
+            p.communicate()
+        except Exception as except_msg:
+            error.append(except_msg)
+
+    flash("Widget HTML Regeneration complete.", "success")
+    flash_success_errors(
+        error, action, url_for('routes_settings.settings_diagnostic'))
+
+
+def settings_diagnostic_upgrade_master():
+    action = gettext("Set to Upgrade to Master")
+    error = []
+
+    if not error:
+        try:
+            path_config = os.path.join(INSTALL_DIRECTORY, "mycodo/config.py")
+
+            if not os.path.exists(path_config):
+                logger.error(f"Path doesn't exist: {path_config}")
+                return
+
+            with open(path_config) as fin, NamedTemporaryFile(dir='.', delete=False) as fout:
+                for line in fin:
+                    if line.startswith("FORCE_UPGRADE_MASTER = False"):
+                        line = "FORCE_UPGRADE_MASTER = True\n"
+                    fout.write(line.encode('utf8'))
+                os.rename(fout.name, path_config)
+            os.chmod(path_config, stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
+            set_user_grp(path_config, 'mycodo', 'mycodo')
+            flash_success_errors(
+                error, action, url_for('routes_settings.settings_diagnostic'))
+            return
+        except Exception as except_msg:
+            error.append(except_msg)
+            flash_success_errors(
+                error, action, url_for('routes_settings.settings_diagnostic'))
+            return
+        finally:
+            command = '/bin/bash {path}/mycodo/scripts/upgrade_commands.sh web-server-reload'.format(
+                path=INSTALL_DIRECTORY)
+            subprocess.Popen(command, shell=True)
 
 
 def is_valid_hostname(hostname):

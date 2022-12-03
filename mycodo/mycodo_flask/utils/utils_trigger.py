@@ -9,7 +9,6 @@ from mycodo.databases.models import Actions
 from mycodo.databases.models import Trigger
 from mycodo.mycodo_client import DaemonControl
 from mycodo.mycodo_flask.extensions import db
-from mycodo.mycodo_flask.utils.utils_function import check_actions
 from mycodo.mycodo_flask.utils.utils_general import controller_activate_deactivate
 from mycodo.mycodo_flask.utils.utils_general import delete_entry_with_id
 from mycodo.utils.system_pi import epoch_of_next_time
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def trigger_mod(form):
-    """Modify a Trigger"""
+    """Modify a Trigger."""
     messages = {
         "success": [],
         "info": [],
@@ -26,6 +25,7 @@ def trigger_mod(form):
         "error": [],
         "name": None
     }
+    page_refresh = False
 
     try:
         trigger = Trigger.query.filter(
@@ -85,6 +85,7 @@ def trigger_mod(form):
             trigger.trigger_actions_at_period = form.trigger_actions_at_period.data
 
         elif trigger.trigger_type == 'trigger_sunrise_sunset':
+            page_refresh = True
             if form.rise_or_set.data not in ['sunrise', 'sunset']:
                 messages["error"].append("{id} must be set to 'sunrise' or 'sunset'".format(
                     id=form.rise_or_set.label.text))
@@ -94,9 +95,6 @@ def trigger_mod(form):
             if -180 > form.longitude.data > 180:
                 messages["error"].append("{id} must be >= -180 and <= 180".format(
                     id=form.longitude.label.text))
-            if form.zenith.data is None:
-                messages["error"].append("{id} must be set".format(
-                    id=form.zenith.label.text))
             if form.date_offset_days.data is None:
                 messages["error"].append("{id} must be set".format(
                     id=form.date_offset_days.label.text))
@@ -106,7 +104,6 @@ def trigger_mod(form):
             trigger.rise_or_set = form.rise_or_set.data
             trigger.latitude = form.latitude.data
             trigger.longitude = form.longitude.data
-            trigger.zenith = form.zenith.data
             trigger.date_offset_days = form.date_offset_days.data
             trigger.time_offset_minutes = form.time_offset_minutes.data
 
@@ -158,11 +155,11 @@ def trigger_mod(form):
     except Exception as except_msg:
         messages["error"].append(str(except_msg))
 
-    return messages
+    return messages, page_refresh
 
 
 def trigger_del(trigger_id):
-    """Delete a Trigger"""
+    """Delete a Trigger."""
     messages = {
         "success": [],
         "info": [],
@@ -205,7 +202,7 @@ def trigger_del(trigger_id):
 
 
 def trigger_activate(trigger_id):
-    """Activate a Trigger"""
+    """Activate a Trigger."""
     messages = {
         "success": [],
         "info": [],
@@ -229,9 +226,6 @@ def trigger_activate(trigger_id):
         messages["error"].append(
             "No Actions found: Add at least one Action before activating.")
 
-    for each_action in actions.all():
-        messages["error"] = check_actions(each_action, messages["error"])
-
     messages = controller_activate_deactivate(
         messages, 'activate', 'Trigger', trigger_id, flash_message=False)
 
@@ -244,7 +238,7 @@ def trigger_activate(trigger_id):
 
 
 def trigger_deactivate(trigger_id):
-    """Deactivate a Trigger"""
+    """Deactivate a Trigger."""
     messages = {
         "success": [],
         "info": [],
@@ -270,14 +264,14 @@ def trigger_deactivate(trigger_id):
 
 
 def check_cond_edge(form, error):
-    """Checks if the saved variables have any errors"""
+    """Checks if the saved variables have any errors."""
     if not form.measurement or form.measurement == '':
         error.append("Measurement must be set")
     return error
 
 
 def check_form_output_duration(form, error):
-    """Checks if the submitted form has any errors"""
+    """Checks if the submitted form has any errors."""
     if not form.unique_id_1.data:
         error.append("{id} must be set".format(
             id=form.unique_id_1.label.text))
@@ -291,7 +285,7 @@ def check_form_output_duration(form, error):
 
 
 def check_cond_output(form, error):
-    """Checks if the saved variables have any errors"""
+    """Checks if the saved variables have any errors."""
     if not form.unique_id_1 or form.unique_id_1 == '':
         error.append("An Output must be set")
     if not form.output_state or form.output_state == '':

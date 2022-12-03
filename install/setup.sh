@@ -9,31 +9,21 @@ INSTALL_DIRECTORY=$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd -P )
 INSTALL_CMD="/bin/bash ${INSTALL_DIRECTORY}/mycodo/scripts/upgrade_commands.sh"
 LOG_LOCATION=${INSTALL_DIRECTORY}/install/setup.log
 
+# Fix for below issue(s)
+# https://github.com/pypa/setuptools/issues/3278
+# https://github.com/kizniche/Mycodo/issues/1149
+export SETUPTOOLS_USE_DISTUTILS=stdlib
+
 if [ "$EUID" -ne 0 ]; then
     printf "Must be run as root: \"sudo /bin/bash %s/install/setup.sh\"\n" "${INSTALL_DIRECTORY}"
     exit 1
-fi
-
-# Maintenance mode
-# This is a temporary state so the developer can test a version release before users can install.
-# Creating the file ~/Mycodo/.maintenance will override maintenece mode.
-if python "${CURRENT_MYCODO_DIRECTORY}"/mycodo/scripts/upgrade_check.py --maintenance_mode; then
-  if [[ ! -e $INSTALL_DIRECTORY/.maintenance ]]; then
-    printf "The Mycodo upgrade system is currently in maintenance mode so the developer can test the latest code.\n"
-    printf "Please wait and attempt the install later.\n"
-    printf "Note: You will need to delete the ~/Mycodo directory that was just downloaded and re-run the install command:\n"
-    printf "cd ~\n"
-    printf "rm -rf ~/Mycodo\n"
-    printf "curl -L https://raw.githubusercontent.com/kizniche/Mycodo/master/install/install | bash\n"
-    exit 1
-  fi
 fi
 
 printf "Checking Python version...\n"
 if hash python3 2>/dev/null; then
   if ! python3 "${INSTALL_DIRECTORY}"/mycodo/scripts/upgrade_check.py --min_python_version "3.6"; then
     printf "Incorrect Python version found. Mycodo requires Python >= 3.6.\n"
-    printf "If you're running Raspbian 9 (Stretch) with Python 3.5, you will need to install at least Raspbian 10 (Buster) with Python 3.7 to install the latest version of Mycodo.\n"
+    printf "If you're running Debian Stretch with Python 3.5, you will need to install at least Debian Buster with Python 3.7 to install the latest version of Mycodo.\n"
     exit 1
   else
     printf "Python >= 3.6 found. Continuing with the install.\n"
@@ -60,9 +50,36 @@ LICENSE=$(whiptail --title "Mycodo Installer: License Agreement" \
                    20 68 \
                    3>&1 1>&2 2>&3)
 
+clear
+LANGUAGE=$(whiptail --title "Mycodo Installer" \
+                  --backtitle "Mycodo" \
+                  --menu "User Interface Language" 23 68 14 \
+                  "en": "English" \
+                  "de": "Deutsche (German)" \
+                  "es": "Español (Spanish)" \
+                  "fr": "Français (French)" \
+                  "it": "Italiano (Italian)" \
+                  "nl": "Nederlands (Dutch)" \
+                  "nn": "Norsk (Norwegian)" \
+                  "pl": "Polski (Polish)" \
+                  "pt": "Português (Portuguese)" \
+                  "ru": "русский язык (Russian)" \
+                  "sr": "српски (Serbian)" \
+                  "sv": "Svenska (Swedish)" \
+                  "tr": "Türkçe (Turkish)" \
+                  "zh": "中文 (Chinese)" \
+                  3>&1 1>&2 2>&3)
 exitstatus=$?
 if [ $exitstatus != 0 ]; then
-    printf "Mycodo install canceled by user" 2>&1 | tee -a "${LOG_LOCATION}"
+    printf "Mycodo install canceled by user\n" 2>&1 | tee -a "${LOG_LOCATION}"
+    exit 1
+else
+    echo "${LANGUAGE}" > "${INSTALL_DIRECTORY}/.language"
+fi
+
+exitstatus=$?
+if [ $exitstatus != 0 ]; then
+    printf "Mycodo install canceled by user\n" 2>&1 | tee -a "${LOG_LOCATION}"
     exit 1
 fi
 
@@ -74,7 +91,60 @@ INSTALL=$(whiptail --title "Mycodo Installer: Install" \
                    3>&1 1>&2 2>&3)
 exitstatus=$?
 if [ $exitstatus != 0 ]; then
-    printf "Mycodo install canceled by user" 2>&1 | tee -a "${LOG_LOCATION}"
+    printf "Mycodo install canceled by user\n" 2>&1 | tee -a "${LOG_LOCATION}"
+    exit 1
+fi
+
+UNAME_TYPE=$(uname -m)
+MACHINE_TYPE=$(dpkg --print-architecture)
+
+clear
+if [[ ${MACHINE_TYPE} == 'armhf' ]]; then
+    INFLUX=$(whiptail --title "Mycodo Installer: Measurement Database" \
+                      --backtitle "Mycodo" \
+                      --menu "Install Influxdb?\n\nIf you do not install Influxdb, you will need to set the server settings in the Mycodo Configuration after Mycodo is installed." 20 68 4 \
+                      "1)" "Install Influxdb 1.x" \
+                      "0)" "Do Not Install Influxdb" \
+                      3>&1 1>&2 2>&3)
+    exitstatus=$?
+    if [ $exitstatus != 0 ]; then
+        printf "Mycodo install canceled by user\n" 2>&1 | tee -a "${LOG_LOCATION}"
+        exit 1
+    fi
+elif [[ ${MACHINE_TYPE} == 'arm64' || ${UNAME_TYPE} == 'x86_64' ]]; then
+    INFLUX=$(whiptail --title "Mycodo Installer: Measurement Database" \
+                      --backtitle "Mycodo" \
+                      --menu "Install Influxdb?\n\nIf you do not install Influxdb, you will need to set the server settings in the Mycodo Configuration after Mycodo is installed." 20 68 4 \
+                      "1)" "Install Influxdb 1.x" \
+                      "2)" "Install Influxdb 2.x" \
+                      "0)" "Do Not Install Influxdb" \
+                      3>&1 1>&2 2>&3)
+    exitstatus=$?
+    if [ $exitstatus != 0 ]; then
+        printf "Mycodo install canceled by user\n" 2>&1 | tee -a "${LOG_LOCATION}"
+        exit 1
+    fi
+else
+    printf "\nCould not detect architecture\n"
+    exit 1
+fi
+
+if [[ ${INFLUX} == '0)' ]]; then
+    clear
+    INSTALL=$(whiptail --title "Mycodo Installer: Measurement Database" \
+                       --backtitle "Mycodo" \
+                       --yesno "You have chosen not to install Influxdb. This is typically done if you want to use an existing influxdb server. Make sure to change the influxdb client options in the Mycodo Configuration after installing to ensure measurements can be properly saved/queried. If you would like to install influxdb, select cancel and start the Mycodo Installer over again." \
+                       20 68 \
+                       3>&1 1>&2 2>&3)
+    exitstatus=$?
+    if [ $exitstatus != 0 ]; then
+        printf "Mycodo install canceled by user\n" 2>&1 | tee -a "${LOG_LOCATION}"
+        exit 1
+    fi
+fi
+
+if [[ ${INFLUX} == 'NONE' ]]; then
+    printf "\nInflux install option not selected\n"
     exit 1
 fi
 
@@ -116,8 +186,15 @@ ${INSTALL_CMD} setup-virtualenv 2>&1 | tee -a "${LOG_LOCATION}"
 ${INSTALL_CMD} update-pip3 2>&1 | tee -a "${LOG_LOCATION}"
 ${INSTALL_CMD} update-pip3-packages 2>&1 | tee -a "${LOG_LOCATION}"
 ${INSTALL_CMD} install-wiringpi 2>&1 | tee -a "${LOG_LOCATION}"
-${INSTALL_CMD} update-influxdb 2>&1 | tee -a "${LOG_LOCATION}"
-${INSTALL_CMD} update-influxdb-db-user 2>&1 | tee -a "${LOG_LOCATION}"
+if [[ ${INFLUX} == '1)' ]]; then
+    ${INSTALL_CMD} update-influxdb-1 2>&1 | tee -a "${LOG_LOCATION}"
+    ${INSTALL_CMD} update-influxdb-1-db-user 2>&1 | tee -a "${LOG_LOCATION}"
+elif [[ ${INFLUX} == '2)' ]]; then
+    ${INSTALL_CMD} update-influxdb-2 2>&1 | tee -a "${LOG_LOCATION}"
+    ${INSTALL_CMD} update-influxdb-2-db-user 2>&1 | tee -a "${LOG_LOCATION}"
+elif [[ ${INFLUX} == '0)' ]]; then
+    printf "Instructed to not install Influxdb/n"
+fi
 ${INSTALL_CMD} initialize 2>&1 | tee -a "${LOG_LOCATION}"
 ${INSTALL_CMD} update-logrotate 2>&1 | tee -a "${LOG_LOCATION}"
 ${INSTALL_CMD} ssl-certs-generate 2>&1 | tee -a "${LOG_LOCATION}"

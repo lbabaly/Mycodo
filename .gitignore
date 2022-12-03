@@ -1,6 +1,9 @@
 # Mycodo files
+test/
+tests/
 site/
 env/
+.venv
 /databases/flask_secret_key
 *.db
 *.pem
@@ -8,6 +11,9 @@ env/
 .upgrade
 statistics.csv
 statistics.id
+
+# VS Code
+.vscode/
 
 # jekyll
 _site

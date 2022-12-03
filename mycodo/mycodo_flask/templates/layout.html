@@ -200,14 +200,13 @@
             </div>
           </li>
 
-          <li class="nav-item dropdown{% if active_page in ['data', 'output', 'function', 'method_list', 'lcd'] %} active{% endif %}">
+          <li class="nav-item dropdown{% if active_page in ['data', 'output', 'function', 'method_list'] %} active{% endif %}">
             <a class="nav-link dropdown-toggle" href="#" id="dropdown01" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">{{_('Setup')}}</a>
             <div class="dropdown-menu" aria-labelledby="dropdown01">
               <a class="dropdown-item{% if active_page == 'input' %} active{% endif %}" href="{{url_for('routes_input.page_input')}}"><i class="fas fa-database"></i> {{dict_translation['input']['title']}}</a>
               <a class="dropdown-item{% if active_page == 'output' %} active{% endif %}" href="{{url_for('routes_output.page_output')}}"><i class="fas fa-bolt"></i> {{dict_translation['output']['title']}}</a>
               <a class="dropdown-item{% if active_page == 'function' %} active{% endif %}" href="{{url_for('routes_function.page_function')}}"><i class="fas fa-atom"></i> {{dict_translation['function']['title']}}</a>
               <a class="dropdown-item{% if active_page == 'method_list' %} active{% endif %}" href="{{url_for('routes_method.method_list')}}"><i class="fas fa-chart-line"></i> {{dict_translation['method']['title']}}</a>
-              <a class="dropdown-item{% if active_page == 'lcd' %} active{% endif %}" href="{{url_for('routes_page.page_lcd')}}"><i class="fas fa-desktop"></i> {{dict_translation['lcd']['title']}}</a>
             </div>
           </li>
 
@@ -217,8 +216,8 @@
               <a class="dropdown-item{% if active_page == 'camera' %} active{% endif %}" href="{{url_for('routes_page.page_camera')}}"><i class="fas fa-camera"></i> {{_('Camera')}}</a>
               <a class="dropdown-item{% if active_page == 'notes' %} active{% endif %}" href="{{url_for('routes_page.page_notes')}}"><i class="fas fa-edit"></i> {{dict_translation['note']['title']}}</a>
               <a class="dropdown-item{% if active_page == 'export' %} active{% endif %}" href="{{url_for('routes_page.page_export')}}"><i class="fas fa-save"></i> {{dict_translation['export']['title'] + ' ' + dict_translation['import']['title']}}</a>
-              <a class="dropdown-item{% if active_page == 'usage' %} active{% endif %}" href="{{url_for('routes_page.page_usage')}}"><i class="fas fa-sliders-h"></i> {{_('Energy Usage')}}</a>
-              <a class="dropdown-item{% if active_page == 'usage_reports' %} active{% endif %}" href="{{url_for('routes_page.page_usage_reports')}}"><i class="fas fa-list-alt"></i> {{_('Energy Usage Reports')}}</a>
+              <a class="dropdown-item{% if active_page == 'energy_usage_outputs' %} active{% endif %}" href="{{url_for('routes_page.page_energy_usage_outputs')}}"><i class="fas fa-sliders-h"></i> {{_('Energy Usage')}} ({{_('Outputs')}})</a>
+              <a class="dropdown-item{% if active_page == 'energy_usage_inputs_amps' %} active{% endif %}" href="{{url_for('routes_page.page_energy_usage_input_amps')}}"><i class="fas fa-sliders-h"></i> {{_('Energy Usage')}} ({{_('Amp Measure')}})</a>
             </div>
           </li>
         {% for each_dash in dashboards if each_dash.unique_id == dashboard_id %}
@@ -237,15 +236,16 @@
             {% if help_page[0] != '' %}
               <a class="dropdown-item{% if active_page == 'help' %} active{% endif %}" target="_blank" href="{{help_page[0]}}"><i class="fas fa-book"></i> {{_('Help')}}: {{help_page[1]}}</a>
             {% endif %}
-              <a class="dropdown-item{% if active_page == 'help' %} active{% endif %}" target="_blank" href="https://kizniche.github.io/Mycodo/"><i class="fas fa-book"></i> {{_('Mycodo Manual')}} ({{_('Online')}})</a>
-              <a class="dropdown-item{% if active_page == 'help' %} active{% endif %}" target="_blank" href="{{url_for('routes_static.download_pdf_manual')}}"><i class="fas fa-book"></i> {{_('Mycodo Manual')}} ({{_('PDF')}})</a>
-              <a class="dropdown-item" target="_blank" href="https://kizniche.github.io/Mycodo/API/"><i class="fas fa-plug"></i> {{_('Mycodo API Info')}}</a>
-              <a class="dropdown-item" target="_blank" href="/api"><i class="fas fa-plug"></i> {{_('Mycodo API Docs')}}</a>
+              <a class="dropdown-item{% if active_page == 'help' %} active{% endif %}" target="_blank" href="https://kizniche.github.io/Mycodo/"><i class="fas fa-book"></i> {{_('Manual')}} ({{_('Online')}})</a>
+              <a class="dropdown-item{% if active_page == 'help' %} active{% endif %}" target="_blank" href="{{url_for('routes_static.download_pdf_manual')}}"><i class="fas fa-book"></i> {{_('Manual')}} ({{_('PDF')}})</a>
+              <a class="dropdown-item" target="_blank" href="https://kizniche.github.io/Mycodo/API/"><i class="fas fa-plug"></i> {{_('API Info')}}</a>
+              <a class="dropdown-item" target="_blank" href="/api"><i class="fas fa-plug"></i> {{_('API Docs')}}</a>
               <div class="dropdown-divider"></div>
-              <a class="dropdown-item" target="_blank" href="https://forum.kylegabriel.com/"><i class="fas fa-comments"></i> {{_('Discussion Forum')}}</a>
-              <a class="dropdown-item" target="_blank" href="https://github.com/kizniche/Mycodo/issues/new/choose"><i class="fas fa-bug"></i> {{_('Submit an Issue')}}</a>
               <a class="dropdown-item" target="_blank" href="https://github.com/kizniche/Mycodo"><i class="fab fa-github"></i> {{_('Mycodo on Github')}}</a>
-              <a class="dropdown-item" target="_blank" href="https://github.com/kizniche/Mycodo/blob/master/CHANGELOG.md"><i class="fas fa-edit"></i> {{_('Changelog')}}</a>
+              <a class="dropdown-item" target="_blank" href="https://github.com/kizniche/Mycodo/issues/new/choose"><i class="fas fa-bug"></i> {{_('Submit an Issue')}}</a>
+              <a class="dropdown-item" target="_blank" href="https://forum.radicaldiy.com/"><i class="fas fa-comments"></i> {{_('Discussion Forum')}}</a>
+              <a class="dropdown-item" target="_blank" href="http://translate.kylegabriel.com:8080/projects/mycodo/translations/"><i class="fas fa-edit"></i> {{_('Edit Translations')}}</a>
+              <a class="dropdown-item" target="_blank" href="https://github.com/kizniche/Mycodo/blob/master/CHANGELOG.md"><i class="fas fa-book"></i> {{_('Changelog')}}</a>
               <a class="dropdown-item" target="_blank" href="https://kylegabriel.com/donate/"><i class="fas fa-donate"></i> {{_('Donate')}}</a>
             </div>
           </li>
@@ -314,10 +314,10 @@
 
             <div class="row small-gutters" style="padding: 1em 1em 0 0.8em;">
               <div class="col-auto">
-                <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" data-dismiss="modal">{{_('Close')}}</button>
               </div>
               <div class="col-auto">
-                <input class="btn btn-primary" id="user_preferences_save" name="user_preferences_save" type="submit" value="Save">
+                <input class="btn btn-primary" id="user_preferences_save" name="user_preferences_save" type="submit" value="{{_('Save')}}">
               </div>
             </div>
 
@@ -352,7 +352,7 @@
 
             <div class="row small-gutters" style="padding: 1em 1em 0 0.8em;">
               <div class="col-auto">
-                <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" data-dismiss="modal">{{_('Close')}}</button>
               </div>
               <div class="col-auto">
                 {{form_dashboard.dash_modify(class_='btn btn-primary')}}

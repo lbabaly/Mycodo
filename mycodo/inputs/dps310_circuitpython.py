@@ -13,7 +13,7 @@ INPUT_INFORMATION = {
     "input_name_unique": "DPS310_CIRCUITPYTHON",
     "input_manufacturer": "Infineon",
     "input_name": "DPS310",
-    "input_library": "Adafruit-CircuitPython-DPS310",
+    "input_library": "Adafruit_CircuitPython_DPS310",
     "measurements_name": "Pressure/Temperature",
     "measurements_dict": measurements_dict,
     "url_manufacturer": "https://www.infineon.com/cms/en/product/sensor/pressure-sensors/pressure-sensors-for-iot/dps310/",
@@ -26,7 +26,7 @@ INPUT_INFORMATION = {
     "options_enabled": ["i2c_location", "period", "pre_output"],
     "options_disabled": ["interface"],
     "dependencies_module": [
-        ("pip-pypi", "adafruit_extended_bus", "adafruit-extended-bus==1.0.1"),
+        ("pip-pypi", "adafruit_extended_bus", "Adafruit-extended-bus==1.0.2"),
         ("pip-pypi", "adafruit_dps310", "adafruit-circuitpython-dps310==1.2.5"),
     ],
     "interfaces": ["I2C"],
@@ -39,14 +39,14 @@ class InputModule(AbstractInput):
     """A sensor support class that monitors the DPS310's pressure and temperature"""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import adafruit_dps310
         from adafruit_extended_bus import ExtendedI2C
 
@@ -58,7 +58,7 @@ class InputModule(AbstractInput):
     def get_measurement(self):
         """Gets the pressure and temperature"""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)

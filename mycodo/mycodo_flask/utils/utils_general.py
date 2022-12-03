@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import glob
 import importlib
 import json
 import logging
@@ -13,14 +12,12 @@ from flask import flash
 from flask import redirect
 from flask import request
 from flask_babel import gettext
+from importlib_metadata import version
 from sqlalchemy import and_
 
 from mycodo.config import CAMERA_INFO
 from mycodo.config import DEPENDENCIES_GENERAL
-from mycodo.config import FUNCTION_ACTION_INFO
 from mycodo.config import FUNCTION_INFO
-from mycodo.config import LCD_INFO
-from mycodo.config import MATH_INFO
 from mycodo.config import METHOD_INFO
 from mycodo.config import PATH_CAMERAS
 from mycodo.config_devices_units import MEASUREMENTS
@@ -33,10 +30,7 @@ from mycodo.databases.models import CustomController
 from mycodo.databases.models import Dashboard
 from mycodo.databases.models import DeviceMeasurements
 from mycodo.databases.models import Input
-from mycodo.databases.models import LCD
-from mycodo.databases.models import Math
 from mycodo.databases.models import Output
-from mycodo.databases.models import OutputChannel
 from mycodo.databases.models import PID
 from mycodo.databases.models import Role
 from mycodo.databases.models import Trigger
@@ -44,6 +38,7 @@ from mycodo.databases.models import User
 from mycodo.databases.models import Widget
 from mycodo.mycodo_client import DaemonControl
 from mycodo.mycodo_flask.extensions import db
+from mycodo.utils.actions import parse_action_information
 from mycodo.utils.functions import parse_function_information
 from mycodo.utils.inputs import parse_input_information
 from mycodo.utils.outputs import parse_output_information
@@ -126,7 +121,9 @@ def custom_options_return_string(error, dict_options, mod_dev, request_form):
                     elif each_option['type'] in [
                             'text',
                             'select',
+                            'select_custom_choices',
                             'select_measurement',
+                            'select_channel',
                             'select_measurement_channel',
                             'select_type_measurement',
                             'select_type_unit',
@@ -183,9 +180,13 @@ def custom_options_return_json(
         request_form=None,
         mod_dev=None,
         device=None,
-        use_defaults=False):
+        use_defaults=False,
+        custom_options=None):
     # Custom options
-    dict_options_return = {}
+    if custom_options:
+        dict_options_return = custom_options
+    else:
+        dict_options_return = {}
 
     # TODO: name these the same in next major release
     if mod_dev is None:
@@ -196,6 +197,8 @@ def custom_options_return_json(
         device = mod_dev.device
     elif hasattr(mod_dev, 'output_type'):
         device = mod_dev.output_type
+    elif hasattr(mod_dev, 'action_type'):
+        device = mod_dev.action_type
     else:
         logger.error("Unknown device")
         return None, None
@@ -254,7 +257,10 @@ def custom_options_return_json(
                                 'multiline_text',
                                 'text',
                                 'select',
+                                'select_custom_choices',
                                 'select_measurement',
+                                'select_measurement_from_this_input',
+                                'select_channel',
                                 'select_measurement_channel',
                                 'select_type_measurement',
                                 'select_type_unit',
@@ -386,7 +392,7 @@ def custom_channel_options_return_json(
                                         name=each_option['name'],
                                         value=request_form.get(key)))
 
-                        elif each_option['type'] == 'select':
+                        elif each_option['type'] in ['select', 'select_custom_choices']:
                             if 'constraints_pass' in each_option:
                                 (constraints_pass,
                                  constraints_errors,
@@ -403,6 +409,7 @@ def custom_channel_options_return_json(
                                 'multiline_text',
                                 'text',
                                 'select_measurement',
+                                'select_channel',
                                 'select_measurement_channel',
                                 'select_type_measurement',
                                 'select_type_unit',
@@ -446,7 +453,7 @@ def custom_channel_options_return_json(
             elif null_value:
                 if use_defaults and 'default_value' in each_option:
                     # If a select type has cast_value set, cast the value as that type
-                    if (each_option['type'] == 'select' and
+                    if (each_option['type'] in ['select', 'select_custom_choices'] and
                             'cast_value' in each_option and
                             each_option['default_value'] is not None):
                         if each_option['cast_value'] == 'integer':
@@ -496,8 +503,11 @@ def check_for_valid_unit_and_conversion(device_id, error):
                             "for measurement with ID {meas}".format(
                                 cid=each_meas.conversion_id,
                                 meas=each_meas.unique_id))
-    finally:
-        return error
+    except Exception as err:
+        error.append(err)
+        logger.exception("check_for_valid_unit_and_conversion")
+
+    return error
 
 
 def controller_activate_deactivate(messages,
@@ -512,7 +522,7 @@ def controller_activate_deactivate(messages,
     :type messages: dict of list of strings
     :param controller_action: Activate or deactivate
     :type controller_action: str
-    :param controller_type: The controller type (Conditional, Input, LCD, Math, PID, Trigger, Function)
+    :param controller_type: The controller type (Conditional, Input, PID, Trigger, Function)
     :type controller_type: str
     :param controller_id: Controller with ID to activate or deactivate
     :type controller_id: str
@@ -531,15 +541,6 @@ def controller_activate_deactivate(messages,
     elif controller_type == 'Input':
         mod_controller = Input.query.filter(
             Input.unique_id == controller_id).first()
-        if activated:
-            messages["error"] = check_for_valid_unit_and_conversion(
-                controller_id, messages["error"])
-    elif controller_type == 'LCD':
-        mod_controller = LCD.query.filter(
-            LCD.unique_id == controller_id).first()
-    elif controller_type == 'Math':
-        mod_controller = Math.query.filter(
-            Math.unique_id == controller_id).first()
         if activated:
             messages["error"] = check_for_valid_unit_and_conversion(
                 controller_id, messages["error"])
@@ -597,18 +598,13 @@ def controller_activate_deactivate(messages,
 #
 
 def choices_controller_ids():
-    """ populate form multi-select choices from Controller IDS """
+    """populate form multi-select choices from Controller IDs."""
     choices = []
     for each_input in Input.query.all():
         display = '[Input {id:02d}] {name}'.format(
             id=each_input.id,
             name=each_input.name)
         choices.append({'value': each_input.unique_id, 'item': display})
-    for each_math in Math.query.all():
-        display = '[Math {id:02d}] {name}'.format(
-            id=each_math.id,
-            name=each_math.name)
-        choices.append({'value': each_math.unique_id, 'item': display})
     for each_pid in PID.query.all():
         display = '[PID {id:02d}] {name}'.format(
             id=each_pid.id,
@@ -629,16 +625,11 @@ def choices_controller_ids():
             id=each_custom.id,
             name=each_custom.name)
         choices.append({'value': each_custom.unique_id, 'item': display})
-    for each_lcd in LCD.query.all():
-        display = '[LCD {id:02d}] {name}'.format(
-            id=each_lcd.id,
-            name=each_lcd.name)
-        choices.append({'value': each_lcd.unique_id, 'item': display})
     return choices
 
 
 def choices_custom_functions():
-    """ populate form multi-select choices from Function entries """
+    """populate form multi-select choices from Function entries."""
     choices = []
     dict_controllers = parse_function_information()
     list_controllers_sorted = generate_form_controller_list(dict_controllers)
@@ -651,7 +642,7 @@ def choices_custom_functions():
 
 
 def choices_inputs(inputs, dict_units, dict_measurements):
-    """ populate form multi-select choices from Input entries """
+    """populate form multi-select choices from Input entries."""
     choices = []
     for each_input in inputs:
         choices = form_input_choices(
@@ -660,78 +651,24 @@ def choices_inputs(inputs, dict_units, dict_measurements):
 
 
 def choices_input_devices(input_dev):
-    """ populate form multi-select choices from Output entries """
+    """populate form multi-select choices from Output entries."""
     choices = []
     for each_input in input_dev:
         choices = form_input_choices_devices(choices, each_input)
     return choices
 
 
-def choices_lcd(inputs, maths, pids, outputs, dict_units, dict_measurements):
-    choices = [
-        {'value': '0000,BLANK', 'item': 'Blank Line'},
-        {'value': '0000,IP', 'item': 'IP Address of Raspberry Pi'},
-        {'value': '0000,TEXT', 'item': 'Custom Text'}
-    ]
-
-    # Inputs
-    for each_input in inputs:
-        value = '{id},input_time'.format(
-            id=each_input.unique_id)
-        display = '[Input {id:02d}] {name} (Timestamp)'.format(
-            id=each_input.id,
-            name=each_input.name)
-        choices.append({'value': value, 'item': display})
-        choices = form_input_choices(
-            choices, each_input, dict_units, dict_measurements)
-
-    # Maths
-    for each_math in maths:
-        value = '{id},math_time'.format(
-            id=each_math.unique_id)
-        display = '[Math {id:02d}] {name} (Timestamp)'.format(
-            id=each_math.id,
-            name=each_math.name)
-        choices.append({'value': value, 'item': display})
-        choices = form_math_choices(
-            choices, each_math, dict_units, dict_measurements)
-
-    # PIDs
-    for each_pid in pids:
-        value = '{id},pid_time'.format(
-            id=each_pid.unique_id)
-        display = '[PID {id:02d}] {name} (Timestamp)'.format(
-            id=each_pid.id,
-            name=each_pid.name)
-        choices.append({'value': value, 'item': display})
-        choices = form_pid_choices(
-            choices, each_pid, dict_units, dict_measurements)
-
-    # Outputs
-    for each_output in outputs:
-        value = '{id},output_time'.format(
-            id=each_output.unique_id)
-        display = '[Output {id:02d}] {name} (Timestamp)'.format(
-            id=each_output.id,
-            name=each_output.name)
-        choices.append({'value': value, 'item': display})
-        choices = form_output_choices(
-            choices, each_output, dict_units, dict_measurements)
-
-    return choices
-
-
-def choices_maths(maths, dict_units, dict_measurements):
-    """ populate form multi-select choices from Math entries """
+def choices_actions(actions, dict_units, dict_measurements):
+    """populate form multi-select choices from Action entries."""
     choices = []
-    for each_math in maths:
-        choices = form_math_choices(
-            choices, each_math, dict_units, dict_measurements)
+    for each_function in actions:
+        choices = form_function_choices(
+            choices, each_function, dict_units, dict_measurements)
     return choices
 
 
 def choices_functions(functions, dict_units, dict_measurements):
-    """ populate form multi-select choices from Math entries """
+    """populate form multi-select choices from Function entries."""
     choices = []
     for each_function in functions:
         choices = form_function_choices(
@@ -740,7 +677,7 @@ def choices_functions(functions, dict_units, dict_measurements):
 
 
 def choices_measurements(measurements):
-    """ populate form multi-select choices from Measurement entries """
+    """populate form multi-select choices from Measurement entries."""
     choices = []
     for each_meas in measurements:
         value = '{meas}'.format(
@@ -791,18 +728,20 @@ def choices_measurements_units(measurements, units):
     return choices
 
 
-def choices_outputs(output, dict_units, dict_measurements):
-    """ populate form multi-select choices from Output entries """
+def choices_outputs(output, table_output_channel, dict_outputs, dict_units, dict_measurements):
+    """populate form multi-select choices from Output entries."""
     choices = []
     for each_output in output:
+        output_channels = table_output_channel.query.filter(
+            table_output_channel.output_id == each_output.unique_id).all()
         choices = form_output_choices(
-            choices, each_output, dict_units, dict_measurements)
+            choices, each_output, output_channels, dict_outputs, dict_units, dict_measurements)
     return choices
 
 
 def choices_outputs_channels_measurements(
         output, table_output_channel, dict_outputs, dict_units, dict_measurements):
-    """ populate form multi-select choices from Output entries """
+    """populate form multi-select choices from Output entries."""
     choices = []
     for each_output in output:
         output_channels = table_output_channel.query.filter(
@@ -813,7 +752,7 @@ def choices_outputs_channels_measurements(
 
 
 def choices_outputs_channels(output, output_channel, dict_outputs):
-    """ populate form multi-select choices from Output entries """
+    """populate form multi-select choices from Output entries."""
     choices = []
     for each_output in output:
         for each_channel in output_channel:
@@ -824,26 +763,28 @@ def choices_outputs_channels(output, output_channel, dict_outputs):
 
 
 def choices_output_devices(output):
-    """ populate form multi-select choices from Output entries """
+    """populate form multi-select choices from Output entries."""
     choices = []
     for each_output in output:
         choices = form_output_choices_devices(choices, each_output)
     return choices
 
 
-def choices_outputs_pwm(output, dict_units, dict_measurements, dict_outputs):
-    """ populate form multi-select choices from Output entries """
+def choices_outputs_pwm(output, table_output_channel, dict_outputs, dict_units, dict_measurements):
+    """populate form multi-select choices from Output entries."""
     choices = []
     for each_output in output:
         if ('output_types' in dict_outputs[each_output.output_type] and
                 'pwm' in dict_outputs[each_output.output_type]['output_types']):
+            output_channels = table_output_channel.query.filter(
+                table_output_channel.output_id == each_output.unique_id).all()
             choices = form_output_choices(
-                choices, each_output, dict_units, dict_measurements)
+                choices, each_output, output_channels, dict_outputs, dict_units, dict_measurements)
     return choices
 
 
 def choices_pids(pid, dict_units, dict_measurements):
-    """ populate form multi-select choices from PID entries """
+    """populate form multi-select choices from PID entries."""
     choices = []
     for each_pid in pid:
         choices = form_pid_choices(
@@ -852,7 +793,7 @@ def choices_pids(pid, dict_units, dict_measurements):
 
 
 def choices_pids_devices(pid):
-    """ populate form multi-select choices from PID device entries """
+    """populate form multi-select choices from PID device entries."""
     choices = []
     for each_pid in pid:
         choices = form_pid_choices_devices(choices, each_pid)
@@ -860,7 +801,7 @@ def choices_pids_devices(pid):
 
 
 def choices_methods(method):
-    """ populate form multi-select choices from Method entries """
+    """populate form multi-select choices from Method entries."""
     choices = []
     for each_method in method:
         choices = form_method_choices(choices, each_method)
@@ -868,7 +809,7 @@ def choices_methods(method):
 
 
 def choices_tags(tags):
-    """ populate form multi-select choices from Tag entries """
+    """populate form multi-select choices from Tag entries."""
     choices = []
     for each_tag in tags:
         choices = form_tag_choices(choices, each_tag)
@@ -876,7 +817,7 @@ def choices_tags(tags):
 
 
 def choices_units(units):
-    """ populate form multi-select choices from Units entries """
+    """populate form multi-select choices from Units entries."""
     choices = []
     for each_unit, each_info in UNITS.items():
         if each_info['name']:
@@ -962,51 +903,6 @@ def form_input_choices_devices(choices, each_input):
     return choices
 
 
-def form_math_choices(choices, each_math, dict_units, dict_measurements):
-    device_measurements = DeviceMeasurements.query.filter(
-        DeviceMeasurements.device_id == each_math.unique_id).all()
-
-    for each_measure in device_measurements:
-        conversion = Conversion.query.filter(
-            Conversion.unique_id == each_measure.conversion_id).first()
-        channel, unit, measurement = return_measurement_info(
-            each_measure, conversion)
-
-        if unit:
-            value = '{input_id},{meas_id}'.format(
-                input_id=each_math.unique_id,
-                meas_id=each_measure.unique_id)
-
-            display_unit = find_name_unit(
-                dict_units, unit)
-            display_measurement = find_name_measurement(
-                dict_measurements, measurement)
-
-            if each_measure.name:
-                channel_info = 'CH{cnum} ({cname})'.format(
-                    cnum=channel, cname=each_measure.name)
-            else:
-                channel_info = 'CH{cnum}'.format(cnum=channel)
-
-            if display_measurement and display_unit:
-                measurement_unit = '{meas} ({unit})'.format(
-                    meas=display_measurement, unit=display_unit)
-            elif display_measurement:
-                measurement_unit = '{meas}'.format(
-                    meas=display_measurement)
-            else:
-                measurement_unit = '({unit})'.format(unit=display_unit)
-
-            display = '[Math {id:02d}] {i_name} {chan} {meas}'.format(
-                id=each_math.id,
-                i_name=each_math.name,
-                chan=channel_info,
-                meas=measurement_unit)
-            choices.append({'value': value, 'item': display})
-
-    return choices
-
-
 def form_function_choices(choices, each_function, dict_units, dict_measurements):
     device_measurements = DeviceMeasurements.query.filter(
         DeviceMeasurements.device_id == each_function.unique_id).all()
@@ -1052,78 +948,21 @@ def form_function_choices(choices, each_function, dict_units, dict_measurements)
     return choices
 
 
-def form_output_choices(choices, each_output, dict_units, dict_measurements):
-    device_measurements = DeviceMeasurements.query.filter(
-        DeviceMeasurements.device_id == each_output.unique_id).all()
-
-    for each_measure in device_measurements:
-        conversion = Conversion.query.filter(
-            Conversion.unique_id == each_measure.conversion_id).first()
-        channel, unit, measurement = return_measurement_info(
-            each_measure, conversion)
-
-        if unit:
-            value = '{output_id},{meas_id}'.format(
-                output_id=each_output.unique_id,
-                meas_id=each_measure.unique_id)
-
-            display_unit = find_name_unit(
-                dict_units, unit)
-            display_measurement = find_name_measurement(
-                dict_measurements, measurement)
-
-            if isinstance(channel, int):
-                channel_num = ', M{cnum}'.format(cnum=channel)
-            else:
-                channel_num = ''
-
-            channel_name = ''
-
-            output_channel = OutputChannel.query.filter(and_(
-                OutputChannel.output_id == each_output.unique_id,
-                OutputChannel.channel == channel)).first()
-            if output_channel:
-                try:
-                    custom_channel_options = json.loads(output_channel.custom_options)
-                    if "name" in custom_channel_options:
-                        channel_name += ', {name}'.format(name=custom_channel_options["name"])
-                except:
-                    pass
-
-            if each_measure.name:
-                channel_name += ', {name}'.format(name=each_measure.name)
-
-            if display_measurement and display_unit:
-                measurement_unit = ', {meas} ({unit})'.format(
-                    meas=display_measurement, unit=display_unit)
-            elif display_measurement:
-                measurement_unit = ', {meas}'.format(
-                    meas=display_measurement)
-            else:
-                measurement_unit = ', {unit}'.format(unit=display_unit)
-
-            display = '[Output {id:02d}] {i_name}{chan_num}{chan_name}{meas}'.format(
-                id=each_output.id,
-                i_name=each_output.name,
-                chan_num=channel_num,
-                chan_name=channel_name,
-                meas=measurement_unit)
-
-            choices.append({'value': value, 'item': display})
-
-    return choices
+def form_output_choices(choices, each_output, output_channels, dict_outputs, dict_units, dict_measurements):
+    return form_output_channel_measurement_choices(
+        choices, each_output, output_channels, dict_outputs, dict_units, dict_measurements, include_channel_id_in_value=False)
 
 
 def form_output_channel_measurement_choices(
-        choices, each_output, output_channels, dict_outputs, dict_units, dict_measurements):
-    from sqlalchemy import and_
-
+        choices, each_output, output_channels, dict_outputs, dict_units, dict_measurements, include_channel_id_in_value=True):
     for each_channel in output_channels:
         measurement_channels = dict_outputs[each_output.output_type]['channels_dict'][each_channel.channel]['measurements']
         for measurement_channel in measurement_channels:
             device_measurement = DeviceMeasurements.query.filter(
                 and_(DeviceMeasurements.device_id == each_output.unique_id,
                      DeviceMeasurements.channel == measurement_channel)).first()
+            if not device_measurement:
+                continue
 
             conversion = Conversion.query.filter(
                 Conversion.unique_id == device_measurement.conversion_id).first()
@@ -1131,23 +970,23 @@ def form_output_channel_measurement_choices(
                 device_measurement, conversion)
 
             if unit:
-                value = '{output_id},{meas_id},{chan_id}'.format(
-                    output_id=each_output.unique_id,
-                    meas_id=device_measurement.unique_id,
-                    chan_id=each_channel.unique_id)
+                if include_channel_id_in_value:
+                    value = f'{each_output.unique_id},{device_measurement.unique_id},{each_channel.unique_id}'
+                else:
+                    value = f'{each_output.unique_id},{device_measurement.unique_id}'
 
                 display_unit = find_name_unit(
                     dict_units, unit)
                 display_measurement = find_name_measurement(
                     dict_measurements, measurement)
 
-                if isinstance(channel, int):
-                    channel_num = ' M{cnum}'.format(cnum=channel)
-                else:
-                    channel_num = ''
-
                 if device_measurement.name:
-                    channel_name = ' ({name})'.format(name=device_measurement.name)
+                    meas_name = ' ({name})'.format(name=device_measurement.name)
+                else:
+                    meas_name = ''
+
+                if each_channel.name:
+                    channel_name = ' ({name})'.format(name=each_channel.name)
                 else:
                     channel_name = ''
 
@@ -1160,14 +999,7 @@ def form_output_channel_measurement_choices(
                 else:
                     measurement_unit = ' ({unit})'.format(unit=display_unit)
 
-                display = '[Output {id:02d} CH{ch} M{mid}] {i_name}{chan_num}{chan_name}{meas}'.format(
-                    id=each_output.id,
-                    ch=each_channel.channel,
-                    mid=device_measurement.channel,
-                    i_name=each_output.name,
-                    chan_num=channel_num,
-                    chan_name=channel_name,
-                    meas=measurement_unit)
+                display = f'[Output {each_output.id:02d} CH{each_channel.channel} M{device_measurement.channel}] {each_output.name}{channel_name}{meas_name}{measurement_unit}'
 
                 types = []
                 if 'types' in dict_outputs[each_output.output_type]['channels_dict'][each_channel.channel]:
@@ -1309,7 +1141,7 @@ def find_name_measurement(dict_measurements, measurement):
 
 
 def choices_id_name(table):
-    """ Return a dictionary of all available ids and names of a table """
+    """Return a dictionary of all available ids and names of a table."""
     choices = []
     for each_entry in table:
         value = each_entry.unique_id
@@ -1341,7 +1173,7 @@ def user_has_permission(permission, silent=False):
 
 
 def dashboard_widget_get_info(dashboard_id=None):
-    """Generate a dictionary of information of all dashboard widgets"""
+    """Generate a dictionary of information of all dashboard widgets."""
     dashboards = {}
 
     if dashboard_id:
@@ -1404,7 +1236,7 @@ def dashboard_widget_get_info(dashboard_id=None):
 
 
 def delete_entry_with_id(table, entry_id, flash_message=True):
-    """ Delete SQL database entry with specific id """
+    """Delete SQL database entry with specific id."""
     try:
         entry = table.query.filter(
             table.unique_id == entry_id).first()
@@ -1433,7 +1265,7 @@ def delete_entry_with_id(table, entry_id, flash_message=True):
 
 
 def flash_form_errors(form):
-    """ Flashes form errors for easier display """
+    """Flashes form errors for easier display."""
     for field, errors in form.errors.items():
         for error in errors:
             flash(gettext("Error in the %(field)s field - %(err)s",
@@ -1443,7 +1275,7 @@ def flash_form_errors(form):
 
 
 def form_error_messages(form, error):
-    """ Append form errors """
+    """Append form errors."""
     for field, errors in form.errors.items():
         for each_error in errors:
             error.append(
@@ -1466,7 +1298,7 @@ def flash_success_errors(error, action, redirect_url):
 
 
 def add_display_order(display_order, device_id):
-    """ Add integer ID to list of string IDs """
+    """Add integer ID to list of string IDs."""
     if display_order:
         display_order.append(device_id)
         return ','.join(display_order)
@@ -1491,7 +1323,7 @@ def reorder(display_order, device_id, direction):
 
 
 def reorder_list(modified_list, item, direction):
-    """ Reorder entry in a comma-separated list either up or down """
+    """Reorder entry in a comma-separated list either up or down."""
     from_position = modified_list.index(item)
     if direction == "up":
         if from_position == 0:
@@ -1544,7 +1376,7 @@ def test_sql():
         logger.error("Error creating entries: {err}".format(err=msg))
 
 def get_camera_paths(camera):
-    """ Retrieve still/timelapse paths for the given camera object """
+    """Retrieve still/timelapse paths for the given camera object."""
     camera_path = os.path.join(PATH_CAMERAS, '{uid}'.format(
         uid=camera.unique_id))
 
@@ -1561,9 +1393,9 @@ def get_camera_paths(camera):
     return still_path, tl_path
 
 
-def bytes2human(n, format='%(value).1f %(symbol)s', symbols='customary'):
+def bytes2human(n, fmt='%(value).1f %(symbol)s', symbols='customary'):
     """
-    Convert n bytes into a human readable string based on format.
+    Convert n bytes into a human-readable string based on fmt.
     symbols can be either "customary", "customary_ext", "iec" or "iec_ext",
     see: http://goo.gl/kTQMs
     
@@ -1583,7 +1415,7 @@ def bytes2human(n, format='%(value).1f %(symbol)s', symbols='customary'):
       >>> bytes2human(10000, "%(value).1f %(symbol)s/sec")
       '9.8 K/sec'
       >>> # precision can be adjusted by playing with %f operator
-      >>> bytes2human(10000, format="%(value).5f %(symbol)s")
+      >>> bytes2human(10000, fmt="%(value).5f %(symbol)s")
       '9.76562 K'
     """
     SYMBOLS = {
@@ -1605,11 +1437,11 @@ def bytes2human(n, format='%(value).1f %(symbol)s', symbols='customary'):
     for symbol in reversed(symbols[1:]):
         if n >= prefix[symbol]:
             value = float(n) / prefix[symbol]
-            return format % locals()
-    return format % dict(symbol=symbols[0], value=n)
+            return fmt % locals()
+    return fmt % dict(symbol=symbols[0], value=n)
 
 def get_camera_image_info():
-    """ Retrieve information about the latest camera images """
+    """Retrieve information about the latest camera images."""
     latest_img_still_ts = {}
     latest_img_still_size = {}
     latest_img_still = {}
@@ -1665,14 +1497,12 @@ def return_dependencies(device_type):
 
     list_dependencies = [
         parse_function_information(),
+        parse_action_information(),
         parse_input_information(),
         parse_output_information(),
         parse_widget_information(),
         CAMERA_INFO,
-        FUNCTION_ACTION_INFO,
         FUNCTION_INFO,
-        LCD_INFO,
-        MATH_INFO,
         METHOD_INFO,
         DEPENDENCIES_GENERAL
     ]
@@ -1688,14 +1518,36 @@ def return_dependencies(device_type):
                 elif each_device == 'dependencies_module':
                     for (install_type, package, install_id) in each_dict:
                         entry = (
-                            package, '{0} {1}'.format(install_type, install_id),
+                            package,
+                            f'{install_type} {install_id}',
                             install_type,
                             install_id
                         )
-                        if install_type in ['pip-pypi', 'pip-git']:
+                        if install_type == 'pip-pypi':
                             try:
                                 module = importlib.util.find_spec(package)
-                                if module is None:
+
+                                # Get version
+                                version_mismatch = False
+                                if "==" in install_id:
+                                    try:
+                                        pypi_name = install_id.split("==")[0]
+                                        required_version = install_id.split("==")[1]
+                                        try:
+                                            installed_version = version(pypi_name)
+                                        except:
+                                            installed_version = "NONE"
+
+                                        logger.info(f"Pypi Package: {pypi_name}, "
+                                                    f"Required: v{required_version}, "
+                                                    f"Installed: v{installed_version}, "
+                                                    f"Same: {required_version == installed_version}")
+                                        if required_version != installed_version:
+                                            version_mismatch = True
+                                    except:
+                                        logger.exception(1)
+
+                                if module is None or version_mismatch:
                                     if entry not in unmet_deps:
                                         unmet_deps.append(entry)
                                 else:
@@ -1718,8 +1570,9 @@ def return_dependencies(device_type):
                                 if entry not in unmet_deps:
                                     unmet_deps.append((
                                         ", ".join(files_not_found),
+                                        install_id,
                                         install_type,
-                                        install_id
+                                        ", ".join(files_not_found)
                                     ))
                                 else:
                                     met_deps = True
@@ -1753,13 +1606,13 @@ def return_dependencies(device_type):
     return unmet_deps, met_deps, dep_message
 
 
-def use_unit_generate(device_measurements, input_dev, output, math, function):
-    """Generate dictionary of units to convert to"""
+def use_unit_generate(device_measurements, input_dev, output, function):
+    """Generate dictionary of units to convert to."""
     use_unit = {}
 
-    # Input and Math controllers have measurement tables with the same schema
+    # Controllers have measurement tables with the same schema
     list_devices_with_measurements = [
-        input_dev, math, function
+        input_dev, function
     ]
 
     for devices in list_devices_with_measurements:
@@ -1816,6 +1669,25 @@ def generate_form_output_list(dict_outputs):
     return list_outputs_sorted
 
 
+def generate_form_action_list(dict_actions, application=None):
+    # Sort dictionary entries by input_manufacturer, then input_name
+    # Results in list of sorted dictionary keys
+    def check_application(list1, list2):
+        for val in list1:
+            if val in list2:
+                return True
+        return False
+
+    list_tuples_sorted = sorted(dict_actions.items(), key=lambda x: (x[1]['manufacturer'], x[1]['name']))
+    list_actions_sorted = []
+    for each_action in list_tuples_sorted:
+        if (application and 'application' in dict_actions[each_action[0]] and
+                not check_application(application, dict_actions[each_action[0]]['application'])):
+            continue
+        list_actions_sorted.append(each_action[0])
+    return list_actions_sorted
+
+
 def generate_form_widget_list(dict_widgets):
     # Sort dictionary entries by input_manufacturer, then input_name
     # Results in list of sorted dictionary keys
@@ -1826,7 +1698,7 @@ def generate_form_widget_list(dict_widgets):
     return list_widgets_sorted
 
 
-def custom_action(controller_type, dict_device, unique_id, form):
+def custom_command(controller_type, dict_device, unique_id, form):
     messages = {
         "success": [],
         "info": [],
@@ -1855,13 +1727,13 @@ def custom_action(controller_type, dict_device, unique_id, form):
         return messages
 
     if controller_type != "Output" and not controller.is_activated:
-        messages["error"].append("Activate controller before executing a Custom Action")
+        messages["error"].append("Activate controller before executing a Custom Command")
         return messages
 
     try:
         options = {}
-        if 'custom_actions' in dict_device[device_type]:
-            for each_option in dict_device[device_type]['custom_actions']:
+        if 'custom_commands' in dict_device[device_type]:
+            for each_option in dict_device[device_type]['custom_commands']:
                 if 'id' in each_option and 'type' in each_option:
                     options[each_option['id']] = each_option
 
@@ -1907,7 +1779,7 @@ def custom_action(controller_type, dict_device, unique_id, form):
                     'wait_for_return' in options[button_id] and
                     options[button_id]['wait_for_return']):
                 use_thread = False
-            status = control.custom_button(
+            status = control.module_function(
                 controller_type, unique_id, button_id, args_dict, use_thread)
             if status:
                 if status[0]:

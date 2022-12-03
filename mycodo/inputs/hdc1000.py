@@ -106,15 +106,15 @@ class InputModule(AbstractInput):
     and calculates the dew point
     """
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.HDC1000_fr = None
         self.HDC1000_fw = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         i2c_address = 0x40  # HDC1000-F Address
 
         self.HDC1000_fr = io.open("/dev/i2c-" + str(self.input_dev.i2c_bus), "rb", buffering=0)
@@ -151,9 +151,9 @@ class InputModule(AbstractInput):
                 HDC1000_CONFIG_HUMIDITY_RESOLUTION_14BIT)
 
     def get_measurement(self):
-        """ Gets the humidity and temperature """
+        """Gets the humidity and temperature."""
         if not self.HDC1000_fr or not self.HDC1000_fw:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)

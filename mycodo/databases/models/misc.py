@@ -1,7 +1,12 @@
 # coding=utf-8
-from mycodo.databases import CRUDMixin
-from mycodo.databases import set_uuid
+import logging
+
+import requests
+
+from mycodo.databases import CRUDMixin, set_uuid
 from mycodo.mycodo_flask.extensions import db
+
+logger = logging.getLogger("mycodo.misc")
 
 
 class Misc(CRUDMixin, db.Model):
@@ -42,6 +47,41 @@ class Misc(CRUDMixin, db.Model):
     net_test_port = db.Column(db.Integer, default=53)
     net_test_timeout = db.Column(db.Integer, default=3)
     default_login_page = db.Column(db.String, default='password')
+
+    # Measurement database
+    db_name = 'influxdb'  # Default
+    db_version = ''  # Default
+    db_host = 'localhost'
+    db_port = 0
+    db_retention_policy = ''
+
+    try:
+        from mycodo.scripts.measurement_db import get_influxdb_info
+        influx_info = get_influxdb_info()
+        if influx_info['influxdb_installed'] or influx_info['influxdb_host']:
+            db_name = 'influxdb'
+        if influx_info['influxdb_host']:
+            db_host = influx_info['influxdb_host']
+        if influx_info['influxdb_port']:
+            db_port = influx_info['influxdb_port']
+        if influx_info['influxdb_version']:
+            if influx_info['influxdb_version'].startswith("1."):
+                db_version = '1'
+                db_retention_policy = 'autogen'
+            if influx_info['influxdb_version'].startswith("2."):
+                db_version = '2'
+                db_retention_policy = 'infinite'
+    except:
+        logger.exception("Determining influxdb version")
+
+    measurement_db_retention_policy = db.Column(db.String, default=db_retention_policy)
+    measurement_db_name = db.Column(db.String, default=db_name)
+    measurement_db_version = db.Column(db.String, default=db_version)
+    measurement_db_host = db.Column(db.String, default=db_host)
+    measurement_db_port = db.Column(db.String, default=db_port)
+    measurement_db_user = db.Column(db.String, default='mycodo')
+    measurement_db_password = db.Column(db.String, default='mmdu77sj3nIoiajjs')
+    measurement_db_dbname = db.Column(db.String, default='mycodo_db')
 
     def __repr__(self):
         return "<{cls}(id={s.id})>".format(s=self, cls=self.__class__.__name__)

@@ -4,7 +4,7 @@ import time
 
 import requests
 
-from mycodo.config import SQL_DATABASE_MYCODO
+from mycodo.config import MYCODO_DB_PATH
 from mycodo.config_translations import TRANSLATIONS
 from mycodo.databases.models import Conversion
 from mycodo.databases.models import Input
@@ -13,9 +13,7 @@ from mycodo.databases.utils import session_scope
 from mycodo.inputs.base_input import AbstractInput
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.influx import add_measurements_influxdb
-from mycodo.utils.influx import parse_measurement
-
-MYCODO_DB_PATH = 'sqlite:///' + SQL_DATABASE_MYCODO
+from mycodo.utils.inputs import parse_measurement
 
 
 def constraints_pass_positive_value(mod_input, value):
@@ -47,8 +45,9 @@ channels_dict = {
 # Input information
 INPUT_INFORMATION = {
     'input_name_unique': 'TTN_DATA_STORAGE',
-    'input_manufacturer': 'Mycodo',
-    'input_name': 'TTN Integration: Data Storage (TTN v2)',
+    'input_manufacturer': 'The Things Network',
+    'input_name': 'The Things Network: Data Storage (TTN v2)',
+    'input_name_short': 'TTN (v2) Data Storage',
     'input_library': 'requests',
     'measurements_name': 'Variable measurements',
     'measurements_dict': measurements_dict,
@@ -66,13 +65,10 @@ INPUT_INFORMATION = {
         'start_offset',
         'pre_output'
     ],
-    'options_disabled': ['interface'],
 
     'dependencies_module': [
         ('pip-pypi', 'requests', 'requests==2.25.1'),
     ],
-
-    'interfaces': ['MYCODO'],
 
     'custom_options': [
         {
@@ -123,10 +119,10 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that retrieves stored data from The Things Network """
+    """A sensor support class that retrieves stored data from The Things Network."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.first_run = True
 
@@ -137,9 +133,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.interface = self.input_dev.interface
         self.period = self.input_dev.period
         self.latest_datetime = self.input_dev.datetime
@@ -232,7 +228,7 @@ class InputModule(AbstractInput):
                     new_session.commit()
 
     def get_measurement(self):
-        """ Gets the data """
+        """Gets the data."""
         if self.first_run:
             # Get data for up to 7 days (longest Data Storage Integration
             # stores data) in the past or until last_datetime.

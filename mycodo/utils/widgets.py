@@ -21,18 +21,19 @@
 #
 #  Contact at kylegabriel.com
 import logging
-
 import os
 
 from mycodo.config import PATH_WIDGETS
 from mycodo.config import PATH_WIDGETS_CUSTOM
+from mycodo.utils.logging_utils import set_log_level
 from mycodo.utils.modules import load_module_from_file
 
 logger = logging.getLogger("mycodo.utils.widgets")
+logger.setLevel(set_log_level(logging))
 
 
 def parse_widget_information(exclude_custom=False):
-    """Parses the variables assigned in each Widget and return a dictionary of IDs and values"""
+    """Parses the variables assigned in each Widget and return a dictionary of IDs and values."""
     def dict_has_value(dict_inp, widget_cus, key, force_type=None):
         if (key in widget_cus.WIDGET_INFORMATION and
                 (widget_cus.WIDGET_INFORMATION[key] or
@@ -69,16 +70,16 @@ def parse_widget_information(exclude_custom=False):
             if each_file in excluded_files:
                 continue
 
-            full_path = "{}/{}".format(real_path, each_file)
-            widget_custom = load_module_from_file(full_path, 'widgets')
+            full_path = f"{real_path}/{each_file}"
+            widget_custom, status = load_module_from_file(full_path, 'widgets')
 
             if not widget_custom or not hasattr(widget_custom, 'WIDGET_INFORMATION'):
                 continue
 
             # Populate dictionary of widget information
             if widget_custom.WIDGET_INFORMATION['widget_name_unique'] in dict_widgets:
-                logger.error("Error: Cannot add widget modules because it does not have a unique name: {name}".format(
-                    name=widget_custom.WIDGET_INFORMATION['widget_name_unique']))
+                logger.error(f"Error: Cannot add widget modules because it does not have "
+                             f"a unique name: {widget_custom.WIDGET_INFORMATION['widget_name_unique']}")
             else:
                 dict_widgets[widget_custom.WIDGET_INFORMATION['widget_name_unique']] = {}
 
@@ -119,8 +120,8 @@ def parse_widget_information(exclude_custom=False):
             dict_widgets = dict_has_value(dict_widgets, widget_custom, 'custom_options_message')
             dict_widgets = dict_has_value(dict_widgets, widget_custom, 'custom_options')
 
-            dict_widgets = dict_has_value(dict_widgets, widget_custom, 'custom_actions_message')
-            dict_widgets = dict_has_value(dict_widgets, widget_custom, 'custom_actions')
+            dict_widgets = dict_has_value(dict_widgets, widget_custom, 'custom_commands_message')
+            dict_widgets = dict_has_value(dict_widgets, widget_custom, 'custom_commands')
 
             dict_widgets = dict_has_value(dict_widgets, widget_custom, 'widget_dashboard_head')
             dict_widgets = dict_has_value(dict_widgets, widget_custom, 'widget_dashboard_title_bar')

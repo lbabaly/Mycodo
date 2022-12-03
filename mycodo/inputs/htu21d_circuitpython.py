@@ -1,5 +1,6 @@
 # coding=utf-8
 import copy
+from flask_babel import lazy_gettext
 
 from mycodo.inputs.base_input import AbstractInput
 from mycodo.inputs.sensorutils import calculate_dewpoint
@@ -30,7 +31,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'HTU21D_CIRCUITPYTHON',
     'input_manufacturer': 'TE Connectivity',
     'input_name': 'HTU21D',
-    'input_library': 'Adafruit-CircuitPython-HTU21D',
+    'input_library': 'Adafruit_CircuitPython_HTU21D',
     'measurements_name': 'Humidity/Temperature',
     'measurements_dict': measurements_dict,
     'url_manufacturer': 'https://www.te.com/usa-en/product-CAT-HSC0004.html',
@@ -46,13 +47,24 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ("pip-pypi", "adafruit_extended_bus", "adafruit-extended-bus==1.0.1"),
+        ("pip-pypi", "adafruit_extended_bus", "Adafruit-extended-bus==1.0.2"),
         ("pip-pypi", "adafruit_htu21d", "adafruit-circuitpython-HTU21D==0.11.0"),
     ],
 
     'interfaces': ['I2C'],
     'i2c_location': ['0x40'],
-    'i2c_address_editable': False
+    'i2c_address_editable': False,
+
+    'custom_options': [
+        {
+            'id': 'temperature_offset',
+            'type': 'float',
+            'default_value': 0.0,
+            'required': True,
+            'name': lazy_gettext("Temperature Offset"),
+            'phrase': "The temperature offset (degrees Celsius) to apply"
+        }
+    ]
 }
 
 
@@ -62,15 +74,19 @@ class InputModule(AbstractInput):
     and calculates the dew point
     """
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
         self.i2c_address = 0x40  # HTU21D-F Address
 
-        if not testing:
-            self.initialize_input()
+        self.temperature_offset = None
 
-    def initialize_input(self):
+        if not testing:
+            self.setup_custom_options(
+                INPUT_INFORMATION['custom_options'], input_dev)
+            self.try_initialize()
+
+    def initialize(self):
         import adafruit_htu21d
         from adafruit_extended_bus import ExtendedI2C
 
@@ -80,15 +96,15 @@ class InputModule(AbstractInput):
         )
 
     def get_measurement(self):
-        """ Gets the humidity and temperature """
+        """Gets the humidity and temperature"""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return None
 
         self.return_dict = copy.deepcopy(measurements_dict)
 
         if self.is_enabled(0):
-            self.value_set(0, self.sensor.temperature)
+            self.value_set(0, self.sensor.temperature + self.temperature_offset)
 
         if self.is_enabled(1):
             self.value_set(1, self.sensor.relative_humidity)

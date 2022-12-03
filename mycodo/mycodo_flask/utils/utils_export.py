@@ -9,37 +9,26 @@ import threading
 import time
 import zipfile
 
-from flask import send_file
-from flask import url_for
+from flask import send_file, url_for
 from influxdb import InfluxDBClient
 from werkzeug.utils import secure_filename
 
-from mycodo.config import ALEMBIC_VERSION
-from mycodo.config import DATABASE_NAME
-from mycodo.config import DEPENDENCY_LOG_FILE
-from mycodo.config import DOCKER_CONTAINER
-from mycodo.config import INFLUXDB_DATABASE
-from mycodo.config import INFLUXDB_HOST
-from mycodo.config import INFLUXDB_PASSWORD
-from mycodo.config import INFLUXDB_PORT
-from mycodo.config import INFLUXDB_USER
-from mycodo.config import INSTALL_DIRECTORY
-from mycodo.config import MYCODO_VERSION
-from mycodo.config import PATH_FUNCTIONS_CUSTOM
-from mycodo.config import PATH_HTML_USER
-from mycodo.config import PATH_INPUTS_CUSTOM
-from mycodo.config import PATH_OUTPUTS_CUSTOM
-from mycodo.config import PATH_PYTHON_CODE_USER
-from mycodo.config import PATH_USER_SCRIPTS
-from mycodo.config import PATH_WIDGETS_CUSTOM
-from mycodo.config import SQL_DATABASE_MYCODO
+from mycodo.config import (ALEMBIC_VERSION, DATABASE_NAME, DEPENDENCY_LOG_FILE,
+                           DOCKER_CONTAINER, INSTALL_DIRECTORY, MYCODO_VERSION,
+                           PATH_ACTIONS_CUSTOM, PATH_FUNCTIONS_CUSTOM,
+                           PATH_HTML_USER, PATH_INPUTS_CUSTOM,
+                           PATH_OUTPUTS_CUSTOM, PATH_PYTHON_CODE_USER,
+                           PATH_USER_SCRIPTS, PATH_WIDGETS_CUSTOM,
+                           SQL_DATABASE_MYCODO)
 from mycodo.config_translations import TRANSLATIONS
-from mycodo.mycodo_flask.utils.utils_general import flash_form_errors
-from mycodo.mycodo_flask.utils.utils_general import flash_success_errors
-from mycodo.utils.system_pi import assure_path_exists
-from mycodo.utils.system_pi import cmd_output
-from mycodo.utils.tools import create_measurements_export
-from mycodo.utils.tools import create_settings_export
+from mycodo.databases.models import Misc
+from mycodo.mycodo_flask.utils.utils_general import (flash_form_errors,
+                                                     flash_success_errors)
+from mycodo.scripts.measurement_db import get_influxdb_info
+from mycodo.utils.database import db_retrieve_table_daemon
+from mycodo.utils.system_pi import assure_path_exists, cmd_output
+from mycodo.utils.tools import (create_measurements_export,
+                                create_settings_export)
 from mycodo.utils.widget_generate_html import generate_widget_html
 
 logger = logging.getLogger(__name__)
@@ -85,7 +74,7 @@ def export_measurements(form):
     flash_success_errors(error, action, url_for('routes_page.page_export'))
 
 
-def export_settings(form):
+def export_settings():
     """
     Save the Mycodo settings database (mycodo.db) to a zip file and serve it
     to the user
@@ -102,7 +91,7 @@ def export_settings(form):
                 data,
                 mimetype='application/zip',
                 as_attachment=True,
-                attachment_filename=
+                download_name=
                     'Mycodo_{mver}_Settings_{aver}_{host}_{dt}.zip'.format(
                         mver=MYCODO_VERSION, aver=ALEMBIC_VERSION,
                         host=socket.gethostname().replace(' ', ''),
@@ -116,7 +105,7 @@ def export_settings(form):
     flash_success_errors(error, action, url_for('routes_page.page_export'))
 
 
-def export_influxdb(form):
+def export_influxdb():
     """
     Save the Mycodo InfluxDB database in the Enterprise-compatible format, zip
     archive it, and serve it to the user.
@@ -127,25 +116,23 @@ def export_influxdb(form):
     error = []
 
     try:
-        status, data = create_measurements_export()
-        if not status:
-            influxd_version_out, _, _ = cmd_output(
-                '/usr/bin/influxd version')
-            if influxd_version_out:
-                influxd_version = influxd_version_out.decode('utf-8').split(' ')[1]
+        influxdb_info = get_influxdb_info()
+        if influxdb_info['influxdb_host'] and influxdb_info['influxdb_version']:
+            status, data = create_measurements_export(influxdb_info['influxdb_version'])
+            if not status:
                 return send_file(
                     data,
                     mimetype='application/zip',
                     as_attachment=True,
-                    attachment_filename=
+                    download_name=
                     'Mycodo_{mv}_Influxdb_{iv}_{host}_{dt}.zip'.format(
-                        mv=MYCODO_VERSION, iv=influxd_version,
+                        mv=MYCODO_VERSION, iv=influxdb_info['influxdb_version'],
                         host=socket.gethostname().replace(' ', ''),
                         dt=datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")))
             else:
-                error.append("Could not determine Influxdb version")
+                error.append(data)
         else:
-            error.append(data)
+            error.append("Could not determine Influxdb host/version")
     except Exception as err:
         error.append("Error: {}".format(err))
 
@@ -321,12 +308,13 @@ def import_settings(form):
                 shutil.move(imported_database, SQL_DATABASE_MYCODO)  # move unzipped database to Mycodo
 
                 delete_directories = [
-                    PATH_HTML_USER,
-                    PATH_PYTHON_CODE_USER,
                     PATH_FUNCTIONS_CUSTOM,
+                    PATH_ACTIONS_CUSTOM,
                     PATH_INPUTS_CUSTOM,
                     PATH_OUTPUTS_CUSTOM,
                     PATH_WIDGETS_CUSTOM,
+                    PATH_HTML_USER,
+                    PATH_PYTHON_CODE_USER,
                     PATH_USER_SCRIPTS
                 ]
 
@@ -346,6 +334,7 @@ def import_settings(form):
 
                 restore_directories = [
                     (PATH_FUNCTIONS_CUSTOM, "custom_functions"),
+                    (PATH_ACTIONS_CUSTOM, "custom_actions"),
                     (PATH_INPUTS_CUSTOM, "custom_inputs"),
                     (PATH_OUTPUTS_CUSTOM, "custom_outputs"),
                     (PATH_WIDGETS_CUSTOM, "custom_widgets"),
@@ -365,7 +354,6 @@ def import_settings(form):
                                 shutil.move(file_path, new_path)
                             except:
                                 logger.exception("Moving file")
-                                pass
 
                 logger.info("Finalizing import")
                 import_settings_db = threading.Thread(
@@ -379,177 +367,6 @@ def import_settings(form):
                 error.append("Exception while replacing database: "
                              "{err}".format(err=err))
                 return None
-
-    except Exception as err:
-        error.append("Exception: {}".format(err))
-
-    flash_success_errors(error, action, url_for('routes_page.page_export'))
-
-
-def thread_import_influxdb(tmp_folder):
-    mycodo_db_backup = 'mycodo_db_bak'
-    client = InfluxDBClient(
-        INFLUXDB_HOST,
-        INFLUXDB_PORT,
-        INFLUXDB_USER,
-        INFLUXDB_PASSWORD,
-        mycodo_db_backup)
-
-    # Delete any backup database that may exist (can't copy over a current db)
-    try:
-        client.drop_database(mycodo_db_backup)
-    except Exception as msg:
-        print("Error while deleting db prior to restore: {}".format(msg))
-
-    # Restore the backup to new database mycodo_db_bak
-    try:
-        logger.info("Creating tmp db with restore data")
-        command = "{pth}/mycodo/scripts/mycodo_wrapper " \
-                  "influxdb_restore_mycodo_db {dir}".format(
-            pth=INSTALL_DIRECTORY, dir=tmp_folder)
-        cmd = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            shell=True)
-        cmd_out, cmd_err = cmd.communicate()
-        cmd_status = cmd.wait()
-        logger.info("command output: {}\nErrors: {}\nStatus: {}".format(
-            cmd_out.decode('utf-8'), cmd_err, cmd_status))
-    except Exception as msg:
-        logger.info("Error during restore of data to backup db: {}".format(msg))
-
-    # Copy all measurements from backup to current database
-    try:
-        logger.info("Beginning restore of data from tmp db to main db. This could take a while...")
-        query_str = "SELECT * INTO {}..:MEASUREMENT FROM /.*/ GROUP BY *".format(
-            INFLUXDB_DATABASE)
-        client.query(query_str)
-        logger.info("Restore of data from tmp db complete.")
-    except Exception as msg:
-        logger.info("Error during copy of measurements from backup db to production db: {}".format(msg))
-
-    # Delete backup database
-    try:
-        logger.info("Deleting tmp db")
-        client.drop_database(mycodo_db_backup)
-    except Exception as msg:
-        logger.info("Error while deleting db after restore: {}".format(msg))
-
-    # Delete tmp directory if it exists
-    try:
-        logger.info("Deleting influxdb restore tmp directory...")
-        command = "{pth}/mycodo/scripts/mycodo_wrapper delete_upload_dir".format(
-            pth=INSTALL_DIRECTORY)
-        cmd = subprocess.Popen(
-            command, stdout=subprocess.PIPE, shell=True)
-        cmd_out, cmd_err = cmd.communicate()
-        cmd_status = cmd.wait()
-        logger.info("Command output: {}\nErrors: {}\nStatus: {}".format(
-            cmd_out.decode('utf-8'), cmd_err, cmd_status))
-    except Exception as msg:
-        logger.info("Error while deleting tmp file directory: {}".format(msg))
-
-
-def import_influxdb(form):
-    """
-    Receive a zip file containing influx metastore and database that was
-    exported with export_influxdb(), then import the metastore and database
-    in InfluxDB.
-    """
-    action = '{action} {controller}'.format(
-        action=TRANSLATIONS['import']['title'],
-        controller="Influxdb")
-    error = []
-
-    try:
-        correct_format = 'Mycodo_MYCODOVERSION_Influxdb_INFLUXVERSION_HOST_DATETIME.zip'
-        upload_folder = os.path.join(INSTALL_DIRECTORY, 'upload')
-        tmp_folder = os.path.join(upload_folder, 'mycodo_influx_tmp')
-        full_path = None
-
-        if not form.influxdb_import_file.data:
-            error.append('No file present')
-        elif form.influxdb_import_file.data.filename == '':
-            error.append('No file name')
-        else:
-            # Split the uploaded file into parts
-            file_name = form.influxdb_import_file.data.filename
-            name = file_name.rsplit('.', 1)[0]
-            extension = file_name.rsplit('.', 1)[1].lower()
-            name_split = name.split('_')
-
-            # Split the correctly-formatted filename into parts
-            correct_name = correct_format.rsplit('.', 1)[0]
-            correct_name_1 = correct_name.split('_')[0]
-            correct_name_2 = correct_name.split('_')[2]
-            correct_extension = correct_format.rsplit('.', 1)[1].lower()
-
-            # Compare the uploaded filename parts to the correct parts
-            try:
-                if name_split[0] != correct_name_1:
-                    error.append(
-                        "Invalid file name: {n}: {fn} != {cn}.".format(
-                            n=file_name,
-                            fn=name_split[0],
-                            cn=correct_name_1))
-                    error.append("Correct format is: {fmt}".format(
-                        fmt=correct_format))
-                elif name_split[2] != correct_name_2:
-                    error.append(
-                        "Invalid file name: {n}: {fn} != {cn}".format(
-                            n=file_name,
-                            fn=name_split[2],
-                            cn=correct_name_2))
-                    error.append("Correct format is: {fmt}".format(
-                        fmt=correct_format))
-                elif extension != correct_extension:
-                    error.append("Extension not 'zip'")
-            except Exception as err:
-                error.append(
-                    "Exception while verifying file name: "
-                    "{err}".format(err=err))
-
-        if not error:
-            # Save file to upload directory
-            filename = secure_filename(
-                form.influxdb_import_file.data.filename)
-            full_path = os.path.join(tmp_folder, filename)
-            assure_path_exists(tmp_folder)
-            form.influxdb_import_file.data.save(
-                os.path.join(tmp_folder, filename))
-
-            # Check if contents of zip file are correct
-            try:
-                file_list = zipfile.ZipFile(full_path, 'r').namelist()
-                if not any(".meta" in s for s in file_list):
-                    error.append("No '.meta' file found in archive")
-                elif not any(".manifest" in s for s in file_list):
-                    error.append("No '.manifest' file found in archive")
-            except Exception as err:
-                error.append("Exception while opening zip file: "
-                             "{err}".format(err=err))
-
-        if not error:
-            # Unzip file
-            try:
-                zip_ref = zipfile.ZipFile(full_path, 'r')
-                zip_ref.extractall(tmp_folder)
-                zip_ref.close()
-            except Exception as err:
-                error.append("Exception while extracting zip file: "
-                             "{err}".format(err=err))
-
-        if not error:
-            try:
-                import_settings_db = threading.Thread(
-                    target=thread_import_influxdb,
-                    args=(tmp_folder,))
-                import_settings_db.start()
-                return "success"
-            except Exception as err:
-                error.append("Exception while importing database: "
-                             "{err}".format(err=err))
-                return 'error'
 
     except Exception as err:
         error.append("Exception: {}".format(err))

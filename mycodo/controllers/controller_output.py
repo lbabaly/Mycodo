@@ -25,7 +25,6 @@ import threading
 import time
 import timeit
 
-from mycodo.config import SQL_DATABASE_MYCODO
 from mycodo.controllers.base_controller import AbstractController
 from mycodo.databases.models import Misc
 from mycodo.databases.models import Output
@@ -36,14 +35,12 @@ from mycodo.utils.modules import load_module_from_file
 from mycodo.utils.outputs import output_types
 from mycodo.utils.outputs import parse_output_information
 
-MYCODO_DB_PATH = 'sqlite:///' + SQL_DATABASE_MYCODO
-
 
 class OutputController(AbstractController, threading.Thread):
-    """ Class for controlling outputs """
+    """Class for controlling outputs."""
     def __init__(self, ready, debug):
         threading.Thread.__init__(self)
-        super(OutputController, self).__init__(ready, unique_id=None, name=__name__)
+        super().__init__(ready, unique_id=None, name=__name__)
 
         self.set_log_level_debug(debug)
         self.control = DaemonControl()
@@ -63,7 +60,7 @@ class OutputController(AbstractController, threading.Thread):
         self.output_types = {}
 
     def initialize_variables(self):
-        """ Begin initializing output parameters """
+        """Begin initializing output parameters."""
         self.sample_rate = db_retrieve_table_daemon(Misc, entry='first').sample_rate_controller_output
 
         self.logger.debug("Initializing Outputs")
@@ -78,12 +75,14 @@ class OutputController(AbstractController, threading.Thread):
             outputs = db_retrieve_table_daemon(Output, entry='all')
             self.all_outputs_initialize(outputs)
             self.logger.debug("Outputs Initialized")
-        except Exception as except_msg:
-            self.logger.exception(
-                "Problem initializing outputs: {err}".format(err=except_msg))
+
+            self.ready.set()
+            self.running = True
+        except Exception:
+            self.logger.exception("Problem initializing outputs")
 
     def loop(self):
-        """ Main loop of the output controller """
+        """Main loop of the output controller."""
         for output_id in self.output:
             for each_channel in self.output_unique_id[output_id]:
 
@@ -103,19 +102,23 @@ class OutputController(AbstractController, threading.Thread):
                     turn_output_off.start()
 
     def run_finally(self):
-        """ Run when the controller is shutting down """
+        """Run when the controller is shutting down."""
         # Turn all outputs to their shutdown state
         for each_output_id in self.output_unique_id:
             shutdown_timer = timeit.default_timer()
-            # instruct each output to shutdown
+            # instruct each output to shut down
             self.output[each_output_id].shutdown(shutdown_timer)
 
     def all_outputs_initialize(self, outputs):
-        """ Initialize all output variables and classes """
+        """Initialize all output variables and classes."""
         self.dict_outputs = parse_output_information()
         self.output_types = output_types()
 
         for each_output in outputs:
+            if each_output.output_type not in self.dict_outputs:
+                self.logger.error(f"'{each_output.output_type}' not found in Output dictionary. Not starting Output.")
+                continue
+
             try:
                 self.output_type[each_output.unique_id] = each_output.output_type
                 self.output_unique_id[each_output.unique_id] = {}
@@ -131,20 +134,18 @@ class OutputController(AbstractController, threading.Thread):
                             self.dict_outputs[each_output.output_type]['no_run']):
                         continue
 
-                    output_loaded = load_module_from_file(
+                    output_loaded, status = load_module_from_file(
                         self.dict_outputs[each_output.output_type]['file_path'],
                         'outputs')
 
                     if output_loaded:
                         self.output[each_output.unique_id] = output_loaded.OutputModule(each_output)
-                        self.output[each_output.unique_id].setup_output()
+                        self.output[each_output.unique_id].try_initialize()
                         self.output[each_output.unique_id].init_post()
 
-                self.logger.debug("{id} ({name}) Initialized".format(
-                    id=each_output.unique_id.split('-')[0], name=each_output.name))
+                self.logger.debug(f"{each_output.unique_id.split('-')[0]} ({each_output.name}) Initialized")
             except:
-                self.logger.exception("Could not initialize output {}".format(
-                    each_output.unique_id))
+                self.logger.exception(f"Could not initialize output {each_output.unique_id}")
 
     def add_mod_output(self, output_id):
         """
@@ -186,17 +187,17 @@ class OutputController(AbstractController, threading.Thread):
                         except Exception:
                             self.logger.exception("Stopping output")
 
-                    output_loaded = load_module_from_file(
+                    output_loaded, status = load_module_from_file(
                         self.dict_outputs[self.output_type[output_id]]['file_path'],
                         'outputs')
                     if output_loaded:
                         self.output[output_id] = output_loaded.OutputModule(output)
-                        self.output[output_id].setup_output()
+                        self.output[output_id].try_initialize()
                         self.output[output_id].init_post()
 
             return 0, "add_mod_output() Success"
         except Exception as e:
-            return 1, "add_mod_output() Error: {id}: {e}".format(id=output_id, e=e)
+            return 1, f"add_mod_output() Error: {output_id}: {e}"
 
     def del_output(self, output_id):
         """
@@ -229,17 +230,17 @@ class OutputController(AbstractController, threading.Thread):
                 try:
                     self.output[output_id].shutdown(shutdown_timer)
                 except Exception as err:
-                    self.logger.error("Could not shut down output gracefully: {}".format(err))
+                    self.logger.error(f"Could not shut down output gracefully: {err}")
 
             self.output_unique_id.pop(output_id, None)
             self.output_type.pop(output_id, None)
             self.output.pop(output_id, None)
-            msg = "Output {id} Deleted.".format(id=output_id)
+            msg = f"Output {output_id} Deleted."
             self.logger.debug(msg)
             return 0, msg
         except Exception as e:
             self.logger.exception(1)
-            return 1, "Error deleting Output {id}: {e}".format(id=output_id, e=e)
+            return 1, f"Error deleting Output {output_id}: {e}"
 
     def output_on_off(self,
                       output_id,
@@ -268,17 +269,10 @@ class OutputController(AbstractController, threading.Thread):
         :param trigger_conditionals: Whether to allow trigger conditionals to act or not
         :type trigger_conditionals: bool
         """
-        self.logger.debug("output_on_off({}, {}, {}, {}, {}, {}, {})".format(
-            output_id,
-            state,
-            output_channel,
-            output_type,
-            amount,
-            min_off,
-            trigger_conditionals))
+        self.logger.debug(f"output_on_off({output_id}, {state}, {output_channel}, {output_type}, {amount}, {min_off}, {trigger_conditionals})")
 
         if output_id not in self.output:
-            msg = "Output {} not found".format(output_id)
+            msg = f"Output {output_id} not found"
             self.logger.error(msg)
             return 1, msg
 
@@ -311,7 +305,7 @@ class OutputController(AbstractController, threading.Thread):
             trigger_conditionals=trigger_conditionals)
 
     def output_setup(self, action, output_id):
-        """ Add, delete, or modify a specific output """
+        """Add, delete, or modify a specific output."""
         if action in ['Add', 'Modify']:
             return self.add_mod_output(output_id)
         elif action == 'Delete':
@@ -349,7 +343,8 @@ class OutputController(AbstractController, threading.Thread):
         Return an output state
         :rtype: dict
         """
-        return self.output[output_id].output_state(output_channel)
+        if output_id and output_channel is not None and output_id in self.output:
+            return self.output[output_id].output_state(output_channel)
 
     def output_states_all(self):
         """
@@ -364,8 +359,7 @@ class OutputController(AbstractController, threading.Thread):
                     states[output_id][each_channel] = self.output[output_id].output_state(each_channel)
                 except Exception as err:
                     self.logger.error(
-                        "Error getting state for channel {} of output with ID {}: {}".format(
-                            each_channel, output_id, err))
+                        f"Error getting state for channel {each_channel} of output with ID {output_id}: {err}")
         return states
 
     def is_on(self, output_id, output_channel=0):
@@ -403,19 +397,18 @@ class OutputController(AbstractController, threading.Thread):
         except Exception:
             self.logger.exception("is_setup() exception")
 
-    def custom_button_exec_function(self, button_id, args_dict, unique_id=None, thread=True):
-        """Execute function from custom action button press"""
+    def call_module_function(self, button_id, args_dict, unique_id=None, thread=True):
+        """Execute function from custom action button press."""
         try:
-            run_action = getattr(self.output[unique_id], button_id)
+            run_command = getattr(self.output[unique_id], button_id)
             if thread:
-                thread_run_action = threading.Thread(
-                    target=run_action,
+                thread_run_command = threading.Thread(
+                    target=run_command,
                     args=(args_dict,))
-                thread_run_action.start()
+                thread_run_command.start()
                 return 0, "Command sent to Output Controller and is running in the background."
             else:
-                return_val = run_action(args_dict)
-                return 0, "Command sent to Output Controller. Returned: {}".format(return_val)
+                return_val = run_command(args_dict)
+                return 0, f"Command sent to Output Controller. Returned: {return_val}"
         except:
-            self.logger.exception("Error executing custom action '{}'".format(
-                button_id))
+            self.logger.exception(f"Error executing custom action '{button_id}'")

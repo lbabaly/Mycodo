@@ -2,6 +2,7 @@
 import time
 
 import copy
+from flask_babel import lazy_gettext
 
 from mycodo.inputs.base_input import AbstractInput
 
@@ -47,7 +48,7 @@ INPUT_INFORMATION = {
 
     'interfaces': ['1WIRE'],
     
-    'custom_actions': [
+    'custom_commands': [
         {
             'type': 'message',
             'default_value': """Set the resolution, precision, and response time for the sensor. This setting will be written to the EEPROM to allow persistence after power loss. The EEPROM has a limited amount of writes (>50k)."""
@@ -70,22 +71,37 @@ INPUT_INFORMATION = {
             'type': 'button',
             'name': 'Set Resolution'
         }
+    ],
+
+    'custom_options': [
+        {
+            'id': 'temperature_offset',
+            'type': 'float',
+            'default_value': 0.0,
+            'required': True,
+            'name': lazy_gettext("Temperature Offset"),
+            'phrase': "The temperature offset (degrees Celsius) to apply"
+        }
     ]
 }
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that monitors the DS18B20's temperature """
+    """A sensor support class that monitors the DS18B20's temperature."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
 
-        if not testing:
-            self.initialize_input()
+        self.temperature_offset = None
 
-    def initialize_input(self):
+        if not testing:
+            self.setup_custom_options(
+                INPUT_INFORMATION['custom_options'], input_dev)
+            self.try_initialize()
+
+    def initialize(self):
         from w1thermsensor import W1ThermSensor
         from w1thermsensor import Sensor
 
@@ -96,9 +112,9 @@ class InputModule(AbstractInput):
             self.logger.exception("Input initialization")
 
     def get_measurement(self):
-        """ Gets the DS18B20's temperature in Celsius """
+        """Gets the DS18B20's temperature in Celsius."""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)
@@ -123,7 +139,7 @@ class InputModule(AbstractInput):
                 "Measurement outside the expected range of -55 C to 125 C: {temp} C".format(temp=temperature))
             return None
         elif temperature is not None:
-            self.value_set(0, temperature)
+            self.value_set(0, temperature + self.temperature_offset)
 
         return self.return_dict
 

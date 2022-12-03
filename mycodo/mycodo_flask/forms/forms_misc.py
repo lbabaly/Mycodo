@@ -13,7 +13,7 @@ from wtforms import StringField
 from wtforms import SubmitField
 from wtforms import validators
 from wtforms import widgets
-from wtforms.widgets.html5 import NumberInput
+from wtforms.widgets import NumberInput
 
 from mycodo.config_translations import TRANSLATIONS
 
@@ -64,17 +64,12 @@ class ExportSettings(FlaskForm):
 
 
 class ImportSettings(FlaskForm):
-    settings_import_file = FileField(TRANSLATIONS['upload']['title'])
+    settings_import_file = FileField()
     settings_import_upload = SubmitField(lazy_gettext('Import Settings'))
 
 
 class ExportInfluxdb(FlaskForm):
     export_influxdb_zip = SubmitField(lazy_gettext('Export Influxdb'))
-
-
-class ImportInfluxdb(FlaskForm):
-    influxdb_import_file = FileField(TRANSLATIONS['upload']['title'])
-    influxdb_import_upload = SubmitField(lazy_gettext('Import Influxdb'))
 
 
 #

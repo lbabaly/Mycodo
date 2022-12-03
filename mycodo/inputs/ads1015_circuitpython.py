@@ -38,7 +38,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'ADS1015_CP',
     'input_manufacturer': 'Texas Instruments',
     'input_name': 'ADS1015',
-    'input_library': 'Adafruit_CircuitPython',
+    'input_library': 'Adafruit_CircuitPython_ADS1x15',
     'measurements_name': 'Voltage (Analog-to-Digital Converter)',
     'measurements_dict': measurements_dict,
     'measurements_rescale': True,
@@ -57,8 +57,8 @@ INPUT_INFORMATION = {
 
     'dependencies_module': [
         ('pip-pypi', 'usb.core', 'pyusb==1.1.1'),
-        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.1'),
-        ('pip-pypi', 'adafruit_ads1x15', 'Adafruit_CircuitPython_ADS1x15')
+        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.2'),
+        ('pip-pypi', 'adafruit_ads1x15', 'adafruit-circuitpython-ads1x15==2.2.12')
     ],
     'interfaces': ['I2C'],
     'i2c_location': ['0x48', '0x49', '0x4A', '0x4B'],
@@ -86,20 +86,21 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ Read ADC
+    """
+    Read ADC
 
-        Choose a gain of 1 for reading measurements from 0 to 4.09V.
-        Or pick a different gain to change the range of measurements that are read:
-         - 2/3 = ±6.144 V
-         -   1 = ±4.096 V
-         -   2 = ±2.048 V
-         -   4 = ±1.024 V
-         -   8 = ±0.512 V
-         -  16 = ±0.256 V
-        See table 3 in the ADS1015/ADS1115 datasheet for more info on gain.
-        """
+    Choose a gain of 1 for reading measurements from 0 to 4.09V.
+    Or pick a different gain to change the range of measurements that are read:
+     - 2/3 = ±6.144 V
+     -   1 = ±4.096 V
+     -   2 = ±2.048 V
+     -   4 = ±1.024 V
+     -   8 = ±0.512 V
+     -  16 = ±0.256 V
+    See table 3 in the ADS1015/ADS1115 datasheet for more info on gain.
+    """
     def __init__(self, input_dev, testing=False,):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.adc = None
         self.adc_gain = None
@@ -118,9 +119,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import adafruit_ads1x15.ads1015 as ADS
         from adafruit_ads1x15.analog_in import AnalogIn
         from adafruit_extended_bus import ExtendedI2C
@@ -138,6 +139,10 @@ class InputModule(AbstractInput):
             address=int(str(self.input_dev.i2c_location), 16))
 
     def get_measurement(self):
+        if not self.adc:
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
+            return
+
         self.return_dict = copy.deepcopy(measurements_dict)
 
         measurement_range = 1

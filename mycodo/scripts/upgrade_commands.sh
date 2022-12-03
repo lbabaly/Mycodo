@@ -17,12 +17,14 @@ MYCODO_MAJOR_VERSION="8"
 PIGPIO_URL="https://github.com/joan2937/pigpio/archive/v79.tar.gz"
 MCB2835_URL="http://www.airspayce.com/mikem/bcm2835/bcm2835-1.50.tar.gz"
 WIRINGPI_URL="https://project-downloads.drogon.net/wiringpi-latest.deb"
-INFLUXDB_VERSION="1.8.0"
-VIRTUALENV_VERSION="20.7.0"
 
-# Required apt packages. This has been tested with Raspbian for the
-# Raspberry Pi and Ubuntu, it should work with most Debian-based systems.
-APT_PKGS="gawk gcc g++ git libffi-dev libi2c-dev logrotate moreutils nginx sqlite3 wget python3 python3-pip python3-dev python3-setuptools python3-smbus python3-pylint-common rng-tools netcat"
+INFLUXDB1_VERSION="1.8.10"
+INFLUXDB2_VERSION="2.2.0"
+
+VIRTUALENV_VERSION="20.14.1"
+
+# Required apt packages
+APT_PKGS="gawk gcc g++ git jq libffi-dev libi2c-dev logrotate moreutils netcat nginx python3 python3-pip python3-dev python3-setuptools rng-tools sqlite3 unzip wget"
 
 PYTHON_BINARY_SYS_LOC="$(python3 -c "import os; print(os.environ['_'])")"
 
@@ -64,7 +66,6 @@ Options:
   update-alembic                Use alembic to upgrade the mycodo.db settings database
   update-alembic-post           Execute script following all alembic upgrades
   update-apt                    Update apt sources
-  update-cron                   Update cron entries
   update-dependencies           Check for updates to dependencies and update
   install-bcm2835               Install bcm2835
   install-wiringpi              Install wiringpi
@@ -74,11 +75,16 @@ Options:
   enable-pigpiod-low            Enable pigpiod with 1 ms sample rate
   enable-pigpiod-high           Enable pigpiod with 5 ms sample rate
   enable-pigpiod-disabled       Create empty service to indicate pigpiod is disabled
+  uninstall                     Disable Mycodo services (frontend/backend)
   update-pigpiod                Update to latest version of pigpiod service file
-  update-influxdb               Update influxdb to the latest version
-  update-influxdb-db-user       Create the influxdb database and user
+  update-influxdb-1             Update influxdb 1.x to the latest version
+  update-influxdb-2             Update influxdb 2.x to the latest version
+  update-influxdb-1-db-user     Create the influxdb 1.x database and user
+  update-influxdb-2-db-user     Create the influxdb 2.x database and user
   update-logrotate              Install logrotate script
-  update-mycodo-startup-script  Install the Mycodo daemon startup script
+  update-mycodo-service-disable Disable the Mycodo daemon startup script
+  update-mycodo-service-enable  Enable the Mycodo daemon startup script
+  update-mycodo-startup-script  Update the Mycodo daemon startup script
   update-packages               Ensure required apt packages are installed/up-to-date
   update-permissions            Set permissions for Mycodo directories/files
   update-pip3                   Update pip
@@ -92,6 +98,8 @@ Options:
   web-server-connect            Attempt to connect to the web server
   web-server-reload             Reload the web server
   web-server-restart            Restart the web server
+  web-server-disable            Disable the web server service
+  web-server-enable             Enable the web server service
   web-server-update             Update the web server configuration files
 
 Docker-specific Commands:
@@ -170,7 +178,7 @@ case "${1:-''}" in
         ln -sfn "${MYCODO_PATH}"/mycodo/scripts/mycodo_backup_restore.sh /usr/bin/mycodo-restore
         ln -sfn "${MYCODO_PATH}"/mycodo/scripts/mycodo_wrapper /usr/bin/mycodo-wrapper
         ln -sfn "${MYCODO_PATH}"/env/bin/pip3 /usr/bin/mycodo-pip
-        ln -sfn "${MYCODO_PATH}"/env/bin/python3 /usr/bin/mycodo-python
+        ln -sfn "${MYCODO_PATH}"/env/bin/python /usr/bin/mycodo-python
     ;;
     'create-user')
         printf "\n#### Creating mycodo user\n"
@@ -206,14 +214,12 @@ case "${1:-''}" in
         service mycodo restart
     ;;
     'setup-virtualenv')
-        printf "\n#### Checking python 3 virtualenv\n"
-        if [[ ! -e ${MYCODO_PATH}/env/bin/python3 ]]; then
-            printf "#### Virtualenv doesn't exist. Creating...\n"
+        printf "\n#### Checking Python 3 virtual environment\n"
+        if [[ ! -e ${MYCODO_PATH}/env/bin/python ]]; then
+            printf "#### Creating virtualenv with ${PYTHON_BINARY_SYS_LOC} at "${MYCODO_PATH}"/env\n"
             python3 -m pip install virtualenv==${VIRTUALENV_VERSION}
             rm -rf "${MYCODO_PATH}"/env
-            python3 -m virtualenv --system-site-packages -p "${PYTHON_BINARY_SYS_LOC}" "${MYCODO_PATH}"/env
-        else
-            printf "#### Virtualenv already exists, skipping creation\n"
+            python3 -m virtualenv -p "${PYTHON_BINARY_SYS_LOC}" "${MYCODO_PATH}"/env
         fi
     ;;
     'setup-virtualenv-full')
@@ -249,7 +255,7 @@ case "${1:-''}" in
     ;;
     'uninstall-apt-pip')
         printf "\n#### Uninstalling apt version of pip (if installed)\n"
-        apt-get purge -y python-pip
+        apt purge -y python-pip
     ;;
     'update-alembic')
         printf "\n#### Upgrading Mycodo database with alembic (if needed)\n"
@@ -262,11 +268,7 @@ case "${1:-''}" in
     ;;
     'update-apt')
         printf "\n#### Updating apt repositories\n"
-        apt-get update -y
-    ;;
-    'update-cron')  # TODO: Remove at next major revision
-        printf "\n#### Remove Mycodo restart monitor crontab entry (if it exists)\n"
-        /bin/bash "${MYCODO_PATH}"/install/crontab.sh restart_daemon --remove
+        apt update -y
     ;;
     'update-dependencies')
         printf "\n#### Checking for updates to dependencies\n"
@@ -275,7 +277,7 @@ case "${1:-''}" in
     'install-bcm2835')
         printf "\n#### Installing bcm2835\n"
         cd "${MYCODO_PATH}"/install || return
-        apt-get install -y automake libtool
+        apt install -y automake libtool
         wget ${MCB2835_URL} -O bcm2835.tar.gz
         mkdir bcm2835
         tar xzf bcm2835.tar.gz -C bcm2835 --strip-components=1
@@ -298,7 +300,7 @@ case "${1:-''}" in
         fi
     ;;
     'build-pigpiod')
-        apt-get install -y python3-pigpio
+        apt install -y python3-pigpio
         cd "${MYCODO_PATH}"/install || return
         # wget --quiet -P "${MYCODO_PATH}"/install abyz.co.uk/rpi/pigpio/pigpio.zip
         wget ${PIGPIO_URL} -O pigpio.tar.gz
@@ -321,8 +323,8 @@ case "${1:-''}" in
     ;;
     'uninstall-pigpiod')
         printf "\n#### Uninstalling pigpiod\n"
-        apt-get remove -y python3-pigpio
-        apt-get install -y jq
+        apt remove -y python3-pigpio
+        apt install -y jq
         cd "${MYCODO_PATH}"/install || return
         # wget --quiet -P "${MYCODO_PATH}"/install abyz.co.uk/rpi/pigpio/pigpio.zip
         wget ${PIGPIO_URL} -O pigpio.tar.gz
@@ -362,6 +364,13 @@ case "${1:-''}" in
         printf "\n#### pigpiod has been disabled. It can be enabled in the web UI configuration\n"
         touch /etc/systemd/system/pigpiod_disabled.service
     ;;
+    'uninstall')
+        printf "\n#### Uninstalling: Stopping and disabling Mycodo services (frontend/backend)\n"
+        service mycodoflask stop
+        service mycodo stop
+        /bin/bash "${MYCODO_PATH}"/mycodo/scripts/upgrade_commands.sh web-server-disable
+        /bin/bash "${MYCODO_PATH}"/mycodo/scripts/upgrade_commands.sh update-mycodo-service-disable
+    ;;
     'update-pigpiod')
         printf "\n#### Checking which pigpiod startup script is being used\n"
         GPIOD_SAMPLE_RATE=99
@@ -382,34 +391,89 @@ case "${1:-''}" in
         elif [[ "$GPIOD_SAMPLE_RATE" -eq "100" ]]; then
             /bin/bash "${MYCODO_PATH}"/mycodo/scripts/upgrade_commands.sh enable-pigpiod-disabled
         else
-            printf "#### Could not determine pgiod sample rate. Setting up pigpiod with 1 ms sample rate\n"
+            printf "#### Could not determine pigpiod sample rate. Setting up pigpiod with 1 ms sample rate\n"
             /bin/bash "${MYCODO_PATH}"/mycodo/scripts/upgrade_commands.sh enable-pigpiod-low
         fi
     ;;
-    'update-influxdb')
-        printf "\n#### Ensuring compatible version of influxdb is installed ####\n"
+    'update-influxdb-1')
+        printf "\n#### Ensuring compatible version of influxdb 1.x is installed ####\n"
         INSTALL_ADDRESS="https://dl.influxdata.com/influxdb/releases/"
-        INSTALL_FILE="influxdb_${INFLUXDB_VERSION}_${MACHINE_TYPE}.deb"
-        CORRECT_VERSION="${INFLUXDB_VERSION}-1"
+        INSTALL_FILE="influxdb_${INFLUXDB1_VERSION}_${MACHINE_TYPE}.deb"
+        CORRECT_VERSION="${INFLUXDB1_VERSION}-1"
         CURRENT_VERSION=$(apt-cache policy influxdb | grep 'Installed' | gawk '{print $2}')
+
         if [[ "${CURRENT_VERSION}" != "${CORRECT_VERSION}" ]]; then
-            echo "#### Incorrect InfluxDB version (v${CURRENT_VERSION}) installed. Installing v${CORRECT_VERSION}..."
-            wget --quiet ${INSTALL_ADDRESS}${INSTALL_FILE}
-            dpkg -i ${INSTALL_FILE}
-            rm -rf ${INSTALL_FILE}
+            printf "#### Incorrect InfluxDB version (v${CURRENT_VERSION}) installed.\n"
+
+            printf "#### Stopping influxdb 2.x (if installed)...\n"
+            service influxd stop
+
+            printf "#### Uninstalling influxdb 2.x (if installed)...\n"
+            DEBIAN_FRONTEND=noninteractive apt remove -y influxdb2 influxdb2-cli
+
+            printf "#### Installing InfluxDB v${CORRECT_VERSION}...\n"
+
+            wget --quiet "${INSTALL_ADDRESS}${INSTALL_FILE}"
+            dpkg -i "${INSTALL_FILE}"
+            rm -rf "${INSTALL_FILE}"
+
             service influxdb restart
         else
             printf "Correct version of InfluxDB currently installed\n"
         fi
+
+        if [[ $(grep "# flux-enabled = true" /etc/influxdb/influxdb.conf) || $(grep "flux-enabled = false" /etc/influxdb/influxdb.conf) ]]; then   
+            printf "#### Flux found to not be enabled. Enabling and restarting InfluxDB.\n"
+            sed -i 's/.*flux-enabled.*/flux-enabled = true/' /etc/influxdb/influxdb.conf
+            service influxdb restart
+        else
+            printf "Flux is already enabled.\n"
+        fi
     ;;
-    'update-influxdb-db-user')
-        printf "\n#### Creating InfluxDB database and user\n"
+    'update-influxdb-2')
+        printf "\n#### Ensuring compatible version of influxdb 2.x is installed ####\n"
+        if [[ ${UNAME_TYPE} == 'x86_64' || ${MACHINE_TYPE} == 'arm64' ]]; then
+            INSTALL_ADDRESS="https://dl.influxdata.com/influxdb/releases/"
+            INSTALL_FILE="influxdb2-${INFLUXDB2_VERSION}-${MACHINE_TYPE}.deb"
+            CLI_FILE="influxdb2-client-${INFLUXDB2_VERSION}-${MACHINE_TYPE}.deb"
+            CORRECT_VERSION="${INFLUXDB2_VERSION}-1"
+            CURRENT_VERSION=$(apt-cache policy influxdb2 | grep 'Installed' | gawk '{print $2}')
+
+            if [[ "${CURRENT_VERSION}" != "${CORRECT_VERSION}" ]]; then
+                printf "#### Incorrect InfluxDB version (v${CURRENT_VERSION}) installed.\n"
+
+                printf "#### Stopping influxdb 1.x (if installed)...\n"
+                service influxdb stop
+
+                printf "#### Uninstalling influxdb 1.x (if installed)...\n"
+                DEBIAN_FRONTEND=noninteractive apt remove -y influxdb
+
+                printf "#### Installing InfluxDB v${CORRECT_VERSION}...\n"
+
+                wget --quiet "${INSTALL_ADDRESS}${INSTALL_FILE}"
+                wget --quiet "${INSTALL_ADDRESS}${CLI_FILE}"
+                dpkg -i "${INSTALL_FILE}"
+                dpkg -i "${CLI_FILE}"
+                rm -rf "${CLI_FILE}"
+                rm -rf "${INSTALL_FILE}"
+                service influxd restart
+            else
+                printf "Correct version of InfluxDB currently installed.\n"
+            fi
+        else
+            printf "ERROR: Could not detect 64-bit architecture (x86_64/arm64) to install Influxdb 2.x (found ${UNAME_TYPE}/${MACHINE_TYPE}).\n"
+        fi
+    ;;
+    'update-influxdb-1-db-user')
+        printf "\n#### Creating InfluxDB 1.x database and user\n"
         # Attempt to connect to influxdb 10 times, sleeping 60 seconds every fail
         for _ in {1..10}; do
             # Check if influxdb has successfully started and be connected to
             printf "#### Attempting to connect...\n" &&
             curl -sL -I localhost:8086/ping > /dev/null &&
+            printf "#### Attempting to create database...\n" &&
             influx -execute "CREATE DATABASE mycodo_db" &&
+            printf "#### Attempting to set up user...\n" &&
             influx -database mycodo_db -execute "CREATE USER mycodo WITH PASSWORD 'mmdu77sj3nIoiajjs'" &&
             printf "#### Influxdb database and user successfully created\n" &&
             break ||
@@ -418,6 +482,32 @@ case "${1:-''}" in
             printf "#### Could not connect to Influxdb. Waiting 60 seconds then trying again...\n" &&
             sleep 60
         done
+    ;;
+    'update-influxdb-2-db-user')
+        if influx config | grep -q 'mycodo'; then
+            printf "#### InfluxDB v2.x config already present, skipping DB/user creation...\n"
+        else
+            printf "\n#### Creating InfluxDB 2.x database and user\n"
+            # Attempt to connect to influxdb 10 times, sleeping 60 seconds every fail
+            for _ in {1..10}; do
+                # Check if influxdb has successfully started and be connected to
+                printf "#### Attempting to connect...\n" &&
+                curl -sL -I localhost:8086/ping > /dev/null &&
+                printf "#### Attempting to set up user...\n" &&
+                influx setup \
+                       --org mycodo \
+                       --bucket mycodo_db \
+                       --username mycodo \
+                       --password mmdu77sj3nIoiajjs \
+                       --force &&
+                printf "#### Influxdb database and user successfully created\n" &&
+                break ||
+                # Else wait 60 seconds if the influxd port is not accepting connections
+                # Everything below will begin executing if an error occurs before the break
+                printf "#### Could not connect to Influxdb. Waiting 60 seconds then trying again...\n" &&
+                sleep 60
+            done
+        fi
     ;;
     'update-logrotate')
         printf "\n#### Installing logrotate scripts\n"
@@ -428,17 +518,25 @@ case "${1:-''}" in
         cp -f "${MYCODO_PATH}"/install/logrotate_mycodo /etc/logrotate.d/mycodo
         printf "Mycodo logrotate script installed\n"
     ;;
-    'update-mycodo-startup-script')
-        printf "\n#### Disabling installed mycodo startup script\n"
+    'update-mycodo-service-disable')
+        printf "\n#### Disabling mycodo startup script\n"
         systemctl disable mycodo.service
         rm -rf /etc/systemd/system/mycodo.service
-        printf "#### Enabling current mycodo startup script\n"
+    ;;
+    'update-mycodo-service-enable')
+        printf "#### Enabling mycodo startup script\n"
         systemctl enable "${MYCODO_PATH}"/install/mycodo.service
+    ;;
+    'update-mycodo-startup-script')
+        printf "\n#### Updating mycodo startup script\n"
+        /bin/bash "${MYCODO_PATH}"/mycodo/scripts/upgrade_commands.sh update-mycodo-service-disable
+        /bin/bash "${MYCODO_PATH}"/mycodo/scripts/upgrade_commands.sh update-mycodo-service-enable
     ;;
     'update-packages')
         printf "\n#### Installing prerequisite apt packages and update pip\n"
-        apt-get remove -y apache2 python-cffi-backend python3-cffi-backend
-        apt-get install -y ${APT_PKGS}
+        apt remove -y apache2
+        apt install -y ${APT_PKGS}
+        apt clean
         python3 -m pip install --upgrade pip
     ;;
     'update-permissions')
@@ -446,7 +544,6 @@ case "${1:-''}" in
         chown -LR mycodo.mycodo "${MYCODO_PATH}"
         chown -R mycodo.mycodo /var/log/mycodo
         chown -R mycodo.mycodo /var/Mycodo-backups
-        chown -R influxdb.influxdb /var/lib/influxdb/data/
 
         find "${MYCODO_PATH}" -type d -exec chmod u+wx,g+wx {} +
         find "${MYCODO_PATH}" -type f -exec chmod u+w,g+w,o+r {} +
@@ -456,18 +553,25 @@ case "${1:-''}" in
     ;;
     'update-pip3')
         printf "\n#### Updating pip\n"
-        "${MYCODO_PATH}"/env/bin/python -m pip install --upgrade pip
-    ;;
-    'update-pip3-packages')
-        printf "\n#### Installing pip requirements\n"
+        /bin/bash "${MYCODO_PATH}"/mycodo/scripts/upgrade_commands.sh setup-virtualenv
         if [[ ! -d ${MYCODO_PATH}/env ]]; then
             printf "\n## Error: Virtualenv doesn't exist. Create with %s setup-virtualenv\n" "${0}"
         else
-            "${MYCODO_PATH}"/env/bin/python -m pip install --upgrade pip setuptools
+            "${MYCODO_PATH}"/env/bin/python -m pip install --upgrade pip
+        fi
+    ;;
+    'update-pip3-packages')
+        printf "\n#### Installing pip requirements\n"
+        /bin/bash "${MYCODO_PATH}"/mycodo/scripts/upgrade_commands.sh setup-virtualenv
+        if [[ ! -d ${MYCODO_PATH}/env ]]; then
+            printf "\n## Error: Virtualenv doesn't exist. Create with %s setup-virtualenv\n" "${0}"
+        else
             "${MYCODO_PATH}"/env/bin/python -m pip install --upgrade -r "${MYCODO_PATH}"/install/requirements.txt
-            "${MYCODO_PATH}"/env/bin/python -m pip install --upgrade -r "${MYCODO_PATH}"/install/requirements-rpi.txt
             "${MYCODO_PATH}"/env/bin/python -m pip install --upgrade -r "${MYCODO_PATH}"/install/requirements-testing.txt
         fi
+    ;;
+    'pip-clear-cache')
+      "${MYCODO_PATH}"/env/bin/python -m pip cache remove *
     ;;
     'update-swap-size')
         printf "\n#### Checking if swap size is 100 MB and needs to be changed to 512 MB\n"
@@ -523,13 +627,21 @@ case "${1:-''}" in
         printf "#### Restarting mycodoflask\n"
         service mycodoflask restart
     ;;
-    'web-server-update')
-        printf "\n#### Installing and configuring nginx web server\n"
+    'web-server-disable')
+        printf "\n#### Disabling service for nginx web server\n"
         systemctl disable mycodoflask.service
         rm -rf /etc/systemd/system/mycodoflask.service
+    ;;
+    'web-server-enable')
+        printf "\n#### Enabling service for nginx web server\n"
         ln -sf "${MYCODO_PATH}"/install/mycodoflask_nginx.conf /etc/nginx/sites-enabled/default
         systemctl enable nginx
         systemctl enable "${MYCODO_PATH}"/install/mycodoflask.service
+    ;;
+    'web-server-update')
+        printf "\n#### Installing and configuring nginx web server\n"
+        /bin/bash "${MYCODO_PATH}"/mycodo/scripts/upgrade_commands.sh web-server-disable
+        /bin/bash "${MYCODO_PATH}"/mycodo/scripts/upgrade_commands.sh web-server-enable
     ;;
 
 
@@ -587,45 +699,27 @@ case "${1:-''}" in
     ;;
     'docker-update-pip')
         printf "\n#### Updating pip\n"
-        "${MYCODO_PATH}"/env/bin/python -m pip install --upgrade pip
+        /bin/bash "${MYCODO_PATH}"/mycodo/scripts/upgrade_commands.sh setup-virtualenv
+        if [[ ! -d ${MYCODO_PATH}/env ]]; then
+            printf "\n## Error: Virtualenv doesn't exist. Create with %s setup-virtualenv\n" "${0}"
+        else
+            "${MYCODO_PATH}"/env/bin/python -m pip install --upgrade pip
+        fi
     ;;
     'docker-update-pip-packages')
         printf "\n#### Installing pip requirements\n"
-        "${MYCODO_PATH}"/env/bin/python -m pip install --upgrade pip setuptools
-        "${MYCODO_PATH}"/env/bin/python -m pip install --no-cache-dir -r /home/mycodo/install/requirements.txt
-    ;;
-    'install-docker-ce-cli')
-        printf "\n#### Installing Docker Client\n"
-        apt update
-        apt -y install \
-            apt-transport-https \
-            ca-certificates \
-            curl \
-            gnupg2 \
-            software-properties-common
-        curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
-
-        if [[ ${UNAME_TYPE} == 'x86_64' ]]; then
-            add-apt-repository -y \
-               "deb [arch=amd64] https://download.docker.com/linux/debian \
-               $(lsb_release -cs) \
-               stable"
-        elif [[ ${MACHINE_TYPE} == 'armhf' ]]; then
-            add-apt-repository -y \
-               "deb [arch=armhf] https://download.docker.com/linux/debian \
-               $(lsb_release -cs) \
-               stable"
-        elif [[ ${MACHINE_TYPE} == 'arm64' ]]; then
-            add-apt-repository -y \
-               "deb [arch=arm64] https://download.docker.com/linux/debian \
-               $(lsb_release -cs) \
-               stable"
+        /bin/bash "${MYCODO_PATH}"/mycodo/scripts/upgrade_commands.sh setup-virtualenv
+        if [[ ! -d ${MYCODO_PATH}/env ]]; then
+            printf "\n## Error: Virtualenv doesn't exist. Create with %s setup-virtualenv\n" "${0}"
         else
-            printf "\nCould not detect architecture\n"
-            exit 1
+            "${MYCODO_PATH}"/env/bin/python -m pip install --no-cache-dir -r "${MYCODO_PATH}"/install/requirements.txt
         fi
-        apt-get update
-        apt-get -y install docker-ce-cli
+    ;;
+    'install-docker')
+        printf "\n#### Installing Docker Client\n"
+        apt install -y curl
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sh get-docker.sh
     ;;
     *)
         printf "Error: Unrecognized command: %s\n%s" "${1}" "${HELP_OPTIONS}"

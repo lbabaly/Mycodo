@@ -37,7 +37,7 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('pip-pypi', 'pylibftdi', 'pylibftdi==0.19.0')
+        ('pip-pypi', 'pylibftdi', 'pylibftdi==0.20.0')
     ],
 
     'interfaces': ['I2C', 'UART', 'FTDI'],
@@ -47,12 +47,13 @@ INPUT_INFORMATION = {
     'uart_baud_rate': 9600,
     'ftdi_location': '/dev/ttyUSB0',
 
-    'custom_actions_message':
+    'custom_commands_message':
         'The I2C address can be changed. Enter a new address in the 0xYY format '
         '(e.g. 0x22, 0x50), then press Set I2C Address. Remember to deactivate and '
-        'change the I2C address option after setting the new address.',
+        'change the I2C address option after setting the new address. '
+        'A single point calibration can also be performed for any temperature (°C).',
 
-    'custom_actions': [
+    'custom_commands': [
         {
             'id': 'new_i2c_address',
             'type': 'text',
@@ -64,24 +65,47 @@ INPUT_INFORMATION = {
             'id': 'set_i2c_address',
             'type': 'button',
             'name': lazy_gettext('Set I2C Address')
+        },
+        {
+            'type': 'new_line'
+        },
+        {
+            'id': 'calibrate_temp_c',
+            'type': 'float',
+            'default_value': 100.0,
+            'name': "{} (°C)".format(lazy_gettext('Temperature')),
+            'phrase': 'Temperature for single point calibration'
+        },
+        {
+            'id': 'calibrate_temp',
+            'type': 'button',
+            'name': lazy_gettext('Calibrate')
+        },
+        {
+            'type': 'new_line'
+        },
+        {
+            'id': 'calibrate_temp_clear',
+            'type': 'button',
+            'name': 'Clear Calibration'
         }
     ]
 }
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that monitors the PT1000's temperature """
+    """A sensor support class that monitors the PT1000's temperature."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.atlas_device = None
         self.interface = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.interface = self.input_dev.interface
 
         try:
@@ -93,42 +117,46 @@ class InputModule(AbstractInput):
         self.get_measurement()
 
     def get_measurement(self):
-        """ Gets the Atlas PT1000's temperature in Celsius """
+        """Gets the Atlas PT1000's temperature in Celsius."""
         if not self.atlas_device.setup:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         temp = None
         self.return_dict = copy.deepcopy(measurements_dict)
 
-        # Read sensor via FTDI or UART
-        if self.interface in ['FTDI', 'UART']:
-            temp_status, temp_list = self.atlas_device.query('R')
-            if temp_list:
-                self.logger.debug("Returned list: {lines}".format(lines=temp_list))
+        # Read device
+        atlas_status, atlas_return = self.atlas_device.query('R')
+        self.logger.debug("Device Returned: {}: {}".format(atlas_status, atlas_return))
 
+        if atlas_status == 'error':
+            self.logger.debug("Sensor read unsuccessful: {err}".format(err=atlas_return))
+            return
+
+        # Parse device return data
+        if self.interface in ['FTDI', 'UART']:
             # Find float value in list
             float_value = None
-            for each_split in temp_list:
+            for each_split in atlas_return:
                 if str_is_float(each_split):
                     float_value = each_split
                     break
 
-            if 'check probe' in temp_list:
+            if 'check probe' in atlas_return:
                 self.logger.error('"check probe" returned from sensor')
             elif str_is_float(float_value):
                 temp = float(float_value)
                 self.logger.debug('Found float value: {val}'.format(val=temp))
             else:
-                self.logger.error('Value or "check probe" not found in list: {val}'.format(val=temp_list))
+                self.logger.error('Value or "check probe" not found in list: {val}'.format(val=atlas_return))
 
-        # Read sensor via I2C
         elif self.interface == 'I2C':
-            temp_status, temp_str = self.atlas_device.query('R')
-            if temp_status == 'error':
-                self.logger.error("Sensor read unsuccessful: {err}".format(err=temp_str))
-            elif temp_status == 'success':
-                temp = float(temp_str)
+            value = self.atlas_device.build_string(atlas_return)
+            if str_is_float(value):
+                temp = float(value)
+            else:
+                self.logger.debug("Could not determine temp from returned value: '{}'".format(atlas_return))
+                return
 
         if temp == -1023:  # Erroneous measurement
             return
@@ -143,8 +171,36 @@ class InputModule(AbstractInput):
             return
         try:
             i2c_address = int(str(args_dict['new_i2c_address']), 16)
-            write_cmd = "I2C,{}".format(i2c_address)
-            self.logger.debug("I2C Change command: {}".format(write_cmd))
-            self.atlas_device.atlas_write(write_cmd)
+            write_cmd = f"I2C,{i2c_address}"
+            self.logger.info(f"I2C Change command: {write_cmd}")
+            self.logger.info(f"Command returned: {self.atlas_device.query(write_cmd)}")
+            self.atlas_device = None
         except:
             self.logger.exception("Exception changing I2C address")
+
+    def calibrate_temp(self, args_dict):
+        if 'calibrate_temp_c' not in args_dict:
+            self.logger.error("Cannot calibrate without a temperature")
+            return
+        try:
+            write_cmd = f"Cal,{args_dict['calibrate_temp_c']}"
+            self.logger.info(f"Calibrate command: {write_cmd}")
+            self.logger.info(f"Command returned: {self.atlas_device.query(write_cmd)}")
+            cal_status, cal_return = self.atlas_device.query("Cal,?")
+            cal_return = self.atlas_device.build_string(cal_return)
+            self.logger.info(f"Device Calibrated?: {cal_status}:{cal_return}")
+            self.atlas_device = None
+        except:
+            self.logger.exception("Exception calibrating")
+
+    def calibrate_temp_clear(self, args_dict):
+        try:
+            write_cmd = f"Cal,clear"
+            self.logger.info(f"Calibrate clear command: {write_cmd}")
+            self.logger.info(f"Command returned: {self.atlas_device.query(write_cmd)}")
+            cal_status, cal_return = self.atlas_device.query("Cal,?")
+            cal_return = self.atlas_device.build_string(cal_return)
+            self.logger.info(f"Device Calibrated?: {cal_status}:{cal_return}")
+            self.atlas_device = None
+        except:
+            self.logger.exception("Exception clearing calibration")

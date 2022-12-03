@@ -17,17 +17,19 @@ import logging
 import time
 from collections import OrderedDict
 
-from mycodo.config import SQL_DATABASE_MYCODO
+from sqlalchemy import and_
+
+from mycodo.config import MYCODO_DB_PATH
 from mycodo.databases.models import Conversion
 from mycodo.databases.models import DeviceMeasurements
+from mycodo.databases.models import Input
+from mycodo.databases.models import InputChannel
+from mycodo.databases.models import Output
 from mycodo.databases.models import OutputChannel
 from mycodo.databases.utils import session_scope
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.influx import get_last_measurement
 from mycodo.utils.influx import get_past_measurements
-from mycodo.utils.lockfile import LockFile
-
-MYCODO_DB_PATH = 'sqlite:///' + SQL_DATABASE_MYCODO
 
 
 class AbstractBaseController(object):
@@ -36,15 +38,32 @@ class AbstractBaseController(object):
     in controllers.
     """
     def __init__(self, unique_id=None, testing=False, name=__name__):
-        logger_name = "{}".format(name)
+        logger_name = name
         if not testing and unique_id:
-            logger_name += "_{}".format(unique_id.split('-')[0])
+            logger_name += f"_{unique_id.split('-')[0]}"
         self.logger = logging.getLogger(logger_name)
 
-        self.lockfile = LockFile()
         self.channels_conversion = {}
         self.channels_measurement = {}
         self.device_measurements = None
+
+    def initialize(self):
+        pass
+
+    def try_initialize(self, tries=3, wait_sec=5):
+        """Try to run initialize() for the controller several times with a pause between tries"""
+        for i in range(tries):
+            try:
+                self.initialize()
+                break
+            except Exception as err:
+                if i + 1 < tries:
+                    self.logger.exception(f"Error initializing, trying again in {wait_sec} seconds: {err}")
+                    time.sleep(wait_sec)
+                else:  # Last try
+                    self.logger.exception(
+                        f"Initialization errored {tries} times; giving up. Maybe the following traceback "
+                        f"can help diagnose the issue.")
 
     def setup_custom_options(self, custom_options, custom_controller):
         if not hasattr(custom_controller, 'custom_options'):
@@ -68,7 +87,7 @@ class AbstractBaseController(object):
                         Conversion, unique_id=each_measure.conversion_id)
                 return
             except Exception as msg:
-                self.logger.debug("Error: {}".format(msg))
+                self.logger.debug(f"Error: {msg}")
             time.sleep(0.1)
 
     # TODO: Remove in place of JSON function, below, in next major version
@@ -117,11 +136,16 @@ class AbstractBaseController(object):
                         if option == each_option_default['id']:
                             custom_option_set = True
 
-                            if (each_option_default['type'] == 'select_measurement' and
+                            if (each_option_default['type'] in ['select_measurement',
+                                                                'select_measurement_from_this_input'] and
                                     len(each_option.split(',')) > 2):
                                 device_id = each_option.split(',')[1]
                                 measurement_id = each_option.split(',')[2]
-                            if (each_option_default['type'] == 'select_measurement_channel' and
+                            elif (each_option_default['type'] == 'select_channel' and
+                                    len(each_option.split(',')) > 2):
+                                device_id = each_option.split(',')[1]
+                                channel_id = each_option.split(',')[2]
+                            elif (each_option_default['type'] == 'select_measurement_channel' and
                                     len(each_option.split(',')) > 3):
                                 device_id = each_option.split(',')[1]
                                 measurement_id = each_option.split(',')[2]
@@ -131,8 +155,8 @@ class AbstractBaseController(object):
 
                 if required and not custom_option_set:
                     self.logger.error(
-                        "Option '{}' required but was not found to be set by the user. Setting to default.".format(
-                            each_option_default['id']))
+                        f"Option '{each_option_default['id']}' required but was not found to be set by the user. "
+                         "Setting to default.")
 
                 if each_option_default['type'] == 'integer':
                     setattr(self, each_option_default['id'], int(option_value))
@@ -150,7 +174,7 @@ class AbstractBaseController(object):
                 elif each_option_default['type'] == 'select_multi_measurement':
                     setattr(self, each_option_default['id'], str(option_value))
 
-                elif each_option_default['type'] == 'select':
+                elif each_option_default['type'] in ['select', 'select_custom_choices']:
                     option_value = str(option_value)
                     if 'cast_value' in each_option_default and each_option_default['cast_value']:
                         if each_option_default['cast_value'] == 'integer':
@@ -159,60 +183,52 @@ class AbstractBaseController(object):
                             option_value = float(option_value)
                     setattr(self, each_option_default['id'], option_value)
 
-                elif each_option_default['type'] == 'select_measurement':
-                    setattr(self,
-                            '{}_device_id'.format(each_option_default['id']),
-                            device_id)
-                    setattr(self,
-                            '{}_measurement_id'.format(each_option_default['id']),
-                            measurement_id)
+                elif each_option_default['type'] in ['select_measurement',
+                                                     'select_measurement_from_this_input']:
+                    setattr(self, f"{each_option_default['id']}_device_id", device_id)
+                    setattr(self, f"{each_option_default['id']}_measurement_id", measurement_id)
 
                 elif each_option_default['type'] == 'select_measurement_channel':
-                    setattr(self,
-                            '{}_device_id'.format(each_option_default['id']),
-                            device_id)
-                    setattr(self,
-                            '{}_measurement_id'.format(each_option_default['id']),
-                            measurement_id)
-                    setattr(self,
-                            '{}_channel_id'.format(each_option_default['id']),
-                            channel_id)
+                    setattr(self, f"{each_option_default['id']}_device_id", device_id)
+                    setattr(self, f"{each_option_default['id']}_measurement_id", measurement_id)
+                    setattr(self, f"{each_option_default['id']}_channel_id", channel_id)
 
                 elif each_option_default['type'] in ['select_type_measurement',
                                                      'select_type_unit']:
                     setattr(self, each_option_default['id'], str(option_value))
 
                 elif each_option_default['type'] == 'select_device':
-                    setattr(self,
-                            '{}_id'.format(each_option_default['id']),
-                            str(option_value))
+                    setattr(self, f"{each_option_default['id']}_id", str(option_value))
 
                 elif each_option_default['type'] in ['message', 'new_line']:
                     pass
 
                 else:
                     self.logger.error(
-                        "setup_custom_options_csv() Unknown custom_option type '{}'".format(each_option_default['type']))
+                        f"setup_custom_options_csv() Unknown custom_option type '{each_option_default['type']}'")
             except Exception:
                 self.logger.exception("Error parsing custom_options")
 
     def setup_custom_options_json(self, custom_options, custom_controller):
+        except_option = None
+
         for each_option_default in custom_options:
             try:
+                except_option = each_option_default
                 required = False
                 custom_option_set = False
                 error = []
 
                 if 'type' not in each_option_default:
-                    error.append("'type' not found in custom_options")
+                    error.append(f"'type' not found in custom_options: {each_option_default}")
                 if ('id' not in each_option_default and
                         ('type' in each_option_default and
                          each_option_default['type'] not in ['new_line', 'message'])):
-                    error.append("'id' not found in custom_options")
+                    error.append(f"'id' not found in custom_options: {each_option_default}")
                 if ('default_value' not in each_option_default and
                         ('type' in each_option_default and
                          each_option_default['type'] != 'new_line')):
-                    error.append("'default_value' not found in custom_options")
+                    error.append(f"'default_value' not found in custom_options: {each_option_default}")
 
                 for each_error in error:
                     self.logger.error(each_error)
@@ -240,11 +256,16 @@ class AbstractBaseController(object):
                         if each_option == each_option_default['id']:
                             custom_option_set = True
 
-                            if (each_option_default['type'] == 'select_measurement' and
+                            if (each_option_default['type'] in ['select_measurement',
+                                                                'select_measurement_from_this_input'] and
                                     len(each_value.split(',')) > 1):
                                 device_id = each_value.split(',')[0]
                                 measurement_id = each_value.split(',')[1]
-                            if (each_option_default['type'] == 'select_measurement_channel' and
+                            elif (each_option_default['type'] == 'select_channel' and
+                                    len(each_value.split(',')) > 1):
+                                device_id = each_value.split(',')[0]
+                                channel_id = each_value.split(',')[1]
+                            elif (each_option_default['type'] == 'select_measurement_channel' and
                                     len(each_value.split(',')) > 2):
                                 device_id = each_value.split(',')[0]
                                 measurement_id = each_value.split(',')[1]
@@ -254,8 +275,8 @@ class AbstractBaseController(object):
 
                 if required and not custom_option_set:
                     self.logger.error(
-                        "Option '{}' required but was not found to be set by the user. Setting to default.".format(
-                            each_option_default['id']))
+                        f"Option '{each_option_default['id']}' required but was not found to be set by the user. "
+                        f"Setting to default.")
 
                 if each_option_default['type'] in ['integer',
                                                    'float',
@@ -263,27 +284,23 @@ class AbstractBaseController(object):
                                                    'multiline_text',
                                                    'select_multi_measurement',
                                                    'text',
-                                                   'select']:
+                                                   'select',
+                                                   'select_custom_choices']:
                     setattr(self, each_option_default['id'], option_value)
 
-                elif each_option_default['type'] == 'select_measurement':
-                    setattr(self,
-                            '{}_device_id'.format(each_option_default['id']),
-                            device_id)
-                    setattr(self,
-                            '{}_measurement_id'.format(each_option_default['id']),
-                            measurement_id)
+                elif each_option_default['type'] in ['select_measurement',
+                                                     'select_measurement_from_this_input']:
+                    setattr(self, f"{each_option_default['id']}_device_id", device_id)
+                    setattr(self, f"{each_option_default['id']}_measurement_id", measurement_id)
+
+                elif each_option_default['type'] == 'select_channel':
+                    setattr(self, f"{each_option_default['id']}_device_id", device_id)
+                    setattr(self, f"{each_option_default['id']}_channel_id", channel_id)
 
                 elif each_option_default['type'] == 'select_measurement_channel':
-                    setattr(self,
-                            '{}_device_id'.format(each_option_default['id']),
-                            device_id)
-                    setattr(self,
-                            '{}_measurement_id'.format(each_option_default['id']),
-                            measurement_id)
-                    setattr(self,
-                            '{}_channel_id'.format(each_option_default['id']),
-                            channel_id)
+                    setattr(self, f"{each_option_default['id']}_device_id", device_id)
+                    setattr(self, f"{each_option_default['id']}_measurement_id", measurement_id)
+                    setattr(self, f"{each_option_default['id']}_channel_id", channel_id)
 
                 elif each_option_default['type'] == 'select_type_measurement':
                     setattr(self, each_option_default['id'], str(option_value))
@@ -292,37 +309,44 @@ class AbstractBaseController(object):
                     setattr(self, each_option_default['id'], str(option_value))
 
                 elif each_option_default['type'] == 'select_device':
-                    setattr(self,
-                            '{}_id'.format(each_option_default['id']),
-                            str(option_value))
-
-                elif each_option_default['type'] in ['message', 'new_line']:
-                    pass
+                    setattr(self, f"{each_option_default['id']}_id", str(option_value))
 
                 else:
                     self.logger.error(
-                        "setup_custom_options_json() Unknown option type '{}'".format(each_option_default['type']))
+                        f"setup_custom_options_json() Unknown option type '{each_option_default['type']}'")
             except Exception:
-                self.logger.exception("Error parsing options")
+                self.logger.exception(f"Error parsing option: {except_option}")
 
     def setup_custom_channel_options_json(self, custom_options, custom_controller_channels):
         dict_values = {}
+        except_option = None
         for each_option_default in custom_options:
             try:
-                dict_values[each_option_default['id']] = OrderedDict()
+                except_option = each_option_default
                 required = False
                 custom_option_set = False
                 error = []
+
                 if 'type' not in each_option_default:
-                    error.append("'type' not found in custom_options")
-                if 'id' not in each_option_default:
-                    error.append("'id' not found in custom_options")
-                if 'default_value' not in each_option_default:
-                    error.append("'default_value' not found in custom_options")
+                    error.append(f"'type' not found in custom_options: {each_option_default}")
+                if ('id' not in each_option_default and
+                        ('type' in each_option_default and
+                         each_option_default['type'] not in ['new_line', 'message'])):
+                    error.append(f"'id' not found in custom_options: {each_option_default}")
+                if ('default_value' not in each_option_default and
+                        ('type' in each_option_default and
+                         each_option_default['type'] != 'new_line')):
+                    error.append(f"'default_value' not found in custom_options: {each_option_default}")
+
                 for each_error in error:
                     self.logger.error(each_error)
                 if error:
                     return
+
+                if each_option_default['type'] in ['new_line', 'message']:
+                    continue
+
+                dict_values[each_option_default['id']] = OrderedDict()
 
                 if 'required' in each_option_default and each_option_default['required']:
                     required = True
@@ -334,6 +358,17 @@ class AbstractBaseController(object):
                     dict_values[each_option_default['id']][channel] = each_option_default['default_value']
 
                     if each_option_default['type'] == 'select_measurement':
+                        dict_values[each_option_default['id']][channel] = {}
+                        dict_values[each_option_default['id']][channel]['device_id'] = None
+                        dict_values[each_option_default['id']][channel]['measurement_id'] = None
+                        dict_values[each_option_default['id']][channel]['channel_id'] = None
+
+                    elif each_option_default['type'] == 'select_channel':
+                        dict_values[each_option_default['id']][channel] = {}
+                        dict_values[each_option_default['id']][channel]['device_id'] = None
+                        dict_values[each_option_default['id']][channel]['channel_id'] = None
+
+                    elif each_option_default['type'] == 'select_measurement_channel':
                         dict_values[each_option_default['id']][channel] = {}
                         dict_values[each_option_default['id']][channel]['device_id'] = None
                         dict_values[each_option_default['id']][channel]['measurement_id'] = None
@@ -354,28 +389,25 @@ class AbstractBaseController(object):
                                         dict_values[each_option_default['id']][channel]['measurement_id'] = each_value.split(',')[1]
                                     if len(each_value.split(',')) > 2:
                                         dict_values[each_option_default['id']][channel]['channel_id'] = each_value.split(',')[2]
+                                elif each_option_default['type'] == 'select_channel':
+                                    if len(each_value.split(',')) > 1:
+                                        dict_values[each_option_default['id']][channel]['device_id'] = each_value.split(',')[0]
+                                        dict_values[each_option_default['id']][channel]['channel_id'] = each_value.split(',')[1]
+                                elif each_option_default['type'] == 'select_measurement_channel':
+                                    if len(each_value.split(',')) > 1:
+                                        dict_values[each_option_default['id']][channel]['device_id'] = each_value.split(',')[0]
+                                        dict_values[each_option_default['id']][channel]['measurement_id'] = each_value.split(',')[1]
+                                        dict_values[each_option_default['id']][channel]['channel_id'] = each_value.split(',')[2]
                                 else:
                                     dict_values[each_option_default['id']][channel] = each_value
 
                     if required and not custom_option_set:
                         self.logger.error(
-                            "Option '{}' required but was not found to be set by the user".format(
-                                each_option_default['id']))
+                            f"Option '{each_option_default['id']}' required but was not found to be set by the user")
             except Exception:
-                self.logger.exception("Error parsing options")
+                self.logger.exception(f"Error parsing option: {except_option}")
 
         return dict_values
-
-    def lock_acquire(self, lockfile, timeout):
-        self.logger.debug("Acquiring lock")
-        return self.lockfile.lock_acquire(lockfile, timeout)
-
-    def lock_locked(self, lockfile):
-        return self.lockfile.lock_locked(lockfile)
-
-    def lock_release(self, lockfile):
-        self.logger.debug("Releasing lock")
-        self.lockfile.lock_release(lockfile)
 
     def _delete_custom_option(self, controller, unique_id, option):
         try:
@@ -386,9 +418,10 @@ class AbstractBaseController(object):
                     dict_custom_options = json.loads(mod_function.custom_options)
                 except:
                     dict_custom_options = {}
-                dict_custom_options.pop(option)
-                mod_function.custom_options = json.dumps(dict_custom_options)
-                new_session.commit()
+                if option in dict_custom_options:
+                    dict_custom_options.pop(option)
+                    mod_function.custom_options = json.dumps(dict_custom_options)
+                    new_session.commit()
         except Exception:
             self.logger.exception("delete_custom_option")
 
@@ -404,17 +437,95 @@ class AbstractBaseController(object):
                 dict_custom_options[option] = value
                 mod_function.custom_options = json.dumps(dict_custom_options)
                 new_session.commit()
+            return value
         except Exception:
             self.logger.exception("set_custom_option")
 
-    @staticmethod
-    def _get_custom_option(custom_options, option):
+    def _get_custom_option(self, controller, unique_id, option):
         try:
-            dict_custom_options = json.loads(custom_options)
-        except:
-            dict_custom_options = {}
-        if option in dict_custom_options:
-            return dict_custom_options[option]
+            with session_scope(MYCODO_DB_PATH) as new_session:
+                read_function = new_session.query(controller).filter(
+                    controller.unique_id == unique_id).first()
+                new_session.expunge_all()
+                try:
+                    dict_custom_options = json.loads(read_function.custom_options)
+                except:
+                    dict_custom_options = {}
+                if option in dict_custom_options:
+                    return dict_custom_options[option]
+        except Exception:
+            self.logger.exception("get_custom_option")
+
+    def _delete_custom_channel_option(self, controller, unique_id, channel, option):
+        try:
+            with session_scope(MYCODO_DB_PATH) as new_session:
+                if controller == Output:
+                    channel = new_session.query(OutputChannel).filter(and_(
+                        OutputChannel.output_id == unique_id,
+                        OutputChannel.channel == channel)).first()
+                elif controller == Input:
+                    channel = new_session.query(InputChannel).filter(and_(
+                        InputChannel.input_id == unique_id,
+                        InputChannel.channel == channel)).first()
+                else:
+                    return "controller doesn't represent Output or Input"
+                try:
+                    dict_custom_options = json.loads(channel.custom_options)
+                except:
+                    dict_custom_options = {}
+                if option in dict_custom_options:
+                    dict_custom_options.pop(option)
+                    channel.custom_options = json.dumps(dict_custom_options)
+                    new_session.commit()
+        except Exception:
+            self.logger.exception("delete_custom_option")
+
+    def _set_custom_channel_option(self, controller, unique_id, channel, option, value):
+        try:
+            with session_scope(MYCODO_DB_PATH) as new_session:
+                if controller == Output:
+                    channel = new_session.query(OutputChannel).filter(and_(
+                        OutputChannel.output_id == unique_id,
+                        OutputChannel.channel == channel)).first()
+                elif controller == Input:
+                    channel = new_session.query(InputChannel).filter(and_(
+                        InputChannel.input_id == unique_id,
+                        InputChannel.channel == channel)).first()
+                else:
+                    return "controller doesn't represent Output or Input"
+                try:
+                    dict_custom_options = json.loads(channel.custom_options)
+                except:
+                    dict_custom_options = {}
+                dict_custom_options[option] = value
+                channel.custom_options = json.dumps(dict_custom_options)
+                new_session.commit()
+            return value
+        except Exception:
+            self.logger.exception("set_custom_option")
+
+    def _get_custom_channel_option(self, controller, unique_id, channel, option):
+        try:
+            with session_scope(MYCODO_DB_PATH) as new_session:
+                if controller == Output:
+                    channel = new_session.query(OutputChannel).filter(and_(
+                        OutputChannel.output_id == unique_id,
+                        OutputChannel.channel == channel)).first()
+                elif controller == Input:
+                    channel = new_session.query(InputChannel).filter(and_(
+                        InputChannel.input_id == unique_id,
+                        InputChannel.channel == channel)).first()
+                else:
+                    return "controller doesn't represent Output or Input"
+                new_session.expunge_all()
+                try:
+                    dict_custom_options = json.loads(channel.custom_options)
+                except:
+                    dict_custom_options = {}
+                if option in dict_custom_options:
+                    return dict_custom_options[option]
+        except Exception:
+            self.logger.exception("get_custom_option")
 
     @staticmethod
     def get_last_measurement(device_id, measurement_id, max_age=None):
@@ -426,7 +537,7 @@ class AbstractBaseController(object):
 
     @staticmethod
     def get_output_channel_from_channel_id(channel_id):
-        """Return channel number from channel ID"""
+        """Return channel number from channel ID."""
         output_channel = db_retrieve_table_daemon(
             OutputChannel).filter(
             OutputChannel.unique_id == channel_id).first()

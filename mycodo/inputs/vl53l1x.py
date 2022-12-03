@@ -85,7 +85,7 @@ class InputModule(AbstractInput):
     A sensor support class that measures the sensor
     """
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
         self.setting_i2c = False
@@ -98,9 +98,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import VL53L1X
 
         self.VL53L1X = VL53L1X
@@ -119,7 +119,7 @@ class InputModule(AbstractInput):
 
     def get_measurement(self):
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)
@@ -135,7 +135,7 @@ class InputModule(AbstractInput):
         return self.return_dict
 
     def stop_input(self):
-        """ Called when Input is deactivated """
+        """Called when Input is deactivated."""
         self.sensor.stop_ranging()
         self.sensor.close()
         self.running = False

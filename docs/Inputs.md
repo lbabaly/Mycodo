@@ -2,7 +2,7 @@ Page\: `Setup -> Input`
 
 For a full list of supported Inputs, see [Supported Input Devices](Supported-Inputs.md).
 
-Inputs, such as sensors, ADC signals, or even a response from a command, enable measuring conditions in the environment or elsewhere, which will be stored in a time-series database (InfluxDB). This database will provide measurements for [Dashboards](Data-Viewing.md#dashboard), [LCDs](LCDs.md), [PID Controllers](Functions.md#pid-controller), [Conditional Statements](Functions.md#conditional), and other parts of Mycodo to operate from. Add, configure, and activate inputs to begin recording measurements to the database and allow them to be used throughout Mycodo.
+Inputs, such as sensors, ADC signals, or even a response from a command, enable measuring conditions in the environment or elsewhere, which will be stored in a time-series database (InfluxDB). This database will provide measurements for [Dashboard Widgets](Data-Viewing.md#dashboard), [Functions](Functions.md), and other parts of Mycodo to operate from. Add, configure, and activate inputs to begin recording measurements to the database and allow them to be used throughout Mycodo.
 
 ### Custom Inputs
 
@@ -18,12 +18,16 @@ There are also example Custom Inputs in the directory [Mycodo/mycodo/inputs/exam
 
 Additionally, I have another github repository devoted to Custom Modules that are not included in the built-in set, at [kizniche/Mycodo-custom](https://github.com/kizniche/Mycodo-custom).
 
-### Input Actions
+### Input Commands
 
-Input Actions are functions within the Input module that can be executed from the Web UI. This is useful for things such as calibration or other functionality specific to the input. By default, there is at least one action, Acquire Measurements Now, which will cause the input to acquire measurements rather than waiting until the next Period has elapsed.
+Input Commands are functions within the Input module that can be executed from the Web UI. This is useful for things such as calibration or other functionality specific to the input. By default, there is at least one action, Acquire Measurements Now, which will cause the input to acquire measurements rather than waiting until the next Period has elapsed.
 
 !!! note
     Actions can only be executed while the Input is active.
+
+### Input Actions
+
+Every Period the Input will acquire measurements and store then in the time-series database. Following measurement acquisition, one or more [Actions](Actions.md) can be executed to enhance the functionality of Inputs. For example, the MQTT Publish Action can be used to publish measurements to an MQTT server.
 
 ### Input Options
 
@@ -37,11 +41,11 @@ Input Actions are functions within the Input module that can be executed from th
 <tbody>
 <tr>
 <td>Activate</td>
-<td>After the sensor has been properly configured, activation begins acquiring measurements from the sensor. Any activated conditional statements will now being operating.</td>
+<td>After the sensor has been properly configured, activation begins acquiring measurements from the sensor. Any activated Conditional Functions will now being operating.</td>
 </tr>
 <tr>
 <td>Deactivate</td>
-<td>Deactivation stops measurements from being acquired from the sensor. All associated conditional statements will cease to operate.</td>
+<td>Deactivation stops measurements from being acquired from the sensor. All associated Conditional Functions will cease to operate.</td>
 </tr>
 <tr>
 <td>Save</td>

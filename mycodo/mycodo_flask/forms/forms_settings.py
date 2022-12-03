@@ -15,10 +15,10 @@ from wtforms import StringField
 from wtforms import SubmitField
 from wtforms import validators
 from wtforms import widgets
-from wtforms.fields.html5 import EmailField
+from wtforms.fields import EmailField
 from wtforms.validators import DataRequired
 from wtforms.validators import Optional
-from wtforms.widgets.html5 import NumberInput
+from wtforms.widgets import NumberInput
 
 from mycodo.config_translations import TRANSLATIONS
 
@@ -96,6 +96,15 @@ class SettingsGeneral(FlaskForm):
     hide_info = BooleanField(lazy_gettext('Hide info messages'))
     hide_warning = BooleanField(lazy_gettext('Hide warning messages'))
     hide_tooltips = BooleanField(lazy_gettext('Hide Form Tooltips'))
+
+    use_database = StringField(lazy_gettext('Database'))
+    measurement_db_retention_policy = StringField(lazy_gettext('Retention Policy'))
+    measurement_db_host = StringField(lazy_gettext('Hostname'))
+    measurement_db_port = IntegerField(lazy_gettext('Port'))
+    measurement_db_dbname = StringField(lazy_gettext('Database Name'))
+    measurement_db_user = StringField(lazy_gettext('Username'))
+    measurement_db_password = PasswordField(lazy_gettext('Password'))
+
     grid_cell_height = IntegerField(
         lazy_gettext('Grid Cell Height (px)'), widget=NumberInput())
     max_amps = DecimalField(
@@ -126,6 +135,26 @@ class SettingsGeneral(FlaskForm):
         lazy_gettext('Internet Test Port'), widget=NumberInput())
     net_test_timeout = IntegerField(
         lazy_gettext('Internet Test Timeout'), widget=NumberInput())
+
+    sample_rate_controller_conditional = DecimalField(
+        "{} ({}): {}".format(lazy_gettext('Sample Rate'), lazy_gettext('Seconds'), lazy_gettext('Conditional')),
+        widget=NumberInput(step='any'))
+    sample_rate_controller_function = DecimalField(
+        "{} ({}): {}".format(lazy_gettext('Sample Rate'), lazy_gettext('Seconds'), lazy_gettext('Function')),
+        widget=NumberInput(step='any'))
+    sample_rate_controller_input = DecimalField(
+        "{} ({}): {}".format(lazy_gettext('Sample Rate'), lazy_gettext('Seconds'), lazy_gettext('Input')),
+        widget=NumberInput(step='any'))
+    sample_rate_controller_output = DecimalField(
+        "{} ({}): {}".format(lazy_gettext('Sample Rate'), lazy_gettext('Seconds'), lazy_gettext('Output')),
+        widget=NumberInput(step='any'))
+    sample_rate_controller_pid = DecimalField(
+        "{} ({}): {}".format(lazy_gettext('Sample Rate'), lazy_gettext('Seconds'), lazy_gettext('PID')),
+        widget=NumberInput(step='any'))
+    sample_rate_controller_widget = DecimalField(
+        "{} ({}): {}".format(lazy_gettext('Sample Rate'), lazy_gettext('Seconds'), lazy_gettext('Widget')),
+        widget=NumberInput(step='any'))
+
     settings_general_save = SubmitField(TRANSLATIONS['save']['title'])
 
 
@@ -134,7 +163,7 @@ class SettingsGeneral(FlaskForm):
 #
 
 class Controller(FlaskForm):
-    import_controller_file = FileField(lazy_gettext('Upload'))
+    import_controller_file = FileField()
     import_controller_upload = SubmitField(lazy_gettext('Import Controller Module'))
 
 
@@ -144,11 +173,25 @@ class ControllerDel(FlaskForm):
 
 
 #
+# Settings (Action)
+#
+
+class Action(FlaskForm):
+    import_action_file = FileField()
+    import_action_upload = SubmitField(lazy_gettext('Import Action Module'))
+
+
+class ActionDel(FlaskForm):
+    action_id = StringField(widget=widgets.HiddenInput())
+    delete_action = SubmitField(TRANSLATIONS['delete']['title'])
+
+
+#
 # Settings (Input)
 #
 
 class Input(FlaskForm):
-    import_input_file = FileField(lazy_gettext('Upload'))
+    import_input_file = FileField()
     import_input_upload = SubmitField(lazy_gettext('Import Input Module'))
 
 
@@ -162,7 +205,7 @@ class InputDel(FlaskForm):
 #
 
 class Output(FlaskForm):
-    import_output_file = FileField(lazy_gettext('Upload'))
+    import_output_file = FileField()
     import_output_upload = SubmitField(lazy_gettext('Import Output Module'))
 
 
@@ -176,7 +219,7 @@ class OutputDel(FlaskForm):
 #
 
 class Widget(FlaskForm):
-    import_widget_file = FileField(lazy_gettext('Upload'))
+    import_widget_file = FileField()
     import_widget_upload = SubmitField(lazy_gettext('Import Widget Module'))
 
 
@@ -375,29 +418,6 @@ class SettingsPi(FlaskForm):
     pigpiod_sample_rate = StringField(lazy_gettext('Configure pigpiod'))
     change_pigpiod_sample_rate = SubmitField(lazy_gettext('Reconfigure'))
 
-    sample_rate_controller_conditional = DecimalField(
-        lazy_gettext('Conditional Sample Rate (seconds)'),
-        widget=NumberInput(step='any'))
-    sample_rate_controller_function = DecimalField(
-        lazy_gettext('Function Sample Rate (seconds)'),
-        widget=NumberInput(step='any'))
-    sample_rate_controller_input = DecimalField(
-        lazy_gettext('Input Sample Rate (seconds)'),
-        widget=NumberInput(step='any'))
-    sample_rate_controller_math = DecimalField(
-        lazy_gettext('Math Sample Rate (seconds)'),
-        widget=NumberInput(step='any'))
-    sample_rate_controller_output = DecimalField(
-        lazy_gettext('Output Sample Rate (seconds)'),
-        widget=NumberInput(step='any'))
-    sample_rate_controller_pid = DecimalField(
-        lazy_gettext('PID Sample Rate (seconds)'),
-        widget=NumberInput(step='any'))
-    sample_rate_controller_widget = DecimalField(
-        lazy_gettext('Widget Sample Rate (seconds)'),
-        widget=NumberInput(step='any'))
-    save_sample_rates = SubmitField(lazy_gettext('Save Sample Rates'))
-
 
 #
 # Settings (Diagnostic)
@@ -406,7 +426,6 @@ class SettingsPi(FlaskForm):
 class SettingsDiagnostic(FlaskForm):
     delete_dashboard_elements = SubmitField(lazy_gettext('Delete All Dashboards'))
     delete_inputs = SubmitField(lazy_gettext('Delete All Inputs'))
-    delete_maths = SubmitField(lazy_gettext('Delete All Maths'))
     delete_notes_tags = SubmitField(lazy_gettext('Delete All Notes and Note Tags'))
     delete_outputs = SubmitField(lazy_gettext('Delete All Outputs'))
     delete_settings_database = SubmitField(lazy_gettext('Delete Settings Database'))
@@ -414,3 +433,5 @@ class SettingsDiagnostic(FlaskForm):
     delete_file_upgrade = SubmitField(lazy_gettext('Delete File') + ': .upgrade')
     reset_email_counter = SubmitField(lazy_gettext('Reset Email Counter'))
     install_dependencies = SubmitField(lazy_gettext('Install Dependencies'))
+    regenerate_widget_html = SubmitField(lazy_gettext('Regenerate Widget HTML'))
+    upgrade_master = SubmitField(lazy_gettext('Set to Upgrade to Master'))

@@ -1,56 +1,36 @@
 # coding=utf-8
-""" collection of Page endpoints """
+"""collection of Page endpoints."""
+import json
 import logging
 import os
 import re
 import subprocess
 
 import flask_login
-from flask import current_app
-from flask import flash
-from flask import jsonify
-from flask import redirect
-from flask import render_template
-from flask import request
-from flask import url_for
+from flask import (current_app, jsonify, redirect, render_template, request,
+                   url_for)
 from flask.blueprints import Blueprint
 from sqlalchemy import and_
 
-from mycodo.config import INSTALL_DIRECTORY
-from mycodo.config import MATH_INFO
-from mycodo.config import PATH_1WIRE
-from mycodo.databases.models import Conversion
-from mycodo.databases.models import CustomController
-from mycodo.databases.models import DeviceMeasurements
-from mycodo.databases.models import DisplayOrder
-from mycodo.databases.models import Input
-from mycodo.databases.models import InputChannel
-from mycodo.databases.models import Math
-from mycodo.databases.models import Measurement
-from mycodo.databases.models import Method
-from mycodo.databases.models import Output
-from mycodo.databases.models import OutputChannel
-from mycodo.databases.models import PID
-from mycodo.databases.models import Unit
-from mycodo.databases.models import User
+from mycodo.config import INSTALL_DIRECTORY, PATH_1WIRE
+from mycodo.databases.models import (PID, Actions, Camera, Conditional,
+                                     Conversion, CustomController,
+                                     DeviceMeasurements, DisplayOrder, Input,
+                                     InputChannel, Measurement, Method, Misc,
+                                     Output, OutputChannel, Trigger, Unit,
+                                     User)
 from mycodo.mycodo_flask.extensions import db
-from mycodo.mycodo_flask.forms import forms_input
-from mycodo.mycodo_flask.forms import forms_math
+from mycodo.mycodo_flask.forms import forms_action, forms_input
 from mycodo.mycodo_flask.routes_static import inject_variables
-from mycodo.mycodo_flask.utils import utils_general
-from mycodo.mycodo_flask.utils import utils_input
-from mycodo.mycodo_flask.utils import utils_math
+from mycodo.mycodo_flask.utils import utils_action, utils_general, utils_input
+from mycodo.mycodo_flask.utils.utils_general import generate_form_action_list
+from mycodo.utils.actions import parse_action_information
 from mycodo.utils.inputs import parse_input_information
-from mycodo.utils.outputs import output_types
-from mycodo.utils.outputs import parse_output_information
-from mycodo.utils.system_pi import add_custom_measurements
-from mycodo.utils.system_pi import add_custom_units
-from mycodo.utils.system_pi import check_missing_ids
-from mycodo.utils.system_pi import csv_to_list_of_str
-from mycodo.utils.system_pi import dpkg_package_exists
-from mycodo.utils.system_pi import list_to_csv
-from mycodo.utils.system_pi import parse_custom_option_values
-from mycodo.utils.system_pi import parse_custom_option_values_input_channels_json
+from mycodo.utils.outputs import output_types, parse_output_information
+from mycodo.utils.system_pi import (
+    add_custom_measurements, add_custom_units, csv_to_list_of_str,
+    dpkg_package_exists, parse_custom_option_values,
+    parse_custom_option_values_input_channels_json)
 
 logger = logging.getLogger('mycodo.mycodo_flask.routes_input')
 
@@ -69,7 +49,7 @@ def inject_dictionary():
 @blueprint.route('/input_submit', methods=['POST'])
 @flask_login.login_required
 def page_input_submit():
-    """ Submit form for Data page """
+    """Submit form for Data page"""
     messages = {
         "success": [],
         "info": [],
@@ -77,6 +57,7 @@ def page_input_submit():
         "error": []
     }
     page_refresh = False
+    action_id = None
     input_id = None
     duplicated_input_id = ''
     dep_unmet = ''
@@ -84,6 +65,7 @@ def page_input_submit():
     dep_list = []
     dep_message = ''
 
+    form_actions = forms_action.Actions()
     form_add_input = forms_input.InputAdd()
     form_mod_input = forms_input.InputMod()
 
@@ -103,41 +85,60 @@ def page_input_submit():
             messages, input_id = utils_input.input_duplicate(
                 form_mod_input)
             duplicated_input_id = form_mod_input.input_id.data
-        elif form_mod_input.input_mod.data:
-            messages, page_refresh = utils_input.input_mod(
-                form_mod_input, request.form)
-            input_id = form_mod_input.input_id.data
-        elif form_mod_input.input_delete.data:
-            messages = utils_input.input_del(
-                form_mod_input.input_id.data)
-            input_id = form_mod_input.input_id.data
-        elif form_mod_input.input_activate.data:
-            messages = utils_input.input_activate(form_mod_input)
-            input_id = form_mod_input.input_id.data
-        elif form_mod_input.input_deactivate.data:
-            messages = utils_input.input_deactivate(form_mod_input)
-            input_id = form_mod_input.input_id.data
-        elif form_mod_input.input_acquire_measurements.data:
-            messages = utils_input.force_acquire_measurements(
-                form_mod_input.input_id.data)
-
-        # Custom action
         else:
-            custom_button = False
-            for key in request.form.keys():
-                if key.startswith('custom_button_'):
-                    custom_button = True
-                    break
-            if custom_button:
-                messages = utils_general.custom_action(
-                    "Input",
-                    parse_input_information(),
-                    form_mod_input.input_id.data,
-                    request.form)
+            input_id = form_mod_input.input_id.data
+            if form_mod_input.input_mod.data:
+                messages, page_refresh = utils_input.input_mod(
+                    form_mod_input, request.form)
+            elif form_mod_input.input_delete.data:
+                messages = utils_input.input_del(
+                    form_mod_input.input_id.data)
+            elif form_mod_input.input_activate.data:
+                messages = utils_input.input_activate(form_mod_input)
+            elif form_mod_input.input_deactivate.data:
+                messages = utils_input.input_deactivate(form_mod_input)
+            elif form_mod_input.input_acquire_measurements.data:
+                messages = utils_input.force_acquire_measurements(
+                    form_mod_input.input_id.data)
+
+            # Actions
+            elif form_actions.add_action.data:
+                (messages,
+                 dep_name,
+                 dep_list,
+                 action_id,
+                 page_refresh) = utils_action.action_add(form_actions)
+                if dep_list:
+                    dep_unmet = form_actions.action_type.data
+                input_id = form_actions.device_id.data
+            elif form_actions.save_action.data:
+                messages = utils_action.action_mod(
+                    form_actions, request.form)
+                input_id = form_actions.device_id.data
+            elif form_actions.delete_action.data:
+                messages = utils_action.action_del(form_actions)
+                page_refresh = True
+                input_id = form_actions.device_id.data
+                action_id = form_actions.action_id.data
+
+            # Custom action
             else:
-                messages["error"].append("Unknown function directive")
+                custom_button = False
+                for key in request.form.keys():
+                    if key.startswith('custom_button_'):
+                        custom_button = True
+                        break
+                if custom_button:
+                    messages = utils_general.custom_command(
+                        "Input",
+                        parse_input_information(),
+                        form_mod_input.input_id.data,
+                        request.form)
+                else:
+                    messages["error"].append("Unknown function directive")
 
     return jsonify(data={
+        'action_id': action_id,
         'input_id': input_id,
         'duplicated_input_id': duplicated_input_id,
         'dep_name': dep_name,
@@ -151,7 +152,7 @@ def page_input_submit():
 
 @blueprint.route('/save_input_layout', methods=['POST'])
 def save_input_layout():
-    """Save positions of inputs"""
+    """Save positions of inputs."""
     if not utils_general.user_has_permission('edit_controllers'):
         return redirect(url_for('routes_general.home'))
     data = request.get_json()
@@ -169,19 +170,28 @@ def save_input_layout():
 @blueprint.route('/input', methods=('GET', 'POST'))
 @flask_login.login_required
 def page_input():
-    """ Display Data page options """
+    """Display Data page options."""
     input_type = request.args.get('input_type', None)
     input_id = request.args.get('input_id', None)
+    action_id = request.args.get('action_id', None)
+
     each_input = None
-    if input_type in ['entry', 'options']:
+    each_action = None
+
+    if input_type in ['entry', 'options', 'actions']:
         each_input = Input.query.filter(Input.unique_id == input_id).first()
 
+        if input_type == 'actions' and action_id:
+            each_action = Actions.query.filter(
+                Actions.unique_id == action_id).first()
+
+    action = Actions.query.all()
     function = CustomController.query.all()
     input_dev = Input.query.all()
     input_channel = InputChannel.query.all()
-    math = Math.query.all()
     method = Method.query.all()
     measurement = Measurement.query.all()
+    misc = Misc.query.first()
     output = Output.query.all()
     output_channel = OutputChannel.query.all()
     pid = PID.query.all()
@@ -189,103 +199,50 @@ def page_input():
     unit = Unit.query.all()
 
     display_order_input = csv_to_list_of_str(DisplayOrder.query.first().inputs)
-    display_order_math = csv_to_list_of_str(DisplayOrder.query.first().math)
 
     form_add_input = forms_input.InputAdd()
     form_mod_input = forms_input.InputMod()
-
-    form_base = forms_math.DataBase()
-    form_mod_math = forms_math.MathMod()
-    form_mod_math_measurement = forms_math.MathMeasurementMod()
-    form_mod_average_single = forms_math.MathModAverageSingle()
-    form_mod_sum_single = forms_math.MathModSumSingle()
-    form_mod_redundancy = forms_math.MathModRedundancy()
-    form_mod_difference = forms_math.MathModDifference()
-    form_mod_equation = forms_math.MathModEquation()
-    form_mod_humidity = forms_math.MathModHumidity()
-    form_mod_verification = forms_math.MathModVerification()
-    form_mod_misc = forms_math.MathModMisc()
+    form_actions = forms_action.Actions()
 
     dict_inputs = parse_input_information()
-
-    if request.method == 'POST':  # TODO: Remove entire POST section and remove Math controllers
-        if not utils_general.user_has_permission('edit_controllers'):
-            return redirect(url_for('routes_input.page_input'))
-
-        # Reorder Math controllers
-        if form_base.reorder.data:
-            mod_order = DisplayOrder.query.first()
-            mod_order.math = list_to_csv(form_base.list_visible_elements.data)
-            mod_order.function = check_missing_ids(mod_order.function, [math])
-            db.session.commit()
-            flash("Reorder Complete", "success")
-
-        # Mod Math Measurement
-        elif form_mod_math_measurement.math_measurement_mod.data:
-            utils_math.math_measurement_mod(form_mod_math_measurement)
-
-        # Mod other Math settings
-        elif form_mod_math.math_mod.data:
-            math_type = Math.query.filter(
-                Math.unique_id == form_mod_math.math_id.data).first().math_type
-            if math_type == 'humidity':
-                utils_math.math_mod(form_mod_math, form_mod_humidity)
-            elif math_type == 'average_single':
-                utils_math.math_mod(form_mod_math, form_mod_average_single)
-            elif math_type == 'sum_single':
-                utils_math.math_mod(form_mod_math, form_mod_sum_single)
-            elif math_type == 'redundancy':
-                utils_math.math_mod(form_mod_math, form_mod_redundancy)
-            elif math_type == 'difference':
-                utils_math.math_mod(form_mod_math, form_mod_difference)
-            elif math_type == 'equation':
-                utils_math.math_mod(form_mod_math, form_mod_equation)
-            elif math_type == 'verification':
-                utils_math.math_mod(form_mod_math, form_mod_verification)
-            elif math_type == 'vapor_pressure_deficit':
-                utils_math.math_mod(form_mod_math, form_mod_misc)
-            else:
-                utils_math.math_mod(form_mod_math)
-        elif form_mod_math.math_delete.data:
-            utils_math.math_del(form_mod_math)
-        elif form_mod_math.math_order_up.data:
-            utils_math.math_reorder(form_mod_math.math_id.data,
-                                    display_order_math, 'up')
-        elif form_mod_math.math_order_down.data:
-            utils_math.math_reorder(form_mod_math.math_id.data,
-                                    display_order_math, 'down')
-        elif form_mod_math.math_activate.data:
-            utils_math.math_activate(form_mod_math)
-        elif form_mod_math.math_deactivate.data:
-            utils_math.math_deactivate(form_mod_math)
-
-        return redirect(url_for('routes_input.page_input'))
+    dict_actions = parse_action_information()
 
     custom_options_values_inputs = parse_custom_option_values(
         input_dev, dict_controller=dict_inputs)
     custom_options_values_input_channels = parse_custom_option_values_input_channels_json(
         input_channel, dict_controller=dict_inputs, key_name='custom_channel_options')
 
-    custom_actions = {}
+    custom_options_values_actions = {}
+    for each_action_dev in action:
+        try:
+            custom_options_values_actions[each_action_dev.unique_id] = json.loads(each_action_dev.custom_options)
+        except:
+            custom_options_values_actions[each_action_dev.unique_id] = {}
+
+    custom_commands = {}
     for each_input_dev in input_dev:
-        if each_input_dev.device in dict_inputs and 'custom_actions' in dict_inputs[each_input_dev.device]:
-            custom_actions[each_input_dev.device] = True
+        if each_input_dev.device in dict_inputs and 'custom_commands' in dict_inputs[each_input_dev.device]:
+            custom_commands[each_input_dev.device] = True
 
     # Generate dict that incorporate user-added measurements/units
     dict_outputs = parse_output_information()
     dict_units = add_custom_units(unit)
     dict_measurements = add_custom_measurements(measurement)
 
+    # Generate Action dropdown for use with Inputs
+    choices_actions = []
+    list_actions_sorted = generate_form_action_list(dict_actions, application=["inputs"])
+    for name in list_actions_sorted:
+        choices_actions.append((name, dict_actions[name]['name']))
+
     # Create list of choices to be used in dropdown menus
     choices_function = utils_general.choices_functions(
         function, dict_units, dict_measurements)
     choices_input = utils_general.choices_inputs(
         input_dev, dict_units, dict_measurements)
-    choices_math = utils_general.choices_maths(
-        math, dict_units, dict_measurements)
     choices_method = utils_general.choices_methods(method)
     choices_output = utils_general.choices_outputs(
-        output, dict_units, dict_measurements)
+        output, OutputChannel, dict_outputs, dict_units, dict_measurements)
     choices_output_channels = utils_general.choices_outputs_channels(
         output, output_channel, dict_outputs)
     choices_output_channels_measurements = utils_general.choices_outputs_channels_measurements(
@@ -306,25 +263,6 @@ def page_input():
             uid=each_element.unique_id.split('-')[0],
             name=each_element.name)
 
-    # Create dict of Math names
-    names_math = {}
-    all_elements = math
-    for each_element in all_elements:
-        names_math[each_element.unique_id] = '[{id:02d}] ({uid}) {name}'.format(
-            id=each_element.id,
-            uid=each_element.unique_id.split('-')[0],
-            name=each_element.name)
-
-    # Create list of file names from the math_options directory
-    # Used in generating the correct options for each math controller
-    math_templates = []
-    math_path = os.path.join(
-        INSTALL_DIRECTORY,
-        'mycodo/mycodo_flask/templates/pages/data_options/math_options')
-    for (_, _, file_names) in os.walk(math_path):
-        math_templates.extend(file_names)
-        break
-
     # Create list of file names from the input_options directory
     # Used in generating the correct options for each input controller
     input_templates = []
@@ -335,18 +273,20 @@ def page_input():
         input_templates.extend(file_names)
         break
 
-    # If DS18B20 inputs added, compile a list of detected inputs
-    devices_1wire_w1thermsensor = []
+    # Compile a list of 1-wire devices
+    devices_1wire = []
     if os.path.isdir(PATH_1WIRE):
         for each_name in os.listdir(PATH_1WIRE):
             if 'bus' not in each_name and '-' in each_name:
-                devices_1wire_w1thermsensor.append(
+                devices_1wire.append(
                     {'name': each_name, 'value': each_name.split('-')[1]}
                 )
 
-    # Add 1-wire devices from ow-shell (if installed)
+    # Compile a list of 1-wire devices (using ow-shell)
     devices_1wire_ow_shell = []
-    if current_app.config['TESTING']:
+    if not Input.query.filter(Input.device == "DS18B20_OWS").count():
+        pass
+    elif current_app.config['TESTING']:
         logger.debug("Testing: Skipping testing for 'ow-shell'")
     elif not dpkg_package_exists('ow-shell'):
         logger.debug("Package 'ow-shell' not found")
@@ -366,16 +306,18 @@ def page_input():
     if not current_app.config['TESTING']:
         for each_input_dev in input_dev:
             if each_input_dev.interface == "FTDI":
-                from mycodo.devices.atlas_scientific_ftdi import get_ftdi_device_list
+                from mycodo.devices.atlas_scientific_ftdi import \
+                    get_ftdi_device_list
                 ftdi_devices = get_ftdi_device_list()
                 break
 
     if not input_type:
         return render_template('pages/input.html',
                                and_=and_,
+                               action=action,
+                               choices_actions=choices_actions,
                                choices_function=choices_function,
                                choices_input=choices_input,
-                               choices_math=choices_math,
                                choices_output=choices_output,
                                choices_measurement=choices_measurement,
                                choices_measurements_units=choices_measurements_units,
@@ -385,50 +327,45 @@ def page_input():
                                choices_pid=choices_pid,
                                choices_pid_devices=choices_pid_devices,
                                choices_unit=choices_unit,
-                               custom_actions=custom_actions,
+                               custom_commands=custom_commands,
+                               custom_options_values_actions=custom_options_values_actions,
                                custom_options_values_inputs=custom_options_values_inputs,
                                custom_options_values_input_channels=custom_options_values_input_channels,
+                               dict_actions=dict_actions,
                                dict_inputs=dict_inputs,
                                dict_measurements=dict_measurements,
                                dict_units=dict_units,
                                display_order_input=display_order_input,
-                               display_order_math=display_order_math,
-                               form_base=form_base,
+                               form_actions=form_actions,
                                form_add_input=form_add_input,
                                form_mod_input=form_mod_input,
-                               form_mod_average_single=form_mod_average_single,
-                               form_mod_sum_single=form_mod_sum_single,
-                               form_mod_redundancy=form_mod_redundancy,
-                               form_mod_difference=form_mod_difference,
-                               form_mod_equation=form_mod_equation,
-                               form_mod_humidity=form_mod_humidity,
-                               form_mod_math=form_mod_math,
-                               form_mod_math_measurement=form_mod_math_measurement,
-                               form_mod_verification=form_mod_verification,
-                               form_mod_misc=form_mod_misc,
                                ftdi_devices=ftdi_devices,
                                input_channel=input_channel,
                                input_templates=input_templates,
-                               math_info=MATH_INFO,
-                               math_templates=math_templates,
+                               misc=misc,
                                names_input=names_input,
-                               names_math=names_math,
                                output=output,
                                output_types=output_types(),
                                pid=pid,
                                table_conversion=Conversion,
                                table_device_measurements=DeviceMeasurements,
+                               table_camera=Camera,
+                               table_conditional=Conditional,
+                               table_function=CustomController,
                                table_input=Input,
-                               table_math=Math,
+                               table_output=Output,
+                               table_pid=PID,
+                               table_trigger=Trigger,
                                user=user,
                                devices_1wire_ow_shell=devices_1wire_ow_shell,
-                               devices_1wire_w1thermsensor=devices_1wire_w1thermsensor)
+                               devices_1wire=devices_1wire)
     elif input_type == 'entry':
         return render_template('pages/data_options/input_entry.html',
                                and_=and_,
+                               action=action,
+                               choices_actions=choices_actions,
                                choices_function=choices_function,
                                choices_input=choices_input,
-                               choices_math=choices_math,
                                choices_output=choices_output,
                                choices_measurement=choices_measurement,
                                choices_measurements_units=choices_measurements_units,
@@ -438,50 +375,46 @@ def page_input():
                                choices_pid=choices_pid,
                                choices_pid_devices=choices_pid_devices,
                                choices_unit=choices_unit,
-                               custom_actions=custom_actions,
+                               custom_commands=custom_commands,
+                               custom_options_values_actions=custom_options_values_actions,
                                custom_options_values_inputs=custom_options_values_inputs,
                                custom_options_values_input_channels=custom_options_values_input_channels,
+                               dict_actions=dict_actions,
                                dict_inputs=dict_inputs,
                                dict_measurements=dict_measurements,
                                dict_units=dict_units,
                                display_order_input=display_order_input,
-                               display_order_math=display_order_math,
                                each_input=each_input,
+                               form_actions=form_actions,
                                form_add_input=form_add_input,
                                form_mod_input=form_mod_input,
-                               form_mod_average_single=form_mod_average_single,
-                               form_mod_sum_single=form_mod_sum_single,
-                               form_mod_redundancy=form_mod_redundancy,
-                               form_mod_difference=form_mod_difference,
-                               form_mod_equation=form_mod_equation,
-                               form_mod_humidity=form_mod_humidity,
-                               form_mod_math=form_mod_math,
-                               form_mod_math_measurement=form_mod_math_measurement,
-                               form_mod_verification=form_mod_verification,
-                               form_mod_misc=form_mod_misc,
                                ftdi_devices=ftdi_devices,
                                input_channel=input_channel,
                                input_templates=input_templates,
-                               math_info=MATH_INFO,
-                               math_templates=math_templates,
+                               misc=misc,
                                names_input=names_input,
-                               names_math=names_math,
                                output=output,
                                output_types=output_types(),
                                pid=pid,
                                table_conversion=Conversion,
                                table_device_measurements=DeviceMeasurements,
+                               table_camera=Camera,
+                               table_conditional=Conditional,
+                               table_function=CustomController,
                                table_input=Input,
-                               table_math=Math,
+                               table_output=Output,
+                               table_pid=PID,
+                               table_trigger=Trigger,
                                user=user,
                                devices_1wire_ow_shell=devices_1wire_ow_shell,
-                               devices_1wire_w1thermsensor=devices_1wire_w1thermsensor)
+                               devices_1wire=devices_1wire)
     elif input_type == 'options':
         return render_template('pages/data_options/input_options.html',
                                and_=and_,
+                               action=action,
+                               choices_actions=choices_actions,
                                choices_function=choices_function,
                                choices_input=choices_input,
-                               choices_math=choices_math,
                                choices_output=choices_output,
                                choices_measurement=choices_measurement,
                                choices_measurements_units=choices_measurements_units,
@@ -491,41 +424,86 @@ def page_input():
                                choices_pid=choices_pid,
                                choices_pid_devices=choices_pid_devices,
                                choices_unit=choices_unit,
-                               custom_actions=custom_actions,
+                               custom_commands=custom_commands,
+                               custom_options_values_actions=custom_options_values_actions,
                                custom_options_values_inputs=custom_options_values_inputs,
                                custom_options_values_input_channels=custom_options_values_input_channels,
+                               dict_actions=dict_actions,
                                dict_inputs=dict_inputs,
                                dict_measurements=dict_measurements,
                                dict_units=dict_units,
                                display_order_input=display_order_input,
-                               display_order_math=display_order_math,
                                each_input=each_input,
+                               form_actions=form_actions,
                                form_add_input=form_add_input,
                                form_mod_input=form_mod_input,
-                               form_mod_average_single=form_mod_average_single,
-                               form_mod_sum_single=form_mod_sum_single,
-                               form_mod_redundancy=form_mod_redundancy,
-                               form_mod_difference=form_mod_difference,
-                               form_mod_equation=form_mod_equation,
-                               form_mod_humidity=form_mod_humidity,
-                               form_mod_math=form_mod_math,
-                               form_mod_math_measurement=form_mod_math_measurement,
-                               form_mod_verification=form_mod_verification,
-                               form_mod_misc=form_mod_misc,
                                ftdi_devices=ftdi_devices,
                                input_channel=input_channel,
                                input_templates=input_templates,
-                               math_info=MATH_INFO,
-                               math_templates=math_templates,
+                               misc=misc,
                                names_input=names_input,
-                               names_math=names_math,
                                output=output,
                                output_types=output_types(),
                                pid=pid,
                                table_conversion=Conversion,
                                table_device_measurements=DeviceMeasurements,
+                               table_camera=Camera,
+                               table_conditional=Conditional,
+                               table_function=CustomController,
                                table_input=Input,
-                               table_math=Math,
+                               table_output=Output,
+                               table_pid=PID,
+                               table_trigger=Trigger,
                                user=user,
                                devices_1wire_ow_shell=devices_1wire_ow_shell,
-                               devices_1wire_w1thermsensor=devices_1wire_w1thermsensor)
+                               devices_1wire=devices_1wire)
+    elif input_type == 'actions':
+        return render_template('pages/actions.html',
+                               and_=and_,
+                               action=action,
+                               choices_actions=choices_actions,
+                               choices_function=choices_function,
+                               choices_input=choices_input,
+                               choices_output=choices_output,
+                               choices_measurement=choices_measurement,
+                               choices_measurements_units=choices_measurements_units,
+                               choices_method=choices_method,
+                               choices_output_channels=choices_output_channels,
+                               choices_output_channels_measurements=choices_output_channels_measurements,
+                               choices_pid=choices_pid,
+                               choices_pid_devices=choices_pid_devices,
+                               choices_unit=choices_unit,
+                               custom_commands=custom_commands,
+                               custom_options_values_actions=custom_options_values_actions,
+                               custom_options_values_inputs=custom_options_values_inputs,
+                               custom_options_values_input_channels=custom_options_values_input_channels,
+                               dict_actions=dict_actions,
+                               dict_inputs=dict_inputs,
+                               dict_measurements=dict_measurements,
+                               dict_units=dict_units,
+                               display_order_input=display_order_input,
+                               each_action=each_action,
+                               each_input=each_input,
+                               form_actions=form_actions,
+                               form_add_input=form_add_input,
+                               form_mod_input=form_mod_input,
+                               ftdi_devices=ftdi_devices,
+                               input_channel=input_channel,
+                               input_templates=input_templates,
+                               misc=misc,
+                               names_input=names_input,
+                               output=output,
+                               output_types=output_types(),
+                               pid=pid,
+                               table_conversion=Conversion,
+                               table_device_measurements=DeviceMeasurements,
+                               table_camera=Camera,
+                               table_conditional=Conditional,
+                               table_function=CustomController,
+                               table_input=Input,
+                               table_output=Output,
+                               table_pid=PID,
+                               table_trigger=Trigger,
+                               user=user,
+                               devices_1wire_ow_shell=devices_1wire_ow_shell,
+                               devices_1wire=devices_1wire)

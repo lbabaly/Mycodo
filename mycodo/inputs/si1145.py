@@ -43,7 +43,7 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('pip-pypi', 'sii1145', 'SI1145==1.0.2')
+        ('pip-pypi', 'SI1145', 'SI1145==1.0.2')
     ],
 
     'interfaces': ['I2C'],
@@ -52,18 +52,18 @@ INPUT_INFORMATION = {
 }
 
 class InputModule(AbstractInput):
-    """ A sensor support class that measures the SI1145 """
+    """A sensor support class that measures the SI1145"""
 
     def __init__(self, input_dev, testing=False):  # generally reserved for defining variable default values
 
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import SI1145.SI1145 as SI1145
 
         self.sensor = SI1145.SI1145(
@@ -72,7 +72,7 @@ class InputModule(AbstractInput):
 
     def get_measurement(self):
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)

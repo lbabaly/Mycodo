@@ -7,9 +7,11 @@ from math import sin, radians
 from mycodo.databases.models import Method
 from mycodo.databases.models import MethodData
 from mycodo.utils.database import db_retrieve_table_daemon
+from mycodo.utils.logging_utils import set_log_level
 from mycodo.utils.system_pi import get_sec
 
 logger = logging.getLogger(__name__)
+logger.setLevel(set_log_level(logging))
 
 
 def parse_db_time(time_string, default=None):
@@ -30,8 +32,8 @@ class AbstractMethod(object):
     def __init__(self, method, method_data, logger=None):
         """
         Initializes the method class
+        :param method: method entry from method table
         :param method_data: data queried from method_data table
-        :param method_type: method type from method table
         :param logger: The logger to use
         :return: 0 (success) or 1 (error) and a setpoint value
         """

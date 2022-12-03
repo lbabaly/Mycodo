@@ -26,10 +26,10 @@ import datetime
 import threading
 import time
 
+from mycodo.config import MYCODO_DB_PATH
 from mycodo.controllers.base_controller import AbstractController
-from mycodo.config import SQL_DATABASE_MYCODO
+from mycodo.databases.models import CustomController
 from mycodo.databases.models import Input
-from mycodo.databases.models import Math
 from mycodo.databases.models import Misc
 from mycodo.databases.models import Output
 from mycodo.databases.models import OutputChannel
@@ -38,14 +38,13 @@ from mycodo.databases.models import SMTP
 from mycodo.databases.models import Trigger
 from mycodo.databases.utils import session_scope
 from mycodo.mycodo_client import DaemonControl
+from mycodo.utils.actions import parse_action_information
+from mycodo.utils.actions import trigger_controller_actions
 from mycodo.utils.database import db_retrieve_table_daemon
-from mycodo.utils.function_actions import trigger_function_actions
 from mycodo.utils.method import load_method_handler, parse_db_time
-from mycodo.utils.sunriseset import calculate_sunrise_sunset_epoch
+from mycodo.utils.sunriseset import suntime_calculate_next_sunrise_sunset_epoch
 from mycodo.utils.system_pi import epoch_of_next_time
 from mycodo.utils.system_pi import time_between_range
-
-MYCODO_DB_PATH = 'sqlite:///' + SQL_DATABASE_MYCODO
 
 
 class TriggerController(AbstractController, threading.Thread):
@@ -66,7 +65,7 @@ class TriggerController(AbstractController, threading.Thread):
     """
     def __init__(self, ready, unique_id):
         threading.Thread.__init__(self)
-        super(TriggerController, self).__init__(ready, unique_id=unique_id, name=__name__)
+        super().__init__(ready, unique_id=unique_id, name=__name__)
 
         self.unique_id = unique_id
         self.sample_rate = None
@@ -113,12 +112,12 @@ class TriggerController(AbstractController, threading.Thread):
             # Check if the trigger period has elapsed
             if self.trigger_type == 'trigger_sunrise_sunset':
                 while self.running and self.timer_period < time.time():
-                    self.timer_period = calculate_sunrise_sunset_epoch(self.trigger)
-
+                    self.timer_period = suntime_calculate_next_sunrise_sunset_epoch(
+                        self.trigger.latitude, self.trigger.longitude, self.trigger.date_offset_days,
+                        self.trigger.time_offset_minutes, self.trigger.rise_or_set)
                 check_approved = True
 
             elif self.trigger_type == 'trigger_run_pwm_method':
-
                 # Only execute trigger actions when started
                 # Now only set PWM output
                 pwm_duty_cycle, ended = self.get_method_output(
@@ -126,8 +125,12 @@ class TriggerController(AbstractController, threading.Thread):
 
                 self.timer_period += self.trigger.period
                 self.set_output_duty_cycle(pwm_duty_cycle)
+
+                actions = parse_action_information()
+
                 if self.trigger_actions_at_period:
-                    trigger_function_actions(
+                    trigger_controller_actions(
+                        actions,
                         self.unique_id,
                         debug=self.log_level_debug)
                 check_approved = True
@@ -135,27 +138,31 @@ class TriggerController(AbstractController, threading.Thread):
                 if ended:
                     self.stop_method()
 
-            elif (self.trigger_type in [
+            elif self.trigger_type in [
                     'trigger_timer_daily_time_point',
-                    'trigger_timer_daily_time_span',
-                    'trigger_timer_duration']):
+                    'trigger_timer_duration']:
                 if self.trigger_type == 'trigger_timer_daily_time_point':
-                    self.timer_period = epoch_of_next_time(
-                        '{hm}:00'.format(hm=self.timer_start_time))
-                elif self.trigger_type in ['trigger_timer_duration',
-                                           'trigger_timer_daily_time_span']:
+                    self.timer_period = epoch_of_next_time(f'{self.timer_start_time}:00')
+                elif self.trigger_type == 'trigger_timer_duration':
                     while self.running and self.timer_period < time.time():
                         self.timer_period += self.period
                 check_approved = True
 
+            elif self.trigger_type == 'trigger_timer_daily_time_span':
+                if time_between_range(self.timer_start_time,
+                                      self.timer_end_time):
+                    check_approved = True
+                self.set_next_daily_time_span_run(time.time())
+
             if check_approved:
+                self.logger.debug("Executing Trigger Actions")
                 self.attempt_execute(self.check_triggers)
 
     def run_finally(self):
         pass
 
     def refresh_settings(self):
-        """ Signal to pause the main loop and wait for verification, the refresh settings """
+        """Signal to pause the main loop and wait for verification, the refresh settings."""
         self.pause_loop = True
         while not self.verify_pause_loop:
             time.sleep(0.1)
@@ -168,7 +175,7 @@ class TriggerController(AbstractController, threading.Thread):
         return "Trigger settings successfully refreshed"
 
     def initialize_variables(self):
-        """ Define all settings """
+        """Define all settings."""
         self.email_count = 0
         self.allowed_to_send_notice = True
 
@@ -194,15 +201,14 @@ class TriggerController(AbstractController, threading.Thread):
         # Set up trigger timer (daily time point)
         if self.trigger_type == 'trigger_timer_daily_time_point':
             self.timer_start_time = self.trigger.timer_start_time
-            self.timer_period = epoch_of_next_time(
-                '{hm}:00'.format(hm=self.trigger.timer_start_time))
+            self.timer_period = epoch_of_next_time(f'{self.trigger.timer_start_time}:00')
 
         # Set up trigger timer (daily time span)
         elif self.trigger_type == 'trigger_timer_daily_time_span':
             self.timer_start_time = self.trigger.timer_start_time
             self.timer_end_time = self.trigger.timer_end_time
             self.period = self.trigger.period
-            self.timer_period = now
+            self.set_next_daily_time_span_run(now)
 
         # Set up trigger timer (duration)
         elif self.trigger_type == 'trigger_timer_duration':
@@ -235,10 +241,26 @@ class TriggerController(AbstractController, threading.Thread):
         elif self.trigger_type == 'trigger_sunrise_sunset':
             self.period = 60
             # Set the next trigger at the specified sunrise/sunset time (+-offsets)
-            self.timer_period = calculate_sunrise_sunset_epoch(self.trigger)
+            self.timer_period = suntime_calculate_next_sunrise_sunset_epoch(
+                self.trigger.latitude, self.trigger.longitude, self.trigger.date_offset_days,
+                self.trigger.time_offset_minutes, self.trigger.rise_or_set)
+
+        self.ready.set()
+        self.running = True
+
+    def set_next_daily_time_span_run(self, now):
+        if not time_between_range(self.timer_start_time, self.timer_end_time):
+            # Set next execution at start time
+            self.timer_period = epoch_of_next_time(f'{self.trigger.timer_start_time}:00')
+        else:
+            # Find the next execution within the run period
+            test_time = epoch_of_next_time(f'{self.trigger.timer_start_time}:00') - 86400
+            while test_time < now:
+                test_time += self.period
+            self.timer_period = test_time
 
     def start_method(self, method_id):
-        """ Instruct a method to start running """
+        """Instruct a method to start running."""
         if method_id:
             this_controller = db_retrieve_table_daemon(
                 Trigger, unique_id=self.unique_id)
@@ -249,7 +271,7 @@ class TriggerController(AbstractController, threading.Thread):
                 self.method_start_time = datetime.datetime.now()
                 self.method_end_time = method.determine_end_time(self.method_start_time)
 
-                self.logger.info("Starting method {} {}".format(self.method_start_time, self.method_end_time))
+                self.logger.info(f"Starting method {self.method_start_time} {self.method_end_time}")
 
                 with session_scope(MYCODO_DB_PATH) as db_session:
                     this_controller = db_session.query(Trigger)
@@ -279,7 +301,7 @@ class TriggerController(AbstractController, threading.Thread):
             "Activate the Trigger controller to start it again.")
 
     def get_method_output(self, method_id):
-        """ Get output variable from method """
+        """Get output variable from method."""
         this_controller = db_retrieve_table_daemon(
             Trigger, unique_id=self.unique_id)
 
@@ -300,11 +322,11 @@ class TriggerController(AbstractController, threading.Thread):
         return setpoint, ended
 
     def set_output_duty_cycle(self, duty_cycle):
-        """ Set PWM Output duty cycle """
+        """Set PWM Output duty cycle."""
         output_channel = db_retrieve_table_daemon(OutputChannel).filter(
             OutputChannel.unique_id == self.trigger.unique_id_3).first()
         output_channel = output_channel.channel if output_channel else 0
-        self.logger.debug("Set output duty cycle to {}".format(duty_cycle))
+        self.logger.debug(f"Set output duty cycle to {duty_cycle}")
         self.control.output_on(
             self.trigger.unique_id_2, output_type='pwm', amount=duty_cycle, output_channel=output_channel)
 
@@ -322,20 +344,12 @@ class TriggerController(AbstractController, threading.Thread):
         now = time.time()
         timestamp = datetime.datetime.fromtimestamp(now).strftime(
             '%Y-%m-%d %H:%M:%S')
-        message = "{ts}\n[Trigger {id} ({name})]".format(
-            ts=timestamp,
-            name=self.trigger_name,
-            id=self.unique_id)
+        message = f"{timestamp}\n[Trigger {self.unique_id} ({self.trigger_name})]"
 
         trigger = db_retrieve_table_daemon(
             Trigger, unique_id=self.unique_id, entry='first')
 
         device_id = trigger.measurement.split(',')[0]
-
-        # if len(trigger.measurement.split(',')) > 1:
-        #     device_measurement = trigger.measurement.split(',')[1]
-        # else:
-        #     device_measurement = None
 
         device = None
 
@@ -344,10 +358,10 @@ class TriggerController(AbstractController, threading.Thread):
         if input_dev:
             device = input_dev
 
-        math = db_retrieve_table_daemon(
-            Math, unique_id=device_id, entry='first')
-        if math:
-            device = math
+        function = db_retrieve_table_daemon(
+            CustomController, unique_id=device_id, entry='first')
+        if function:
+            device = CustomController
 
         output = db_retrieve_table_daemon(
             Output, unique_id=device_id, entry='first')
@@ -360,43 +374,21 @@ class TriggerController(AbstractController, threading.Thread):
             device = pid
 
         if not device:
-            message += " Error: Controller not Input, Math, Output, or PID"
+            message += " Error: Controller not Input, Function, Output, or PID"
             self.logger.error(message)
             return
-
-        # If the edge detection variable is set, calling this function will
-        # trigger an edge detection event. This will merely produce the correct
-        # message based on the edge detection settings.
-        elif trigger.trigger_type == 'trigger_edge':
-            try:
-                import RPi.GPIO as GPIO
-                GPIO.setmode(GPIO.BCM)
-                GPIO.setup(int(input_dev.pin), GPIO.IN)
-                gpio_state = GPIO.input(int(input_dev.pin))
-            except Exception as e:
-                gpio_state = None
-                self.logger.error("Exception reading the GPIO pin: {}".format(e))
-            if (gpio_state is not None and
-                    gpio_state == trigger.if_sensor_gpio_state):
-                message += " GPIO State Detected (state = {state}).".format(
-                    state=trigger.if_sensor_gpio_state)
-            else:
-                self.logger.error("GPIO not configured correctly or GPIO state not verified")
-                return
 
         # Calculate the sunrise/sunset times and find the next time this trigger should trigger
         elif trigger.trigger_type == 'trigger_sunrise_sunset':
             # Since the check time is the trigger time, we will only calculate and set the next trigger time
-            self.timer_period = calculate_sunrise_sunset_epoch(trigger)
-
-        # Check if the current time is between the start and end time
-        elif trigger.trigger_type == 'trigger_timer_daily_time_span':
-            if not time_between_range(self.timer_start_time,
-                                      self.timer_end_time):
-                return
+            self.timer_period = suntime_calculate_next_sunrise_sunset_epoch(
+                trigger.latitude, trigger.longitude, trigger.date_offset_days,
+                trigger.time_offset_minutes, trigger.rise_or_set)
 
         # If the code hasn't returned by now, action should be executed
-        trigger_function_actions(
+        actions = parse_action_information()
+        trigger_controller_actions(
+            actions,
             self.unique_id,
             message=message,
             debug=self.log_level_debug)

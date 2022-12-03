@@ -19,7 +19,7 @@
       "debug": false,
       "newestOnTop": false,
       "progressBar": false,
-      "positionClass": "toast-top-right",
+      "positionClass": "toast-top-left",
       "preventDuplicates": false,
       "onclick": null,
       "showDuration": "300",
@@ -107,7 +107,7 @@
           }
           else {
             {% for each_output in output %}
-              {% for each_output_channel in dict_outputs[each_output.output_type]['channels_dict']  %}
+              {% for each_output_channel in dict_outputs[each_output.output_type]['channels_dict'] %}
             document.getElementById("{{each_output.unique_id}}-{{each_output_channel}}-output-state").className = "item_channel row small-gutters pause-background";
             document.getElementById("{{each_output.unique_id}}-{{each_output_channel}}-input-output-state").value = '{{_('No Connection')}}';
               {% endfor %}
@@ -163,9 +163,9 @@
         gs-h="{{each_output.size_y}}"
         data-gs-no-resize="true">
         {% include 'pages/output_entry.html' %}
-      </div> <!- grid-stack-item ->
+      </div> <!-- grid-stack-item -->
     {%- endfor -%}
-    </div> <!- grid-stack ->
+    </div> <!-- grid-stack -->
 
   </main>
 
@@ -208,15 +208,21 @@
       if ('error' in data.data.messages && data.data.messages.error.length !== 0) {
         toastr['error']('Error: ' + data.data.messages.error.join(", "));
       }
+      {% if not misc.hide_alert_warning %}
       if ('warning' in data.data.messages && data.data.messages.warning.length !== 0) {
         toastr['warning']('Warning: ' + data.data.messages.warning.join(", "));
       }
+      {% endif %}
+      {% if not misc.hide_alert_info %}
       if ('info' in data.data.messages && data.data.messages.info.length !== 0) {
         toastr['info']('Info: ' + data.data.messages.info.join(", "));
       }
+      {% endif %}
+      {% if not misc.hide_alert_success %}
       if ('success' in data.data.messages && data.data.messages.success.length !== 0) {
         toastr['success']('Success: ' + data.data.messages.success.join(", "));
       }
+      {% endif %}
     }
 
     jQuery.fn.processRequest = function(button, action) {
@@ -225,7 +231,7 @@
           action === 'output_mod' ||
           action === 'output_delete'||
           action.startsWith('custom_button_')) {
-        toastr['info']('Command sent. Please wait...');
+        {% if not misc.hide_alert_info %}toastr['info']('Command sent. Please wait...');{% endif %}
         $.ajax({
           type: "POST",
           url: '/output_submit',

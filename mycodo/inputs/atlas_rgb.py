@@ -84,7 +84,7 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('pip-pypi', 'pylibftdi', 'pylibftdi==0.19.0')
+        ('pip-pypi', 'pylibftdi', 'pylibftdi==0.20.0')
     ],
 
     'interfaces': ['I2C', 'UART', 'FTDI'],
@@ -120,7 +120,7 @@ INPUT_INFORMATION = {
         },
     ],
 
-    'custom_actions': [
+    'custom_commands': [
         {
             'type': 'message',
             'default_value': 'The EZO-RGB color sensor is designed to be calibrated to a white '
@@ -138,6 +138,7 @@ INPUT_INFORMATION = {
         {
             'id': 'calibrate',
             'type': 'button',
+            'wait_for_return': True,
             'name': lazy_gettext('Calibrate')
         },
         {
@@ -161,9 +162,9 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """A sensor support class that monitors the Atlas Scientific sensor"""
+    """A sensor support class that monitors the Atlas Scientific sensor."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.atlas_device = None
         self.interface = None
@@ -176,9 +177,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.interface = self.input_dev.interface
 
         try:
@@ -219,42 +220,41 @@ class InputModule(AbstractInput):
         self.get_measurement()
 
     def get_measurement(self):
-        """ Gets the sensor's Electrical Conductivity measurement """
+        """Gets the sensor's Electrical Conductivity measurement."""
         if not self.atlas_device.setup:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         return_string = None
         self.return_dict = copy.deepcopy(measurements_dict)
 
-        # Read sensor via FTDI or UART
-        if self.interface in ['FTDI', 'UART']:
-            rgb_status, rgb_list = self.atlas_device.query('R')
-            if rgb_list:
-                self.logger.debug("Returned list: {lines}".format(lines=rgb_list))
+        # Read device
+        atlas_status, atlas_return = self.atlas_device.query('R')
+        self.logger.debug("Device Returned: {}: {}".format(atlas_status, atlas_return))
 
+        if atlas_status == 'error':
+            self.logger.debug("Sensor read unsuccessful: {err}".format(err=atlas_return))
+            return
+
+        # Parse device return data
+        if self.interface in ['FTDI', 'UART']:
             # Check for "check probe"
-            for each_split in rgb_list:
+            for each_split in atlas_return:
                 if 'check probe' in each_split:
                     self.logger.error('"check probe" returned from sensor')
                     return
 
             # Find float value in list
-            for each_split in rgb_list:
+            for each_split in atlas_return:
                 if "," in each_split:
                     return_string = each_split
                     break
 
-        # Read sensor via I2C
         elif self.interface == 'I2C':
-            ec_status, return_string = self.atlas_device.query('R')
-            if ec_status == 'error':
-                self.logger.error("Sensor read unsuccessful: {err}".format(err=return_string))
-            elif ec_status == 'success':
-                self.logger.debug('Value: {val}'.format(val=return_string))
+            self.logger.debug('Value: {val}'.format(val=return_string))
+            return_string = self.atlas_device.build_string(atlas_return)
 
-        # Parse return string
-        if ',' in return_string:
+        if return_string and ',' in return_string:
             index_place = 0
             return_list = return_string.split(',')
             if self.enabled_rgb:
@@ -276,7 +276,16 @@ class InputModule(AbstractInput):
         return self.return_dict
 
     def calibrate(self, args_dict):
-        self.atlas_device.query('Cal')
+        try:
+            write_cmd = "Cal"
+            self.logger.debug(f"Command to send: {write_cmd}")
+            cmd_status, cmd_return = self.atlas_device.query(write_cmd)
+            cmd_return = self.atlas_device.build_string(cmd_return)
+            self.logger.info(f"Command returned: {cmd_status}:{cmd_return}")
+            return f"Command: {write_cmd}, Returned: {cmd_status}:{cmd_return}"
+        except Exception as err:
+            self.logger.exception("Exception calibrating sensor")
+            return f"Exception calibrating sensor: {err}"
 
     def set_i2c_address(self, args_dict):
         if 'new_i2c_address' not in args_dict:
@@ -285,7 +294,8 @@ class InputModule(AbstractInput):
         try:
             i2c_address = int(str(args_dict['new_i2c_address']), 16)
             write_cmd = "I2C,{}".format(i2c_address)
-            self.logger.debug("I2C Change command: {}".format(write_cmd))
-            self.atlas_device.atlas_write(write_cmd)
+            self.logger.info("I2C Change command: {}".format(write_cmd))
+            self.logger.info("Command returned: {}".format(self.atlas_device.query(write_cmd)))
+            self.atlas_device = None
         except:
             self.logger.exception("Exception changing I2C address")

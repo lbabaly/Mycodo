@@ -4,6 +4,7 @@
 #
 import base64
 import logging
+import os
 
 import flask_login
 from flask import Flask
@@ -19,6 +20,7 @@ from flask_login import current_user
 from flask_session import Session
 from flask_talisman import Talisman
 
+from mycodo.config import INSTALL_DIRECTORY
 from mycodo.config import LANGUAGES
 from mycodo.config import ProdConfig
 from mycodo.databases.models import Misc
@@ -67,7 +69,7 @@ def create_app(config=ProdConfig):
 
 
 def register_extensions(app):
-    """ register extensions to the app """
+    """register extensions to the app."""
     app.jinja_env.add_extension('jinja2.ext.do')  # Global values in jinja
 
     db.init_app(app)  # Influx db time-series database
@@ -100,7 +102,7 @@ def register_extensions(app):
 
 
 def register_blueprints(app):
-    """ register blueprints to the app """
+    """register blueprints to the app."""
     app.register_blueprint(routes_admin.blueprint)  # register admin views
     app.register_blueprint(routes_authentication.blueprint)  # register login/logout views
     app.register_blueprint(routes_password_reset.blueprint)  # register password reset views
@@ -121,6 +123,7 @@ def extension_babel(app):
 
     @babel.localeselector
     def get_locale():
+        # Check if a user is logged in and a language is set
         try:
             user = User.query.filter(
                 User.id == flask_login.current_user.id).first()
@@ -128,9 +131,28 @@ def extension_babel(app):
                 for key in LANGUAGES:
                     if key == user.language:
                         return key
-        # Bypass endpoint test error "'AnonymousUserMixin' object has no attribute 'id'"
-        except AttributeError:
+        except AttributeError:  # Bypass endpoint test error "'AnonymousUserMixin' object has no attribute 'id'"
             pass
+
+        # Check the session for a language
+        try:
+            from flask import session
+            if session.get("language") and session['language'] in LANGUAGES:
+                return session['language']
+        except:
+            pass
+
+        # Check for the presence of Mycodo/.language with a language
+        try:
+            lang_path = os.path.join(INSTALL_DIRECTORY, ".language")
+            if os.path.exists(lang_path):
+                with open(lang_path) as f:
+                    language = f.read().split(":")[0]
+                    if language and language in LANGUAGES:
+                        return language
+        except:
+            pass
+
         return request.accept_languages.best_match(LANGUAGES.keys())
 
     return app
@@ -143,13 +165,13 @@ def extension_compress(app):
 
 
 def get_key_func():
-    """Custom key_func for flask-limiter to handle both logged-in and logged-out requests"""
+    """Custom key_func for flask-limiter to handle both logged-in and logged-out requests."""
     if get_ip_address():
         str_return = get_ip_address()
     else:
         str_return = '0.0.0.0'
     if current_user and hasattr(current_user, 'name'):
-        str_return += '/{}'.format(current_user.name)
+        str_return += f'/{current_user.name}'
     return str_return
 
 

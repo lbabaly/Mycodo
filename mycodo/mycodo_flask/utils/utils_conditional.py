@@ -14,7 +14,6 @@ from mycodo.databases.models import Conditional
 from mycodo.databases.models import ConditionalConditions
 from mycodo.mycodo_client import DaemonControl
 from mycodo.mycodo_flask.extensions import db
-from mycodo.mycodo_flask.utils.utils_function import check_actions
 from mycodo.mycodo_flask.utils.utils_general import controller_activate_deactivate
 from mycodo.mycodo_flask.utils.utils_general import delete_entry_with_id
 from mycodo.utils.conditional import save_conditional_code
@@ -23,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def conditional_mod(form):
-    """Modify a Conditional"""
+    """Modify a Conditional."""
     messages = {
         "success": [],
         "info": [],
@@ -41,6 +40,8 @@ def conditional_mod(form):
         else:
             messages["error"], lines_code, cmd_status, cmd_out = save_conditional_code(
                 messages["error"],
+                form.conditional_import.data,
+                form.conditional_initialize.data,
                 form.conditional_statement.data,
                 form.conditional_status.data,
                 form.function_id.data,
@@ -51,8 +52,8 @@ def conditional_mod(form):
 
             pylint_message = Markup(
                 '<pre>\n\n'
-                'Full Conditional Statement code:\n\n{code}\n\n'
-                'Conditional Statement code analysis:\n\n{report}'
+                'Full Conditional code:\n\n{code}\n\n'
+                'Conditional code analysis:\n\n{report}'
                 '</pre>'.format(
                     code=lines_code, report=cmd_out.decode("utf-8")))
 
@@ -60,6 +61,8 @@ def conditional_mod(form):
             Conditional.unique_id == form.function_id.data).first()
         cond_mod.name = form.name.data
         messages["name"] = form.name.data
+        cond_mod.conditional_import = form.conditional_import.data
+        cond_mod.conditional_initialize = form.conditional_initialize.data
         cond_mod.conditional_statement = form.conditional_statement.data
         cond_mod.conditional_status = form.conditional_status.data
         cond_mod.period = form.period.data
@@ -101,7 +104,7 @@ def conditional_mod(form):
 
 
 def conditional_del(cond_id):
-    """Delete a Conditional"""
+    """Delete a Conditional."""
     messages = {
         "success": [],
         "info": [],
@@ -163,7 +166,7 @@ def conditional_del(cond_id):
 
 
 def conditional_condition_add(form):
-    """Add a Conditional Condition"""
+    """Add a Conditional Condition."""
     messages = {
         "success": [],
         "info": [],
@@ -207,7 +210,7 @@ def conditional_condition_add(form):
 
 
 def conditional_condition_mod(form):
-    """Modify a Conditional condition"""
+    """Modify a Conditional condition."""
     messages = {
         "success": [],
         "info": [],
@@ -266,7 +269,7 @@ def conditional_condition_mod(form):
 
 
 def conditional_condition_del(form):
-    """Delete a Conditional Condition"""
+    """Delete a Conditional Condition."""
     messages = {
         "success": [],
         "info": [],
@@ -304,7 +307,7 @@ def conditional_condition_del(form):
 
 
 def conditional_activate(cond_id):
-    """Activate a Conditional"""
+    """Activate a Conditional."""
     messages = {
         "success": [],
         "info": [],
@@ -325,18 +328,15 @@ def conditional_activate(cond_id):
     if not conditions.count():
         messages["info"].append(
             "Conditional activated without any Conditions. Typical "
-            "Conditional Controller use involves the use of Conditions. Only "
+            "Conditional Function use involves the use of Conditions. Only "
             "proceed without Conditions if you know what you're doing.")
 
     actions = Actions.query.filter(Actions.function_id == cond_id)
     if not actions.count():
         messages["info"].append(
             "Conditional activated without any Actions. Typical "
-            "Conditional Controller use involves the use of Actions. Only "
+            "Conditional Function use involves the use of Actions. Only "
             "proceed without Actions if you know what you're doing.")
-
-    for each_action in actions.all():
-        messages["success"] = check_actions(each_action, messages["success"])
 
     messages = controller_activate_deactivate(
         messages, 'activate', 'Conditional', cond_id, flash_message=False)
@@ -350,7 +350,7 @@ def conditional_activate(cond_id):
 
 
 def conditional_deactivate(cond_id):
-    """Deactivate a Conditional"""
+    """Deactivate a Conditional."""
     messages = {
         "success": [],
         "info": [],
@@ -370,7 +370,7 @@ def conditional_deactivate(cond_id):
 
 
 def check_form_measurements(form, error):
-    """Checks if the submitted form has any errors"""
+    """Checks if the submitted form has any errors."""
     if not form.measurement.data or form.measurement.data == '':
         error.append("{meas} must be set".format(
             meas=form.measurement.label.text))
@@ -381,7 +381,7 @@ def check_form_measurements(form, error):
 
 
 def check_cond_conditions(cond, error):
-    """Checks if the saved variables have any errors"""
+    """Checks if the saved variables have any errors."""
     if (cond.condition_type == 'measurement' and
             (not cond.measurement or cond.measurement == '')):
         error.append(

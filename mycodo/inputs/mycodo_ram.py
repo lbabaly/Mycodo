@@ -19,15 +19,10 @@ INPUT_INFORMATION = {
     'input_name_unique': 'MYCODO_RAM',
     'input_manufacturer': 'Mycodo',
     'input_library': 'resource.getrusage()',
-    'measurements_name': 'Size RAM in Use',
+    'measurements_name': 'Daemon RAM Allocation',
     'measurements_dict': measurements_dict,
 
-    'options_enabled': [
-        'period'
-    ],
-    'options_disabled': ['interface'],
-
-    'interfaces': ['Mycodo']
+    'options_enabled': ['period'],
 }
 
 
@@ -36,18 +31,18 @@ class InputModule(AbstractInput):
     A sensor support class that measures ram used by the Mycodo daemon
     """
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.control = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.control = DaemonControl()
 
     def get_measurement(self):
-        """ Gets the measurement in units by reading resource """
+        """Gets the measurement in units by reading resource."""
         self.return_dict = copy.deepcopy(measurements_dict)
 
         try:

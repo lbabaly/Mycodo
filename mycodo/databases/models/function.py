@@ -29,6 +29,8 @@ class Conditional(CRUDMixin, db.Model):
     is_activated = db.Column(db.Boolean, default=False)
     log_level_debug = db.Column(db.Boolean, default=False)
     conditional_statement = db.Column(db.Text, default='')
+    conditional_import = db.Column(db.Text, default='')
+    conditional_initialize = db.Column(db.Text, default='')
     conditional_status = db.Column(db.Text, default='')
     period = db.Column(db.Float, default=60.0)
     start_offset = db.Column(db.Float, default=10.0)
@@ -47,7 +49,7 @@ class ConditionalConditions(CRUDMixin, db.Model):
     conditional_id = db.Column(db.String, db.ForeignKey('conditional.unique_id'), default=None)
     condition_type = db.Column(db.Text, default=None)
 
-    # Sensor/Math
+    # Sensor
     measurement = db.Column(db.Text, default='')  # which measurement to monitor
     max_age = db.Column(db.Integer, default=120)  # max age of the measurement
 
@@ -90,7 +92,6 @@ class Trigger(CRUDMixin, db.Model):
     rise_or_set = db.Column(db.Text, default='sunrise')
     latitude = db.Column(db.Float, default=33.749249)
     longitude = db.Column(db.Float, default=-84.387314)
-    zenith = db.Column(db.Float, default=90.8)
     date_offset_days = db.Column(db.Integer, default=0)
     time_offset_minutes = db.Column(db.Integer, default=0)
 
@@ -113,6 +114,9 @@ class Trigger(CRUDMixin, db.Model):
     # Edge
     measurement = db.Column(db.Text, default='')
     edge_detected = db.Column(db.Text, default='')
+
+    # Unused  TODO: remove
+    zenith = db.Column(db.Float, default=90.8)
 
 
 class TriggerSchema(ma.SQLAlchemyAutoSchema):

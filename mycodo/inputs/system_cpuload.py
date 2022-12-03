@@ -23,7 +23,7 @@ measurements_dict = {
 # Input information
 INPUT_INFORMATION = {
     'input_name_unique': 'RPiCPULoad',
-    'input_manufacturer': 'System',
+    'input_manufacturer': 'Mycodo',
     'input_name': 'CPU Load',
     'input_library': 'os.getloadavg()',
     'measurements_name': 'CPULoad',
@@ -33,9 +33,7 @@ INPUT_INFORMATION = {
         'measurements_select',
         'period'
     ],
-    'options_disabled': ['interface'],
 
-    'interfaces': ['Mycodo'],
     'location': {
         'title': 'Directory',
         'phrase': 'Directory to report the free space of',
@@ -45,13 +43,13 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that monitors the raspberry pi's cpu load """
+    """A sensor support class that monitors the raspberry pi's cpu load."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
     def get_measurement(self):
-        """ Gets the cpu load averages """
+        """Gets the cpu load averages."""
         self.return_dict = copy.deepcopy(measurements_dict)
 
         load_avg = os.getloadavg()

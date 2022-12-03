@@ -15,7 +15,7 @@ from mycodo.utils.atlas_calibration import setup_atlas_device
 from mycodo.utils.constraints_pass import constraints_pass_positive_value
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.influx import add_measurements_influxdb
-from mycodo.utils.influx import read_last_influxdb
+from mycodo.utils.influx import read_influxdb_single
 
 # Measurements
 measurements_dict = {
@@ -63,7 +63,7 @@ OUTPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('pip-pypi', 'pylibftdi', 'pylibftdi==0.19.0')
+        ('pip-pypi', 'pylibftdi', 'pylibftdi==0.20.0')
     ],
 
     'interfaces': ['I2C', 'UART', 'FTDI'],
@@ -98,12 +98,12 @@ OUTPUT_INFORMATION = {
             'type': 'float',
             'default_value': 0.0,
             'required': True,
-            'name': '{} ({})'.format(lazy_gettext('Current'), lazy_gettext('Amps')),
+            'name': "{} ({})".format(lazy_gettext('Current'), lazy_gettext('Amps')),
             'phrase': 'The current draw of the device being controlled'
         }
     ],
 
-    'custom_actions': [
+    'custom_commands': [
         {
             'type': 'message',
             'default_value': """Calibration: a calibration can be performed to increase the accuracy of the pump. It's a good idea to clear the calibration before calibrating. First, remove all air from the line by pumping the fluid you would like to calibrate to through the pump hose. Next, press Dispense Amount and the pump will be instructed to dispense 10 ml (unless you changed the default value). Measure how much fluid was actually dispensed, enter this value in the Actual Volume Dispensed (ml) field, and press Calibrate to Dispensed Amount. Now any further pump volumes dispensed should be accurate."""
@@ -164,11 +164,9 @@ OUTPUT_INFORMATION = {
 
 
 class OutputModule(AbstractOutput):
-    """
-    An output support class that operates an output
-    """
+    """An output support class that operates an output."""
     def __init__(self, output, testing=False):
-        super(OutputModule, self).__init__(output, testing=testing, name=__name__)
+        super().__init__(output, testing=testing, name=__name__)
 
         self.atlas_device = None
         self.currently_dispensing = False
@@ -179,7 +177,7 @@ class OutputModule(AbstractOutput):
         self.options_channels = self.setup_custom_channel_options_json(
             OUTPUT_INFORMATION['custom_channel_options'], output_channels)
 
-    def setup_output(self):
+    def initialize(self):
         self.setup_output_variables(OUTPUT_INFORMATION)
         self.interface = self.output.interface
         self.atlas_device = setup_atlas_device(self.output)
@@ -197,20 +195,25 @@ class OutputModule(AbstractOutput):
         # timer_dispense = time.time() + seconds
         self.currently_dispensing = True
         write_cmd = "D,*"
-        self.atlas_device.atlas_write(write_cmd)
         self.logger.debug("EZO-PMP command: {}".format(write_cmd))
+        self.atlas_device.query(write_cmd)
 
         # while time.time() < timer_dispense and self.currently_dispensing:
         #     time.sleep(0.1)
         #
         # write_cmd = 'X'
-        # self.atlas_device.atlas_write(write_cmd)
+        # self.atlas_device.query(write_cmd)
         # self.logger.debug("EZO-PMP command: {}".format(write_cmd))
         # self.currently_dispensing = False
         #
         # self.record_dispersal(seconds_to_run=seconds)
 
     def output_switch(self, state, output_type=None, amount=None, output_channel=None):
+        if not self.is_setup():
+            msg = "Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info."
+            self.logger.error(msg)
+            return msg
+
         if state == 'on' and output_type == 'sec' and amount:
             # Only dispense for a duration if output_type is 'sec'
             # Otherwise, refer to output_mode
@@ -252,7 +255,7 @@ class OutputModule(AbstractOutput):
             return
 
         self.logger.debug("EZO-PMP command: {}".format(write_cmd))
-        self.atlas_device.atlas_write(write_cmd)
+        self.atlas_device.query(write_cmd)
 
         if amount and seconds_to_run:
             self.record_dispersal(amount_ml=amount, seconds_to_run=seconds_to_run)
@@ -267,63 +270,48 @@ class OutputModule(AbstractOutput):
                 DeviceMeasurements.device_id == self.unique_id)
             for each_dev_meas in device_measurements:
                 if each_dev_meas.unit == 'minute':
-                    last_measurement = read_last_influxdb(
+                    last_measurement = read_influxdb_single(
                         self.unique_id,
                         each_dev_meas.unit,
                         each_dev_meas.channel,
-                        measure=each_dev_meas.measurement)
+                        measure=each_dev_meas.measurement,
+                        value='LAST')
                     if last_measurement:
-                        try:
-                            datetime_ts = datetime.datetime.strptime(
-                                last_measurement[0][:-7], '%Y-%m-%dT%H:%M:%S.%f')
-                        except:
-                            # Sometimes the original timestamp is in milliseconds
-                            # instead of nanoseconds. Therefore, remove 3 less digits
-                            # past the decimal and try again to parse.
-                            datetime_ts = datetime.datetime.strptime(
-                                last_measurement[0][:-4], '%Y-%m-%dT%H:%M:%S.%f')
+                        datetime_ts = datetime.datetime.fromtimestamp(last_measurement[0])
                         minutes_on = last_measurement[1]
                         ts_pmp_off = datetime_ts + datetime.timedelta(minutes=minutes_on)
-                        now = datetime.datetime.utcnow()
-                        is_on = bool(now < ts_pmp_off)
+                        is_on = bool(datetime.datetime.now() < ts_pmp_off)
                         if is_on:
                             return True
             return False
 
     def is_setup(self):
-        if self.output_setup:
-            return True
-        return False
+        return self.output_setup
+
+    def dispense_ml(self, args_dict):
+        if 'dispense_volume_ml' not in args_dict:
+            self.logger.error("Cannot calibrate without volume (instructed)")
+            return
+        write_cmd = "D,{}".format(args_dict['dispense_volume_ml'])
+        self.logger.debug("Command returned: {}".format(self.atlas_device.query(write_cmd)))
 
     def calibrate(self, level, ml):
         try:
             if level == "clear":
                 write_cmd = "Cal,clear"
-            elif level == "dispense_ml":
-                write_cmd = "D,{}".format(ml)
             elif level == "calibrate_ml":
                 write_cmd = "Cal,{}".format(ml)
             else:
                 self.logger.error("Unknown option: {}".format(level))
                 return
             self.logger.debug("Calibration command: {}".format(write_cmd))
-            ret_val = self.atlas_device.atlas_write(write_cmd)
-            self.logger.info("Command returned: {}".format(ret_val))
-            # Verify calibration saved
-            write_cmd = "Cal,?"
-            self.logger.info("Device Calibrated?: {}".format(
-                self.atlas_device.atlas_write(write_cmd)))
+            self.logger.info("Command returned: {}".format(self.atlas_device.query(write_cmd)))
+            self.logger.info("Calibrated: {}".format(self.atlas_device.query("Cal,?")))
         except:
             self.logger.exception("Exception calibrating")
 
     def clear_calibrate(self, args_dict):
         self.calibrate('clear', None)
-
-    def dispense_ml(self, args_dict):
-        if 'dispense_volume_ml' not in args_dict:
-            self.logger.error("Cannot calibrate without volume (instructed)")
-            return
-        self.calibrate('dispense_ml', args_dict['dispense_volume_ml'])
 
     def calibrate_ml(self, args_dict):
         if 'calibrate_volume_ml' not in args_dict:
@@ -338,9 +326,8 @@ class OutputModule(AbstractOutput):
         try:
             i2c_address = int(str(args_dict['new_i2c_address']), 16)
             write_cmd = "I2C,{}".format(i2c_address)
-            self.logger.debug("I2C Change command: {}".format(write_cmd))
-            ret_val = self.atlas_device.atlas_write(write_cmd)
-            self.logger.info("Command returned: {}".format(ret_val))
+            self.logger.info("I2C Change command: {}".format(write_cmd))
+            self.logger.info("Command returned: {}".format(self.atlas_device.query(write_cmd)))
             self.atlas_device = None
             self.output_setup = False
         except:

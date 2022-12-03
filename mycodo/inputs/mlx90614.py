@@ -72,11 +72,9 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ 
-    A sensor support class that measure the MLX90614's ambient and object temperature.
-    """
+    """A sensor support class that measure the MLX90614's ambient and object temperature."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.MLX90614_RAWIR1=0x04
         self.MLX90614_RAWIR2=0x05
@@ -97,9 +95,9 @@ class InputModule(AbstractInput):
         self.MLX90614_ID4=0x3F
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         from smbus2 import SMBus
 
         self.i2c_address = int(str(self.input_dev.i2c_location), 16)
@@ -122,7 +120,7 @@ class InputModule(AbstractInput):
         return self.data_to_temp(data)
 
     def get_measurement(self):
-        """ Gets the ambient (ch0) and object (ch1) temperatures """
+        """Gets the ambient (ch0) and object (ch1) temperatures."""
         self.return_dict = copy.deepcopy(measurements_dict)
 
         if self.is_enabled(0):

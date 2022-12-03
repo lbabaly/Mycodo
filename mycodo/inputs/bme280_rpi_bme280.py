@@ -77,7 +77,7 @@ class InputModule(AbstractInput):
     """
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
         self.i2c_address = None
@@ -86,9 +86,9 @@ class InputModule(AbstractInput):
         self.calibration_params = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import smbus2
         import bme280
 
@@ -99,9 +99,9 @@ class InputModule(AbstractInput):
         self.sensor = bme280
 
     def get_measurement(self):
-        """ Gets the measurement in units by reading the """
+        """Gets the measurement in units by reading the"""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)

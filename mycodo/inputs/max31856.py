@@ -65,7 +65,7 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('pip-pypi', 'RPi.GPIO', 'RPi.GPIO==0.7.0')
+        ('pip-pypi', 'RPi.GPIO', 'RPi.GPIO==0.7.1')
     ],
 
     'interfaces': ['UART'],
@@ -87,16 +87,16 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that measures the MAX31856's temperature """
+    """A sensor support class that measures the MAX31856's temperature."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.sensor = MAX31856(
             self.logger,
             self.input_dev.pin_cs,
@@ -122,9 +122,9 @@ class InputModule(AbstractInput):
             self.sensor.writeRegister(1, 0x07)  # T Type
 
     def get_measurement(self):
-        """ Get measurements and store in the database """
+        """Get measurements and store in the database."""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)

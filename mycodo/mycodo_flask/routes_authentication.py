@@ -1,8 +1,9 @@
 # coding=utf-8
-""" flask views that deal with user authentication """
+"""flask views that deal with user authentication."""
 
 import datetime
 import logging
+import os
 import socket
 import time
 
@@ -19,6 +20,8 @@ from flask.blueprints import Blueprint
 from flask_babel import gettext
 from sqlalchemy import func
 
+from mycodo.config import INSTALL_DIRECTORY
+from mycodo.config import LANGUAGES
 from mycodo.config import LOGIN_ATTEMPTS
 from mycodo.config import LOGIN_BAN_SECONDS
 from mycodo.config import LOGIN_LOG_FILE
@@ -58,13 +61,32 @@ def create_admin():
 
     form_create_admin = forms_authentication.CreateAdmin()
     form_notice = forms_authentication.InstallNotice()
+    form_language = forms_authentication.LanguageSelect()
+
+    language = None
+
+    # Find user-selected language in Mycodo/.language
+    try:
+        lang_path = os.path.join(INSTALL_DIRECTORY, ".language")
+        if os.path.exists(lang_path):
+            with open(lang_path) as f:
+                language_read = f.read().split(":")[0]
+                if language and language in LANGUAGES:
+                    language = language_read
+    except:
+        pass
+
+    if session.get('language'):
+        language = session['language']
 
     if request.method == 'POST':
-        form_name = request.form['form-name']
-        if form_name == 'acknowledge':
+        if form_notice.acknowledge.data:
             mod_misc = Misc.query.first()
             mod_misc.dismiss_notification = 1
             db.session.commit()
+        elif form_language.language.data:
+            session['language'] = form_language.language.data
+            language = form_language.language.data
         elif form_create_admin.validate():
             username = form_create_admin.username.data.lower()
             error = False
@@ -74,18 +96,26 @@ def create_admin():
                 error = True
             if not test_username(username):
                 flash(gettext(
-                    "Invalid user name. Must be between 2 and 64 characters "
+                    "Invalid username. Must be between 3 and 64 characters "
                     "and only contain letters and numbers."),
                     "error")
                 error = True
             if not test_password(form_create_admin.password.data):
                 flash(gettext(
-                    "Invalid password. Must be between 6 and 64 characters "
-                    "and only contain letters, numbers, and symbols."),
+                    "Invalid password. Must be between 4 and 64 characters "
+                    "and only contain letters and numbers."),
                       "error")
                 error = True
             if error:
-                return redirect(url_for('routes_general.home'))
+                return render_template('create_admin.html',
+                                       dict_translation=TRANSLATIONS,
+                                       dismiss_notification=1,
+                                       form_create_admin=form_create_admin,
+                                       form_language=form_language,
+                                       form_notice=form_notice,
+                                       host=socket.gethostname(),
+                                       language=language,
+                                       languages=LANGUAGES)
 
             new_user = User()
             new_user.name = username
@@ -93,9 +123,24 @@ def create_admin():
             new_user.set_password(form_create_admin.password.data)
             new_user.role_id = 1  # Admin
             new_user.theme = 'spacelab'
+
+            # Find user-selected language in Mycodo/.language
+            lang_path = os.path.join(INSTALL_DIRECTORY, ".language")
             try:
-                db.session.add(new_user)
-                db.session.commit()
+                if os.path.exists(lang_path):
+                    with open(lang_path) as f:
+                        language = f.read().split(":")[0]
+                        if language and language in LANGUAGES:
+                            new_user.language = language
+            finally:
+                if os.path.exists(lang_path):
+                    try:
+                        os.remove(lang_path)
+                    except:
+                        pass
+
+            try:
+                new_user.save()
                 flash(gettext("User '%(user)s' successfully created. Please "
                               "log in below.", user=username),
                       "success")
@@ -113,12 +158,16 @@ def create_admin():
                            dict_translation=TRANSLATIONS,
                            dismiss_notification=dismiss_notification,
                            form_create_admin=form_create_admin,
-                           form_notice=form_notice)
+                           form_language=form_language,
+                           form_notice=form_notice,
+                           host=socket.gethostname(),
+                           language=language,
+                           languages=LANGUAGES)
 
 
 @blueprint.route('/login', methods=('GET', 'POST'))
 def login_check():
-    """Authenticate users of the web-UI"""
+    """Authenticate users of the web-UI."""
     if not admin_exists():
         return redirect('/create_admin')
     elif flask_login.current_user.is_authenticated:
@@ -136,7 +185,7 @@ def login_check():
 
 @blueprint.route('/login_password', methods=('GET', 'POST'))
 def login_password():
-    """Authenticate users of the web-UI"""
+    """Authenticate users of the web-UI."""
     if not admin_exists():
         return redirect('/create_admin')
     elif flask_login.current_user.is_authenticated:
@@ -145,6 +194,23 @@ def login_password():
         return redirect(url_for('routes_general.home'))
 
     form_login = forms_authentication.Login()
+    form_language = forms_authentication.LanguageSelect()
+
+    language = None
+
+    # Find user-selected language in Mycodo/.language
+    try:
+        lang_path = os.path.join(INSTALL_DIRECTORY, ".language")
+        if os.path.exists(lang_path):
+            with open(lang_path) as f:
+                language_read = f.read().split(":")[0]
+                if language and language in LANGUAGES:
+                    language = language_read
+    except:
+        pass
+
+    if session.get('language'):
+        language = session['language']
 
     # Check if the user is banned from logging in (too many incorrect attempts)
     if banned_from_login():
@@ -155,50 +221,57 @@ def login_password():
                 "info")
     else:
         if request.method == 'POST':
-            username = form_login.username.data.lower()
-            user_ip = request.environ.get('HTTP_X_FORWARDED_FOR', 'unknown address')
-            user = User.query.filter(
-                func.lower(User.name) == username).first()
-
-            if not user:
-                login_log(username, 'NA', user_ip, 'NOUSER')
-                failed_login()
-            elif form_login.validate_on_submit():
-                matched_hash = User().check_password(
-                    form_login.password.data, user.password_hash)
-
-                # Encode stored password hash if it's a str
-                password_hash = user.password_hash
-                if isinstance(user.password_hash, str):
-                    password_hash = user.password_hash.encode('utf-8')
-
-                if matched_hash == password_hash:
-                    user = User.query.filter(User.name == username).first()
-                    role_name = Role.query.filter(Role.id == user.role_id).first().name
-                    login_log(username, role_name, user_ip, 'LOGIN')
-
-                    # flask-login user
-                    login_user = User()
-                    login_user.id = user.id
-                    remember_me = True if form_login.remember.data else False
-                    flask_login.login_user(login_user, remember=remember_me)
-
-                    return redirect(url_for('routes_general.home'))
-                else:
-                    user = User.query.filter(User.name == username).first()
-                    role_name = Role.query.filter(Role.id == user.role_id).first().name
-                    login_log(username, role_name, user_ip, 'FAIL')
-                    failed_login()
+            if form_language.language.data:
+                session['language'] = form_language.language.data
             else:
-                login_log(username, 'NA', user_ip, 'FAIL')
-                failed_login()
+                username = form_login.username.data.lower()
+                user_ip = request.environ.get('HTTP_X_FORWARDED_FOR', 'unknown address')
+                user = User.query.filter(
+                    func.lower(User.name) == username).first()
+
+                if not user:
+                    login_log(username, 'NA', user_ip, 'NOUSER')
+                    failed_login()
+                elif form_login.validate_on_submit():
+                    matched_hash = User().check_password(
+                        form_login.password.data, user.password_hash)
+
+                    # Encode stored password hash if it's a str
+                    password_hash = user.password_hash
+                    if isinstance(user.password_hash, str):
+                        password_hash = user.password_hash.encode('utf-8')
+
+                    if matched_hash == password_hash:
+                        user = User.query.filter(User.name == username).first()
+                        role_name = Role.query.filter(Role.id == user.role_id).first().name
+                        login_log(username, role_name, user_ip, 'LOGIN')
+
+                        # flask-login user
+                        login_user = User()
+                        login_user.id = user.id
+                        login_user.name = user.name
+                        remember_me = True if form_login.remember.data else False
+                        flask_login.login_user(login_user, remember=remember_me)
+
+                        return redirect(url_for('routes_general.home'))
+                    else:
+                        user = User.query.filter(User.name == username).first()
+                        role_name = Role.query.filter(Role.id == user.role_id).first().name
+                        login_log(username, role_name, user_ip, 'FAIL')
+                        failed_login()
+                else:
+                    login_log(username, 'NA', user_ip, 'FAIL')
+                    failed_login()
 
             return redirect('/login')
 
     return render_template('login_password.html',
                            dict_translation=TRANSLATIONS,
+                           form_language=form_language,
                            form_login=form_login,
-                           host=socket.gethostname())
+                           host=socket.gethostname(),
+                           language=language,
+                           languages=LANGUAGES)
 
 
 @blueprint.route('/login_keypad', methods=('GET', 'POST'))
@@ -227,7 +300,7 @@ def login_keypad():
 
 @blueprint.route('/login_keypad_code/', methods=('GET', 'POST'))
 def login_keypad_code_empty():
-    """Forward to keypad when no code entered"""
+    """Forward to keypad when no code entered."""
     time.sleep(2)
     flash("Please enter a code", "error")
     return redirect('/login_keypad')
@@ -235,7 +308,7 @@ def login_keypad_code_empty():
 
 @blueprint.route('/login_keypad_code/<code>', methods=('GET', 'POST'))
 def login_keypad_code(code):
-    """Check code from keypad"""
+    """Check code from keypad."""
     if not admin_exists():
         return redirect('/create_admin')
 
@@ -267,6 +340,7 @@ def login_keypad_code(code):
             # flask-login user
             login_user = User()
             login_user.id = user.id
+            login_user.name = user.name
             remember_me = True
             flask_login.login_user(login_user, remember=remember_me)
 
@@ -280,7 +354,7 @@ def login_keypad_code(code):
 @blueprint.route("/logout")
 @flask_login.login_required
 def logout():
-    """Log out of the web-ui"""
+    """Log out of the web-ui."""
     user = User.query.filter(User.name == flask_login.current_user.name).first()
     role_name = Role.query.filter(Role.id == user.role_id).first().name
     login_log(user.name,
@@ -298,7 +372,7 @@ def logout():
 
 @blueprint.route('/newremote/')
 def newremote():
-    """Verify authentication as a client computer to the remote admin"""
+    """Verify authentication as a client computer to the remote admin."""
     username = request.args.get('user')
     pass_word = request.args.get('passw')
 
@@ -325,7 +399,7 @@ def newremote():
 
 @blueprint.route('/remote_login', methods=('GET', 'POST'))
 def remote_admin_login():
-    """Authenticate Remote Admin login"""
+    """Authenticate Remote Admin login."""
     password_hash = request.form.get('password_hash', None)
     username = request.form.get('username', None)
 
@@ -338,6 +412,7 @@ def remote_admin_login():
     if user and str(user.password_hash) == str(password_hash):
         login_user = User()
         login_user.id = user.id
+        login_user.name = user.name
         flask_login.login_user(login_user, remember=False)
         return "Logged in via Remote Admin"
     else:
@@ -347,12 +422,12 @@ def remote_admin_login():
 @blueprint.route('/auth/')
 @flask_login.login_required
 def remote_auth():
-    """Checks authentication for remote admin"""
+    """Checks authentication for remote admin."""
     return "authenticated"
 
 
 def admin_exists():
-    """Verify that at least one admin user exists"""
+    """Verify that at least one admin user exists."""
     return User.query.filter_by(role_id=1).count()
 
 
@@ -366,7 +441,7 @@ def check_database_version_issue():
 
 
 def banned_from_login():
-    """Check if the person at the login prompt is banned form logging in"""
+    """Check if the person at the login prompt is banned form logging in."""
     if not session.get('failed_login_count'):
         session['failed_login_count'] = 0
     if not session.get('failed_login_ban_time'):
@@ -381,7 +456,7 @@ def banned_from_login():
 
 
 def failed_login():
-    """Count the number of failed login attempts"""
+    """Count the number of failed login attempts."""
     try:
         session['failed_login_count'] += 1
     except KeyError:
@@ -396,7 +471,7 @@ def failed_login():
 
 
 def login_log(user, group, ip, status):
-    """Write to login log"""
+    """Write to login log."""
     with open(LOGIN_LOG_FILE, 'a') as log_file:
         log_file.write(
             '{dt:%Y-%m-%d %H:%M:%S}: {stat} {user} ({grp}), {ip}\n'.format(
@@ -405,7 +480,7 @@ def login_log(user, group, ip, status):
 
 
 def clear_cookie_auth():
-    """Delete authentication cookies"""
+    """Delete authentication cookies."""
     response = make_response(redirect('/login'))
     session.clear()
     response.set_cookie('remember_token', '', expires=0)

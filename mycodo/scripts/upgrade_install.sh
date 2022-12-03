@@ -31,7 +31,7 @@ runSelfUpgrade() {
   NOW=$(date +"%Y-%m-%d_%H-%M-%S")
 
   if [ "$CURRENT_MYCODO_DIRECTORY" == "$THIS_MYCODO_DIRECTORY" ] ; then
-    printf "Cannot perform upgrade to the Mycodo instance already intalled. Halting upgrade.\n"
+    printf "Cannot perform upgrade to the Mycodo instance already installed. Halting upgrade.\n"
     exit 1
   fi
 
@@ -57,18 +57,6 @@ runSelfUpgrade() {
   ################################
 
   printf "\n#### Beginning pre-upgrade checks ####\n\n"
-
-  # Maintenance mode
-  # This is a temporary state so the developer can test a version release before users can upgrade.
-  # Creating the file ~/Mycodo/.maintenance will override maintenece mode.
-  if python "${CURRENT_MYCODO_DIRECTORY}"/mycodo/scripts/upgrade_check.py --maintenance_mode; then
-    if [[ ! -e $CURRENT_MYCODO_DIRECTORY/.maintenance ]]; then
-      printf "The Mycodo upgrade system is currently in maintenance mode so the developer can test the latest upgrade.\n"
-      printf "Please wait and attempt the upgrade later.\n"
-      echo '0' > "${CURRENT_MYCODO_DIRECTORY}"/.upgrade
-      exit 1
-    fi
-  fi
 
   # Upgrade requires Python >= 3.6
   printf "Checking Python version...\n"
@@ -153,6 +141,15 @@ runSelfUpgrade() {
     printf "Copying mycodo/functions/custom_functions..."
     if ! cp "${CURRENT_MYCODO_DIRECTORY}"/mycodo/functions/custom_functions/*.py "${THIS_MYCODO_DIRECTORY}"/mycodo/functions/custom_functions/ ; then
       printf "Failed: Error while trying to copy mycodo/functions/custom_functions"
+      error_found
+    fi
+    printf "Done.\n"
+  fi
+
+  if [ -d "${CURRENT_MYCODO_DIRECTORY}"/mycodo/actions/custom_actions ] ; then
+    printf "Copying mycodo/actions/custom_actions..."
+    if ! cp "${CURRENT_MYCODO_DIRECTORY}"/mycodo/actions/custom_actions/*.py "${THIS_MYCODO_DIRECTORY}"/mycodo/actions/custom_actions/ ; then
+      printf "Failed: Error while trying to copy mycodo/actions/custom_actions"
       error_found
     fi
     printf "Done.\n"

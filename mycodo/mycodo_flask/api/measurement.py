@@ -13,7 +13,6 @@ from mycodo.databases.models import Unit
 from mycodo.mycodo_flask.api import api
 from mycodo.mycodo_flask.api import default_responses
 from mycodo.mycodo_flask.utils import utils_general
-from mycodo.utils.influx import read_influxdb_function
 from mycodo.utils.influx import read_influxdb_list
 from mycodo.utils.influx import read_influxdb_single
 from mycodo.utils.influx import valid_date_str
@@ -35,7 +34,7 @@ measurement_create_fields = ns_measurement.model('Measurement Create Fields', {
 })
 
 measurement_fields = ns_measurement.model('Measurement Fields', {
-    'time': fields.DateTime(dt_format='iso8601'),
+    'time': fields.Float,
     'value': fields.Float,
 })
 
@@ -53,20 +52,20 @@ measurement_function_fields = ns_measurement.model('Measurement Function Fields'
     security='apikey',
     responses=default_responses,
     params={
-        'unique_id': 'The unique ID of the measurement',
+        'unique_id': 'The unique ID of the device',
         'unit': 'The unit of the measurement',
         'channel': 'The channel of the measurement',
         'value': 'the value of the measurement'
     }
 )
 class MeasurementsCreate(Resource):
-    """Interacts with Measurement settings in the SQL database"""
+    """Interacts with Measurement settings in the SQL database."""
 
     @accept('application/vnd.mycodo.v1+json')
     @ns_measurement.expect(measurement_create_fields)
     @flask_login.login_required
     def post(self, unique_id, unit, channel, value):
-        """Create a measurement"""
+        """Create a measurement."""
         if not utils_general.user_has_permission('edit_controllers'):
             abort(403)
 
@@ -109,7 +108,7 @@ class MeasurementsCreate(Resource):
     security='apikey',
     responses=default_responses,
     params={
-        'unique_id': 'The unique ID of the measurement',
+        'unique_id': 'The unique ID of the device',
         'unit': 'The unit of the measurement',
         'channel': 'The channel of the measurement',
         'epoch_start': 'The start time, as epoch. Set to 0 for none.',
@@ -117,7 +116,7 @@ class MeasurementsCreate(Resource):
     }
 )
 class MeasurementsHistorical(Resource):
-    """Interacts with Measurement settings in the SQL database"""
+    """Interacts with Measurement settings in the SQL database."""
 
     @accept('application/vnd.mycodo.v1+json')
     @ns_measurement.marshal_with(measurement_list_fields)
@@ -169,83 +168,19 @@ class MeasurementsHistorical(Resource):
                   error=traceback.format_exc())
 
 
-@ns_measurement.route('/historical_function/<string:unique_id>/<string:unit>/<int:channel>/<int:epoch_start>/<int:epoch_end>/<string:function>')
-@ns_measurement.doc(
-    security='apikey',
-    responses=default_responses,
-    params={
-        'unique_id': 'The unique ID of the measurement',
-        'unit': 'The unit of the measurement',
-        'channel': 'The channel of the measurement',
-        'epoch_start': 'The start time, as epoch. Set to 0 for none.',
-        'epoch_end': 'The end time, as epoch. Set to 0 for none.',
-        'function': 'The InfluxDB function to apply to the measurements. '
-                    'For example, SUM, MIN, MAX, STDDEV, etc. '
-                    'See https://docs.influxdata.com/influxdb/v1.7/query_language/functions/ for more information.'
-    }
-)
-class MeasurementsHistoricalFunction(Resource):
-    """Interacts with Measurement settings in the SQL database"""
-
-    @accept('application/vnd.mycodo.v1+json')
-    @ns_measurement.marshal_with(measurement_function_fields)
-    @flask_login.login_required
-    def get(self, unique_id, unit, channel, epoch_start, epoch_end, function):
-        """
-        Return the value of a function of measurements found within a time range
-        """
-        if not utils_general.user_has_permission('view_settings'):
-            abort(403)
-
-        if unit not in add_custom_units(Unit.query.all()):
-            abort(422, custom='Unit ID not found')
-        if channel < 0:
-            abort(422, custom='channel must be >= 0')
-        if epoch_start < 0 or epoch_end < 0:
-            abort(422, custom='epoch_start and epoch_end must be >= 0')
-
-        utc_offset_timedelta = datetime.datetime.utcnow() - datetime.datetime.now()
-
-        if epoch_start:
-            start = datetime.datetime.fromtimestamp(float(epoch_start))
-            start += utc_offset_timedelta
-            start_str = start.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
-        else:
-            start_str = None
-
-        if epoch_end:
-            end = datetime.datetime.fromtimestamp(float(epoch_end))
-            end += utc_offset_timedelta
-            end_str = end.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
-        else:
-            end_str = None
-
-        try:
-            return_ = read_influxdb_function(
-                unique_id, unit, channel, function, start_str=start_str, end_str=end_str)
-            if return_ and len(return_) == 2:
-                return {'function': function, 'value': return_[1]}, 200
-            else:
-                return return_, 200
-        except Exception:
-            abort(500,
-                  message='An exception occurred',
-                  error=traceback.format_exc())
-
-
 @ns_measurement.route('/last/<string:unique_id>/<string:unit>/<int:channel>/<int:past_seconds>')
 @ns_measurement.doc(
     security='apikey',
     responses=default_responses,
     params={
-        'unique_id': 'The unique ID of the measurement',
+        'unique_id': 'The unique ID of the device',
         'unit': 'The unit of the measurement',
         'channel': 'The channel of the measurement',
         'past_seconds': 'How many seconds in the past to query.'
     }
 )
 class MeasurementsLast(Resource):
-    """Interacts with Measurement settings in the SQL database"""
+    """Interacts with Measurement settings in the SQL database."""
 
     @accept('application/vnd.mycodo.v1+json')
     @ns_measurement.marshal_with(measurement_fields)
@@ -282,14 +217,14 @@ class MeasurementsLast(Resource):
     security='apikey',
     responses=default_responses,
     params={
-        'unique_id': 'The unique ID of the measurement',
+        'unique_id': 'The unique ID of the device',
         'unit': 'The unit of the measurement',
         'channel': 'The channel of the measurement',
         'past_seconds': 'How many seconds in the past to query.'
     }
 )
 class MeasurementsPast(Resource):
-    """Interacts with Measurement settings in the SQL database"""
+    """Interacts with Measurement settings in the SQL database."""
 
     @accept('application/vnd.mycodo.v1+json')
     @ns_measurement.marshal_with(measurement_list_fields)

@@ -21,9 +21,9 @@ class AbstractFunction(AbstractBaseController):
     """
     def __init__(self, function, testing=False, name=__name__):
         if not testing:
-            super(AbstractFunction, self).__init__(function.unique_id, testing=testing, name=__name__)
+            super().__init__(function.unique_id, testing=testing, name=__name__)
         else:
-            super(AbstractFunction, self).__init__(None, testing=testing, name=__name__)
+            super().__init__(None, testing=testing, name=__name__)
 
         self.logger = None
         self.setup_logger(testing=testing, name=name, function=function)
@@ -62,20 +62,20 @@ class AbstractFunction(AbstractBaseController):
             else:
                 self.logger.setLevel(logging.INFO)
 
+    def initialize(self):
+        self.logger.error(
+            "{cls} did not overwrite the initialize() method. All "
+            "subclasses of the AbstractFunction class are required to overwrite "
+            "this method".format(cls=type(self).__name__))
+        raise NotImplementedError
+
     def start_function(self):
-        """ Not used yet """
+        """Not used yet."""
         self.running = True
 
     def stop_function(self):
-        """ Called when Function is deactivated """
+        """Called when Function is deactivated."""
         self.running = False
-        try:
-            # Release all locks
-            for lockfile, lock_state in self.lockfile.locked.items():
-                if lock_state:
-                    self.lock_release(lockfile)
-        except:
-            pass
 
     #
     # Accessory functions
@@ -85,7 +85,7 @@ class AbstractFunction(AbstractBaseController):
         return self._set_custom_option(CustomController, self.unique_id, option, value)
 
     def get_custom_option(self, option):
-        return self._get_custom_option(self.function.custom_options, option)
+        return self._get_custom_option(CustomController, self.unique_id, option)
 
     def delete_custom_option(self, option):
         return self._delete_custom_option(CustomController, self.unique_id, option)

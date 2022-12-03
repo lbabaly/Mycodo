@@ -94,7 +94,7 @@ class InputModule(AbstractInput):
         pin is connected.
 
         """
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.grovepi = None
         self.gpio = None
@@ -103,9 +103,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import grovepi
 
         self.grovepi = grovepi
@@ -113,7 +113,7 @@ class InputModule(AbstractInput):
         self.sensor_type = int(self.sensor_type)
 
     def get_measurement(self):
-        """ Gets the humidity and temperature """
+        """Gets the humidity and temperature"""
         self.return_dict = copy.deepcopy(measurements_dict)
 
         # Try twice to get measurement. This prevents an anomaly where

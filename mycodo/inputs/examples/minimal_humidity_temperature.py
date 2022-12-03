@@ -1,6 +1,5 @@
 # coding=utf-8
 import copy
-from flask_babel import lazy_gettext
 
 from mycodo.inputs.base_input import AbstractInput
 from mycodo.inputs.sensorutils import calculate_dewpoint
@@ -28,7 +27,8 @@ measurements_dict = {
 INPUT_INFORMATION = {
     'input_name_unique': 'TEST_00',
     'input_manufacturer': 'AAA Company X',
-    'input_name': 'Dummy Input 00',
+    'input_name': 'Example Dummy Input 00',
+    'input_name_short': 'Ex. Dummy',
     'input_library': 'random',
     'measurements_name': 'Humidity/Temperature',
     'measurements_dict': measurements_dict,
@@ -72,8 +72,8 @@ INPUT_INFORMATION = {
         },
     ],
 
-    'custom_actions_message': 'This is a message for custom actions.',
-    'custom_actions': [
+    'custom_commands_message': 'This is a message for custom actions.',
+    'custom_commands': [
         {
             'id': 'button_one_value',
             'type': 'integer',
@@ -112,9 +112,9 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ Input support class """
+    """Input support class."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         # Initialize variables
         self.random = None
@@ -130,7 +130,7 @@ class InputModule(AbstractInput):
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
 
-    def initialize_input(self):
+    def initialize(self):
         # Load dependent modules
         import random
         self.random = random
@@ -141,7 +141,7 @@ class InputModule(AbstractInput):
         self.i2c_bus = self.input_dev.i2c_bus
 
     def get_measurement(self):
-        """ Measures temperature and humidity """
+        """Measures temperature and humidity."""
         # Resetting these values ensures old measurements aren't mistaken for new measurements
         self.return_dict = copy.deepcopy(measurements_dict)
 

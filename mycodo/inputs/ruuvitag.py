@@ -1,12 +1,12 @@
 # coding=utf-8
+import copy
 import subprocess
 import time
-
-import copy
 
 from mycodo.inputs.base_input import AbstractInput
 from mycodo.inputs.sensorutils import calculate_dewpoint
 from mycodo.inputs.sensorutils import calculate_vapor_pressure_deficit
+from mycodo.utils.lockfile import LockFile
 from mycodo.utils.system_pi import str_is_float
 
 # Measurements
@@ -73,11 +73,10 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('apt', 'python3-dev', 'python3-dev'),
-        ('apt', 'python3-psutil', 'python3-psutil'),
+        ('pip-pypi', 'psutil', 'psutil==5.9.0'),
         ('apt', 'bluez', 'bluez'),
         ('apt', 'bluez-hcidump', 'bluez-hcidump'),
-        ('pip-pypi', 'ruuvitag_sensor', 'ruuvitag-sensor==1.1.0')
+        ('pip-pypi', 'ruuvitag_sensor', 'ruuvitag-sensor==2.0.0')
     ],
 
     'interfaces': ['BT'],
@@ -91,7 +90,7 @@ class InputModule(AbstractInput):
     A support class for the RuuviTag
     """
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
         self.ruuvitag = None
@@ -105,9 +104,9 @@ class InputModule(AbstractInput):
         self.last_downloaded_timestamp = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         from ruuvitag_sensor.ruuvitag import RuuviTag
 
         self.ruuvitag = RuuviTag
@@ -120,14 +119,15 @@ class InputModule(AbstractInput):
             bt_device='hci{}'.format(self.bt_adapter))
 
     def get_measurement(self):
-        """ Obtain and return the measurements """
+        """Obtain and return the measurements."""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)
 
-        if self.lock_acquire(self.lock_file, timeout=3600):
+        lf = LockFile()
+        if lf.lock_acquire(self.lock_file, timeout=3600):
             self.logger.debug("Starting measurement")
             try:
                 cmd = 'timeout -k 11 10 /var/mycodo-root/env/bin/python ' \
@@ -206,5 +206,5 @@ class InputModule(AbstractInput):
                 self.logger.debug("Error: {}".format(msg))
 
             finally:
-                self.lock_release(self.lock_file)
+                lf.lock_release(self.lock_file)
                 time.sleep(1)

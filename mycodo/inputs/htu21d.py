@@ -68,7 +68,8 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('internal', 'file-exists /opt/mycodo/pigpio_installed', 'pigpio')
+        ('internal', 'file-exists /opt/mycodo/pigpio_installed', 'pigpio'),
+        ('pip-pypi', 'pigpio', 'pigpio==1.78')
     ],
 
     'interfaces': ['I2C'],
@@ -85,23 +86,23 @@ class InputModule(AbstractInput):
     """
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.pi = None
         self.i2c_bus = None
         self.i2c_address = 0x40  # HTU21D-F Address
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import pigpio
 
         self.i2c_bus = self.input_dev.i2c_bus
         self.pi = pigpio.pi()
 
     def get_measurement(self):
-        """ Gets the humidity and temperature """
+        """Gets the humidity and temperature."""
         if not self.pi.connected:
             self.logger.error("Could not connect to pigpiod. Ensure it is running and try again.")
             return None

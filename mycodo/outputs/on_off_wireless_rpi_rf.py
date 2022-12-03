@@ -28,7 +28,7 @@ channels_dict = {
 # Output information
 OUTPUT_INFORMATION = {
     'output_name_unique': 'wireless_rpi_rf',
-    'output_name': "{}: 315/433 MHz".format(lazy_gettext("Wireless")),
+    'output_name': "{}: {} 315/433 MHz".format(lazy_gettext('On/Off'), lazy_gettext('Wireless')),
     'output_library': 'rpi-rf',
     'measurements_dict': measurements_dict,
     'channels_dict': channels_dict,
@@ -45,7 +45,7 @@ OUTPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('pip-pypi', 'RPi.GPIO', 'RPi.GPIO==0.7.0'),
+        ('pip-pypi', 'RPi.GPIO', 'RPi.GPIO==0.7.1'),
         ('pip-pypi', 'rpi_rf', 'rpi_rf==0.9.7')
     ],
 
@@ -58,7 +58,7 @@ OUTPUT_INFORMATION = {
             'default_value': None,
             'required': False,
             'constraints_pass': constraints_pass_positive_or_zero_value,
-            'name': lazy_gettext('GPIO Pin (BCM)'),
+            'name': "{}: {} ({})".format(lazy_gettext('Pin'), lazy_gettext('GPIO'), lazy_gettext('BCM')),
             'phrase': lazy_gettext('The pin to control the state of')
         },
         {
@@ -89,7 +89,7 @@ OUTPUT_INFORMATION = {
                 (5, '5'),
             ],
             'name': lazy_gettext('Protocol'),
-            'phrase': lazy_gettext('Wireless protocol')
+            'phrase': ''
         },
         {
             'id': 'pulse_length',
@@ -98,7 +98,7 @@ OUTPUT_INFORMATION = {
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
             'name': lazy_gettext('Pulse Length'),
-            'phrase': lazy_gettext('Wireless pulse length')
+            'phrase': ''
         },
         {
             'id': 'state_startup',
@@ -136,14 +136,14 @@ OUTPUT_INFORMATION = {
             'type': 'bool',
             'default_value': False,
             'name': lazy_gettext('Force Command'),
-            'phrase': lazy_gettext('Always send the commad if instructed, regardless of the current state')
+            'phrase': lazy_gettext('Always send the command, regardless of the current state')
         },
         {
             'id': 'amps',
             'type': 'float',
             'default_value': 0.0,
             'required': True,
-            'name': lazy_gettext('Current (Amps)'),
+            'name': "{} ({})".format(lazy_gettext('Current'), lazy_gettext('Amps')),
             'phrase': lazy_gettext('The current draw of the device being controlled')
         }
     ]
@@ -151,11 +151,9 @@ OUTPUT_INFORMATION = {
 
 
 class OutputModule(AbstractOutput):
-    """
-    An output support class that operates an output
-    """
+    """An output support class that operates an output."""
     def __init__(self, output, testing=False):
-        super(OutputModule, self).__init__(output, testing=testing, name=__name__)
+        super().__init__(output, testing=testing, name=__name__)
 
         self.wireless_pi_switch = None
         self.Transmit433MHz = None
@@ -165,7 +163,7 @@ class OutputModule(AbstractOutput):
         self.options_channels = self.setup_custom_channel_options_json(
             OUTPUT_INFORMATION['custom_channel_options'], output_channels)
 
-    def setup_output(self):
+    def initialize(self):
         from mycodo.devices.wireless_rpi_rf import Transmit433MHz
 
         self.Transmit433MHz = Transmit433MHz
@@ -188,7 +186,20 @@ class OutputModule(AbstractOutput):
         elif self.options_channels['state_startup'][0] == 0:
             self.output_switch('off')
 
+        if (self.options_channels['state_startup'][0] in [0, 1] and
+                self.options_channels['trigger_functions_startup'][0]):
+            try:
+                self.check_triggers(self.unique_id, output_channel=0)
+            except Exception as err:
+                self.logger.error(
+                    f"Could not check Trigger for channel 0 of output {self.unique_id}: {err}")
+
     def output_switch(self, state, output_type=None, amount=None, output_channel=None):
+        if not self.is_setup():
+            msg = "Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info."
+            self.logger.error(msg)
+            return msg
+
         if state == 'on':
             self.wireless_pi_switch.transmit(int(self.options_channels['on_command'][0]))
             self.output_states[output_channel] = True
@@ -204,12 +215,10 @@ class OutputModule(AbstractOutput):
                 return self.output_states
 
     def is_setup(self):
-        if self.wireless_pi_switch:
-            return True
-        return False
+        return self.output_setup
 
     def stop_output(self):
-        """ Called when Output is stopped """
+        """Called when Output is stopped."""
         if self.is_setup():
             if self.options_channels['state_shutdown'][0] == 1:
                 self.output_switch('on')

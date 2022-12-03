@@ -12,7 +12,7 @@ from wtforms import SelectField
 from wtforms import StringField
 from wtforms import SubmitField
 from wtforms import widgets
-from wtforms.widgets.html5 import NumberInput
+from wtforms.widgets import NumberInput
 
 from mycodo.config import CONDITIONAL_CONDITIONS
 from mycodo.config_translations import TRANSLATIONS
@@ -26,27 +26,29 @@ class Conditional(FlaskForm):
     function_id = StringField('Function ID', widget=widgets.HiddenInput())
     function_type = StringField('Function Type', widget=widgets.HiddenInput())
     name = StringField(TRANSLATIONS['name']['title'])
-    conditional_statement = StringField(lazy_gettext('Conditional Statement'))
-    conditional_status = StringField(lazy_gettext('Conditional Status'))
+    conditional_import = StringField(lazy_gettext('Import Python Code'))
+    conditional_initialize = StringField(lazy_gettext('Initialize Python Code'))
+    conditional_statement = StringField(lazy_gettext('Run Python Code'))
+    conditional_status = StringField(lazy_gettext('Status Python Code'))
     period = DecimalField(
-        lazy_gettext('Period (seconds)'),
+        "{} ({})".format(lazy_gettext('Period'), lazy_gettext('Seconds')),
         widget=NumberInput(step='any'))
     log_level_debug = BooleanField(
         TRANSLATIONS['log_level_debug']['title'])
     message_include_code = BooleanField(
         TRANSLATIONS['message_include_code']['title'])
     refractory_period = DecimalField(
-        lazy_gettext('Refractory Period (seconds)'),
+        "{} ({})".format(lazy_gettext('Refractory Period'), lazy_gettext('Seconds')),
         widget=NumberInput(step='any'))
     start_offset = DecimalField(
-        lazy_gettext('Start Offset (seconds)'),
+        "{} ({})".format(lazy_gettext('Start Offset'), lazy_gettext('Seconds')),
         widget=NumberInput(step='any'))
     pyro_timeout = DecimalField(
-        lazy_gettext('Timeout (seconds)'),
+        "{} ({})".format(lazy_gettext('Timeout'), lazy_gettext('Seconds')),
         widget=NumberInput(step='any'))
     condition_type = SelectField(
         choices=[('', TRANSLATIONS['select_one']['title'])] + CONDITIONAL_CONDITIONS)
-    add_condition = SubmitField(lazy_gettext('Add Condition'))
+    add_condition = SubmitField(lazy_gettext('Add'))
 
 
 class ConditionalConditions(FlaskForm):
@@ -64,7 +66,7 @@ class ConditionalConditions(FlaskForm):
 
     # GPIO State
     gpio_pin = IntegerField(
-        lazy_gettext('GPIO Pin (BCM)'),
+        "{}: {} ({})".format(lazy_gettext('Pin'), lazy_gettext('GPIO'), lazy_gettext('BCM')),
         widget=NumberInput())
 
     output_id = StringField(TRANSLATIONS['output']['title'])

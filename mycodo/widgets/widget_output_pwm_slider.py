@@ -57,15 +57,15 @@ WIDGET_INFORMATION = {
             'type': 'integer',
             'default_value': 3600,
             'constraints_pass': constraints_pass_positive_value,
-            'name': 'Max Age (seconds)',
-            'phrase': 'The maximum age of the camera image'
+            'name': "{} ({})".format(lazy_gettext('Max Age'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
         },
         {
             'id': 'refresh_seconds',
             'type': 'float',
             'default_value': 30.0,
             'constraints_pass': constraints_pass_positive_value,
-            'name': 'Widget Refresh (seconds)',
+            'name': '{} ({})'.format(lazy_gettext("Refresh"), lazy_gettext("Seconds")),
             'phrase': 'The period of time between refreshing the widget'
         },
         {
@@ -97,6 +97,13 @@ WIDGET_INFORMATION = {
             'phrase': lazy_gettext('Show the current output status')
         },
         {
+            'id': 'invert_status',
+            'type': 'bool',
+            'default_value': False,
+            'name': lazy_gettext('Invert Status'),
+            'phrase': lazy_gettext('Invert the output status. Enable if the Invert Signal output option is set.')
+        },
+        {
             'id': 'enable_value',
             'type': 'bool',
             'default_value': True,
@@ -123,7 +130,7 @@ WIDGET_INFORMATION = {
 
     'widget_dashboard_title_bar': """
     {%- if widget_options['enable_status'] -%}
-      (<span id="text-output-state-{{each_widget.unique_id}}"></span>{{') '}}
+      <span id="text-output-state-{{each_widget.unique_id}}"></span>
     {%- else -%}
       <span style="display: none" id="text-output-state-{{each_widget.unique_id}}"></span>
     {%- endif -%}
@@ -229,8 +236,8 @@ WIDGET_INFORMATION = {
                        measure_type,
                        measurement_id,
                        max_measure_age_sec,
-                       decimal_places,
-                       extra) {
+                       invert_status,
+                       decimal_places) {
     if (decimal_places === null) {
       decimal_places = 1;
     }
@@ -242,8 +249,12 @@ WIDGET_INFORMATION = {
           document.getElementById('timestamp-' + widget_id).innerHTML = 'MAX AGE EXCEEDED';
         }
         else {
-          const formattedTime = epoch_to_timestamp(data[0]);
-          const measurement = data[1];
+          const formattedTime = epoch_to_timestamp(data[0] * 1000);
+          let measurement = data[1];
+          
+          if (invert_status) {
+            measurement = 100 - measurement;
+          }          
           document.getElementById('value-' + widget_id).innerHTML = measurement.toFixed(decimal_places);
    
           const range_exists = document.getElementById("range_" + widget_id);
@@ -268,37 +279,54 @@ WIDGET_INFORMATION = {
                           measurement_id,
                           period_sec,
                           max_measure_age_sec,
-                          decimal_places,
-                          extra) {
+                          invert_status,
+                          decimal_places) {
     setInterval(function () {
       getLastDataPWMSlider(widget_id,
                   dev_id,
                   measure_type,
                   measurement_id,
                   max_measure_age_sec,
-                  decimal_places,
-                  extra)
+                  invert_status,
+                  decimal_places)
     }, period_sec * 1000);
   }
   
-  function getGPIOStatePWMSlider(widget_id, unique_id, channel_id) {
+  function getGPIOStatePWMSlider(widget_id, unique_id, channel_id, invert_status, decimal_places) {
+    if (decimal_places === null) {
+      decimal_places = 1;
+    }
     const url = '/outputstate_unique_id/' + unique_id + '/' + channel_id;
     $.getJSON(url,
       function(state, responseText, jqXHR) {
         if (jqXHR.status !== 204) {
           if (state !== null) {
             document.getElementById("container-output-" + widget_id).className = "active-background";
-            if (state !== 'off') {
-              if (state === 'on') {
-                document.getElementById("text-output-state-" + widget_id).innerHTML = '({{_('Active')}})';
+            
+            if (invert_status) {
+              if (state === 100) {
+                document.getElementById("container-output-" + widget_id).className = "inactive-background";
+                document.getElementById("text-output-state-" + widget_id).innerHTML = '({{_('Inactive')}})';
               } else {
-                document.getElementById("text-output-state-" + widget_id).innerHTML = '({{_('Active')}}, ' + state.toFixed(1) + '%)';
+                if (state === 'off') state = 100;
+                else state = 100 - state;
+                document.getElementById("text-output-state-" + widget_id).innerHTML = '({{_('Active')}}, ' + state.toFixed(decimal_places) + '%)';
               }
             }
             else {
-              document.getElementById("container-output-" + widget_id).className = "inactive-background";
-              document.getElementById("text-output-state-" + widget_id).innerHTML = '({{_('Inactive')}})';
+              if (state !== 'off') {
+                if (state === 'on') {
+                  document.getElementById("text-output-state-" + widget_id).innerHTML = '({{_('Active')}})';
+                } else {
+                  document.getElementById("text-output-state-" + widget_id).innerHTML = '({{_('Active')}}, ' + state.toFixed(decimal_places) + '%)';
+                }
+              }
+              else {
+                document.getElementById("container-output-" + widget_id).className = "inactive-background";
+                document.getElementById("text-output-state-" + widget_id).innerHTML = '({{_('Inactive')}})';
+              }
             }
+
           }
         }
         else {
@@ -309,9 +337,9 @@ WIDGET_INFORMATION = {
     );
   }
 
-  function repeatGPIOStatePWMSlider(widget_id, unique_id, channel_id, refresh_seconds) {
+  function repeatGPIOStatePWMSlider(widget_id, unique_id, channel_id, refresh_seconds, invert_status, decimal_places) {
     setInterval(function () {
-      getGPIOStatePWMSlider(widget_id, unique_id, channel_id);
+      getGPIOStatePWMSlider(widget_id, unique_id, channel_id, invert_status, decimal_places);
     }, refresh_seconds * 1000);  // Refresh duration in milliseconds
   }
 """,
@@ -325,11 +353,11 @@ WIDGET_INFORMATION = {
     {% endif %}
     modOutputPWM(send_cmd);
   });
-  $('.duty_cycle_on_amt_pwm_slider').click(function() {const output_id = btn_val.split('/')[1];
-    const channel_id = btn_val.split('/')[2];
+  $('.duty_cycle_on_amt_pwm_slider').click(function() {
     const btn_val = this.name;
     const chart = btn_val.split('/')[0];
-    
+    const output_id = btn_val.split('/')[1];
+    const channel_id = btn_val.split('/')[2];
     const dc = $('#pwm_slider_duty_cycle_on_amt_' + chart + '_' + output_id + '_' + channel_id).val();
     const send_cmd = btn_val.substring(btn_val.indexOf('/') + 1);
     {% if not misc.hide_alert_info %}
@@ -345,10 +373,10 @@ WIDGET_INFORMATION = {
 {%- set channel_id = widget_options['output'].split(",")[2] -%}
 
 {% for each_output in output if each_output.unique_id == device_id %}
-  getLastDataPWMSlider('{{each_widget.unique_id}}', '{{device_id}}', 'output', '{{measurement_id}}', {{widget_options['max_measure_age']}}, {{widget_options['decimal_places']}});
-  repeatLastDataPWMSlider('{{each_widget.unique_id}}', '{{device_id}}', 'output', '{{measurement_id}}', {{widget_options['refresh_seconds']}}, {{widget_options['max_measure_age']}}, {{widget_options['decimal_places']}});
+  getLastDataPWMSlider('{{each_widget.unique_id}}', '{{device_id}}', 'output', '{{measurement_id}}', {{widget_options['max_measure_age']}}, {% if widget_options['invert_status'] %}true{% else %}false{% endif %}, {{widget_options['decimal_places']}});
+  repeatLastDataPWMSlider('{{each_widget.unique_id}}', '{{device_id}}', 'output', '{{measurement_id}}', {{widget_options['refresh_seconds']}}, {{widget_options['max_measure_age']}}, {% if widget_options['invert_status'] %}true{% else %}false{% endif %}, {{widget_options['decimal_places']}});
 {% endfor %}
-  getGPIOStatePWMSlider('{{each_widget.unique_id}}', '{{device_id}}', '{{channel_id}}', {{widget_options['decimal_places']}});
-  repeatGPIOStatePWMSlider('{{each_widget.unique_id}}', '{{device_id}}', '{{channel_id}}', {{widget_options['refresh_seconds']}}, {{widget_options['decimal_places']}});
+  getGPIOStatePWMSlider('{{each_widget.unique_id}}', '{{device_id}}', '{{channel_id}}', {% if widget_options['invert_status'] %}true{% else %}false{% endif %}, {{widget_options['decimal_places']}});
+  repeatGPIOStatePWMSlider('{{each_widget.unique_id}}', '{{device_id}}', '{{channel_id}}', {{widget_options['refresh_seconds']}}, {% if widget_options['invert_status'] %}true{% else %}false{% endif %}, {{widget_options['decimal_places']}});
 """
 }

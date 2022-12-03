@@ -59,7 +59,7 @@ INPUT_INFORMATION = {
 
     'dependencies_module': [
         ('pip-pypi', 'usb.core', 'pyusb==1.1.1'),
-        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.1'),
+        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.2'),
         ('pip-pypi', 'adafruit_bme280', 'adafruit-circuitpython-bme280==2.5.4')
     ],
 
@@ -70,17 +70,17 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that measures the BME280 """
+    """A sensor support class that measures the BME280"""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import adafruit_bme280
         from adafruit_extended_bus import ExtendedI2C
 
@@ -92,9 +92,9 @@ class InputModule(AbstractInput):
             self.logger.exception("Setting up sensor")
 
     def get_measurement(self):
-        """ Gets the measurements """
+        """Gets the measurements."""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)

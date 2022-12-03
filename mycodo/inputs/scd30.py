@@ -50,6 +50,7 @@ INPUT_INFORMATION = {
     ],
 
     'options_enabled': [
+        'measurements_select',
         'i2c_location',
         'period',
         'pre_output'
@@ -62,30 +63,65 @@ INPUT_INFORMATION = {
 
     'interfaces': ['I2C'],
     'i2c_location': ['0x61'],
-    'i2c_address_editable': False
+    'i2c_address_editable': False,
+
+    'custom_commands': [
+        {
+            'type': 'message',
+            'default_value': """A soft reset restores factory default values."""
+        },
+        {
+            'id': 'soft_reset',
+            'type': 'button',
+            'name': 'Soft Reset'
+        }
+    ],
+
+    'custom_options': [
+        {
+            'type': 'message',
+            'default_value': 'Automatic Self Ccalibration (ASC): To work correctly, the sensor must be on and active for 7 days after enabling ASC, and exposed to fresh air for at least 1 hour per day. Consult the manufacturer’s documentation for more information.',
+        },
+        {
+            'id': 'enable_self_calibration',
+            'type': 'bool',
+            'default_value': False,
+            'name': 'Enable Automatic Self Calibration',
+        }
+    ]
 }
 
-class InputModule(AbstractInput):
-    """ Input support class """
-    def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
 
-        self.scd = None
+class InputModule(AbstractInput):
+    """Input support class."""
+    def __init__(self, input_dev, testing=False):
+        super().__init__(input_dev, testing=testing, name=__name__)
+
+        self.sensor = None
+        self.enable_self_calibration = None
 
         if not testing:
-            self.initialize_input()
+            self.setup_custom_options(
+                INPUT_INFORMATION['custom_options'], input_dev)
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         from scd30_i2c import SCD30
 
-        self.scd = SCD30()
+        self.sensor = SCD30()
+
+        self.sensor.set_auto_self_calibration(self.enable_self_calibration)
 
     def get_measurement(self):
-        """ Measures CO2, temperature and humidity """
+        """Measures CO2, temperature and humidity."""
+        if not self.sensor:
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
+            return
+
         self.return_dict = copy.deepcopy(measurements_dict)
 
-        if self.scd.get_data_ready():
-            m = self.scd.read_measurement()
+        if self.sensor.get_data_ready():
+            m = self.sensor.read_measurement()
             if m is not None:
                 co2 = m[0]
                 temperature = m[1]
@@ -107,3 +143,7 @@ class InputModule(AbstractInput):
                     self.value_set(4, calculate_vapor_pressure_deficit(self.value_get(1), self.value_get(2)))
 
         return self.return_dict
+
+    def soft_reset(self, args_dict):
+        if self.sensor:
+            self.sensor.soft_reset()

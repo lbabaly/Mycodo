@@ -9,12 +9,11 @@ from wtforms import BooleanField
 from wtforms import HiddenField
 from wtforms import IntegerField
 from wtforms import SelectField
-from wtforms import SelectMultipleField
 from wtforms import StringField
 from wtforms import SubmitField
 from wtforms import widgets
 from wtforms.validators import DataRequired
-from wtforms.widgets.html5 import NumberInput
+from wtforms.widgets import NumberInput
 
 from mycodo.config_translations import TRANSLATIONS
 from mycodo.mycodo_flask.utils.utils_general import generate_form_output_list
@@ -33,8 +32,7 @@ class OutputAdd(FlaskForm):
         if 'output_library' in dict_outputs[each_output]:
             name += ' ({lib})'.format(lib=dict_outputs[each_output]['output_library'])
 
-        if ('interfaces' in dict_outputs[each_output] and
-                dict_outputs[each_output]['interfaces']):
+        if 'interfaces' in dict_outputs[each_output] and dict_outputs[each_output]['interfaces']:
             for each_interface in dict_outputs[each_output]['interfaces']:
                 tmp_value = '{val}{int}'.format(val=value, int=each_interface)
                 tmp_name = '{name} [{int}]'.format(name=name, int=each_interface)

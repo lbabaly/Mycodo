@@ -1,38 +1,23 @@
 # coding=utf-8
-""" collection of Page endpoints """
+"""collection of Page endpoints."""
 import logging
 import os
 
 import flask_login
-from flask import flash
-from flask import jsonify
-from flask import redirect
-from flask import render_template
-from flask import request
-from flask import url_for
+from flask import flash, jsonify, redirect, render_template, request, url_for
 from flask.blueprints import Blueprint
 
-from mycodo.config import PATH_FUNCTIONS_CUSTOM
-from mycodo.config import PATH_INPUTS_CUSTOM
-from mycodo.config import PATH_OUTPUTS_CUSTOM
-from mycodo.config import PATH_WIDGETS_CUSTOM
-from mycodo.config import THEMES
-from mycodo.databases.models import Conversion
-from mycodo.databases.models import Measurement
-from mycodo.databases.models import Misc
-from mycodo.databases.models import Role
-from mycodo.databases.models import SMTP
-from mycodo.databases.models import Unit
-from mycodo.databases.models import User
+from mycodo.config import (PATH_ACTIONS_CUSTOM, PATH_FUNCTIONS_CUSTOM,
+                           PATH_INPUTS_CUSTOM, PATH_OUTPUTS_CUSTOM,
+                           PATH_WIDGETS_CUSTOM, THEMES, USAGE_REPORTS_PATH)
+from mycodo.databases.models import (SMTP, Conversion, Measurement, Misc, Role,
+                                     Unit, User)
 from mycodo.mycodo_flask.forms import forms_settings
 from mycodo.mycodo_flask.routes_static import inject_variables
-from mycodo.mycodo_flask.utils import utils_general
-from mycodo.mycodo_flask.utils import utils_settings
+from mycodo.mycodo_flask.utils import utils_general, utils_settings
 from mycodo.utils.modules import load_module_from_file
-from mycodo.utils.system_pi import add_custom_measurements
-from mycodo.utils.system_pi import add_custom_units
-from mycodo.utils.system_pi import base64_encode_bytes
-from mycodo.utils.system_pi import cmd_output
+from mycodo.utils.system_pi import (add_custom_measurements, add_custom_units,
+                                    base64_encode_bytes, cmd_output)
 
 logger = logging.getLogger('mycodo.mycodo_flask.settings')
 
@@ -57,7 +42,7 @@ def api_key_tools():
 @blueprint.route('/settings/alerts', methods=('GET', 'POST'))
 @flask_login.login_required
 def settings_alerts():
-    """ Display alert settings """
+    """Display alert settings."""
     if not utils_general.user_has_permission('view_settings'):
         return redirect(url_for('routes_general.home'))
 
@@ -81,7 +66,7 @@ def settings_alerts():
 @blueprint.route('/settings/general_submit', methods=['POST'])
 @flask_login.login_required
 def settings_general_submit():
-    """ Submit form for General Settings page """
+    """Submit form for General Settings page"""
     messages = {
         "success": [],
         "info": [],
@@ -105,7 +90,7 @@ def settings_general_submit():
 @blueprint.route('/settings/general', methods=('GET', 'POST'))
 @flask_login.login_required
 def settings_general():
-    """ Display general settings """
+    """Display general settings."""
     if not utils_general.user_has_permission('view_settings'):
         return redirect(url_for('routes_general.home'))
 
@@ -113,14 +98,15 @@ def settings_general():
     form_settings_general = forms_settings.SettingsGeneral()
 
     return render_template('settings/general.html',
+                           form_settings_general=form_settings_general,
                            misc=misc,
-                           form_settings_general=form_settings_general)
+                           report_path=os.path.normpath(USAGE_REPORTS_PATH))
 
 
 @blueprint.route('/settings/function', methods=('GET', 'POST'))
 @flask_login.login_required
 def settings_function():
-    """ Display function settings """
+    """Display function settings."""
     if not utils_general.user_has_permission('view_settings'):
         return redirect(url_for('routes_general.home'))
 
@@ -147,7 +133,7 @@ def settings_function():
         if each_file not in excluded_files:
             try:
                 full_path_file = os.path.join(PATH_FUNCTIONS_CUSTOM, each_file)
-                controller_info = load_module_from_file(full_path_file, 'functions')
+                controller_info, status = load_module_from_file(full_path_file, 'functions')
 
                 if controller_info:
                     func_info = controller_info.FUNCTION_INFORMATION
@@ -162,10 +148,55 @@ def settings_function():
                            form_controller_delete=form_controller_delete)
 
 
+@blueprint.route('/settings/action', methods=('GET', 'POST'))
+@flask_login.login_required
+def settings_action():
+    """Display action settings."""
+    if not utils_general.user_has_permission('view_settings'):
+        return redirect(url_for('routes_general.home'))
+
+    form_action = forms_settings.Action()
+    form_action_delete = forms_settings.ActionDel()
+
+    # Get list of custom functions
+    excluded_files = ['__init__.py', '__pycache__']
+
+    if request.method == 'POST':
+        if not utils_general.user_has_permission('edit_controllers'):
+            return redirect(url_for('routes_general.home'))
+
+        if form_action.import_action_upload.data:
+            utils_settings.settings_action_import(form_action)
+        elif form_action_delete.delete_action.data:
+            utils_settings.settings_action_delete(form_action_delete)
+
+        return redirect(url_for('routes_settings.settings_action'))
+
+    dict_actions = {}
+
+    for each_file in os.listdir(PATH_ACTIONS_CUSTOM):
+        if each_file not in excluded_files:
+            try:
+                full_path_file = os.path.join(PATH_ACTIONS_CUSTOM, each_file)
+                action_info, status = load_module_from_file(full_path_file, 'actions')
+
+                if action_info:
+                    func_info = action_info.ACTION_INFORMATION
+                    dict_actions[func_info['name_unique']] = {}
+                    dict_actions[func_info['name_unique']]['name'] = func_info['name']
+            except:
+                pass
+
+    return render_template('settings/action.html',
+                           dict_actions=dict_actions,
+                           form_action=form_action,
+                           form_action_delete=form_action_delete)
+
+
 @blueprint.route('/settings/input', methods=('GET', 'POST'))
 @flask_login.login_required
 def settings_input():
-    """ Display measurement settings """
+    """Display measurement settings."""
     if not utils_general.user_has_permission('view_settings'):
         return redirect(url_for('routes_general.home'))
 
@@ -195,7 +226,7 @@ def settings_input():
         if each_file not in excluded_files:
             try:
                 full_path_file = os.path.join(PATH_INPUTS_CUSTOM, each_file)
-                input_info = load_module_from_file(full_path_file, 'inputs')
+                input_info, status = load_module_from_file(full_path_file, 'inputs')
 
                 if input_info:
                     dict_inputs[input_info.INPUT_INFORMATION['input_name_unique']] = {}
@@ -219,7 +250,7 @@ def settings_input():
 @blueprint.route('/settings/output', methods=('GET', 'POST'))
 @flask_login.login_required
 def settings_output():
-    """ Display output settings """
+    """Display output settings."""
     if not utils_general.user_has_permission('view_settings'):
         return redirect(url_for('routes_general.home'))
 
@@ -249,7 +280,7 @@ def settings_output():
         if each_file not in excluded_files:
             try:
                 full_path_file = os.path.join(PATH_OUTPUTS_CUSTOM, each_file)
-                output_info = load_module_from_file(full_path_file, 'outputs')
+                output_info, status = load_module_from_file(full_path_file, 'outputs')
 
                 if output_info:
                     dict_outputs[output_info.OUTPUT_INFORMATION['output_name_unique']] = {}
@@ -271,7 +302,7 @@ def settings_output():
 @blueprint.route('/settings/widget', methods=('GET', 'POST'))
 @flask_login.login_required
 def settings_widget():
-    """ Display widget settings """
+    """Display widget settings."""
     if not utils_general.user_has_permission('view_settings'):
         return redirect(url_for('routes_general.home'))
 
@@ -301,7 +332,7 @@ def settings_widget():
         if each_file not in excluded_files:
             try:
                 full_path_file = os.path.join(PATH_WIDGETS_CUSTOM, each_file)
-                widget_info = load_module_from_file(full_path_file, 'widgets')
+                widget_info, status = load_module_from_file(full_path_file, 'widgets')
 
                 if widget_info:
                     dict_widgets[widget_info.WIDGET_INFORMATION['widget_name_unique']] = {}
@@ -323,7 +354,7 @@ def settings_widget():
 @blueprint.route('/settings/measurement', methods=('GET', 'POST'))
 @flask_login.login_required
 def settings_measurement():
-    """ Display measurement settings """
+    """Display measurement settings."""
     if not utils_general.user_has_permission('view_settings'):
         return redirect(url_for('routes_general.home'))
 
@@ -389,7 +420,7 @@ def settings_measurement():
 @blueprint.route('/change_preferences', methods=('GET', 'POST'))
 @flask_login.login_required
 def change_theme():
-    """ Change theme """
+    """Change theme"""
     if not utils_general.user_has_permission('view_settings'):
         return redirect(url_for('routes_general.home'))
 
@@ -407,7 +438,7 @@ def change_theme():
 @blueprint.route('/settings/users_submit', methods=['POST'])
 @flask_login.login_required
 def settings_users_submit():
-    """ Submit form for User Settings page """
+    """Submit form for User Settings page"""
     messages = {
         "success": [],
         "info": [],
@@ -469,7 +500,7 @@ def settings_users_submit():
 @blueprint.route('/settings/users', methods=('GET', 'POST'))
 @flask_login.login_required
 def settings_users():
-    """ Display user settings """
+    """Display user settings."""
     if not utils_general.user_has_permission('view_settings'):
         return redirect(url_for('routes_general.home'))
 
@@ -521,7 +552,7 @@ def settings_users():
 @blueprint.route('/settings/pi', methods=('GET', 'POST'))
 @flask_login.login_required
 def settings_pi():
-    """ Display general settings """
+    """Display general settings."""
     if not utils_general.user_has_permission('view_settings'):
         return redirect(url_for('routes_general.home'))
 
@@ -562,7 +593,7 @@ def settings_pi():
 @blueprint.route('/settings/diagnostic', methods=('GET', 'POST'))
 @flask_login.login_required
 def settings_diagnostic():
-    """ Display general settings """
+    """Display general settings."""
     if not utils_general.user_has_permission('view_settings'):
         return redirect(url_for('routes_general.home'))
 
@@ -576,8 +607,6 @@ def settings_diagnostic():
             utils_settings.settings_diagnostic_delete_dashboard_elements()
         elif form_settings_diagnostic.delete_inputs.data:
             utils_settings.settings_diagnostic_delete_inputs()
-        elif form_settings_diagnostic.delete_maths.data:
-            utils_settings.settings_diagnostic_delete_maths()
         elif form_settings_diagnostic.delete_notes_tags.data:
             utils_settings.settings_diagnostic_delete_notes_tags()
         elif form_settings_diagnostic.delete_outputs.data:
@@ -592,6 +621,10 @@ def settings_diagnostic():
             utils_settings.settings_diagnostic_reset_email_counter()
         elif form_settings_diagnostic.install_dependencies.data:
             utils_settings.settings_diagnostic_install_dependencies()
+        elif form_settings_diagnostic.regenerate_widget_html.data:
+            utils_settings.settings_regenerate_widget_html()
+        elif form_settings_diagnostic.upgrade_master.data:
+            utils_settings.settings_diagnostic_upgrade_master()
 
         return redirect(url_for('routes_settings.settings_diagnostic'))
 
@@ -600,19 +633,34 @@ def settings_diagnostic():
 
 
 def get_raspi_config_settings():
-    settings = {}
+    settings = {
+        'i2c_enabled': None,
+        'ssh_enabled': None,
+        'pi_camera_enabled': None,
+        'one_wire_enabled': None,
+        'serial_enabled': None,
+        'spi_enabled': None,
+        'hostname': None
+    }
     i2c_status, _, _ = cmd_output("raspi-config nonint get_i2c")
-    settings['i2c_enabled'] = not bool(int(i2c_status))
+    if i2c_status:
+        settings['i2c_enabled'] = not bool(int(i2c_status))
     ssh_status, _, _ = cmd_output("raspi-config nonint get_ssh")
-    settings['ssh_enabled'] = not bool(int(ssh_status))
+    if ssh_status:
+        settings['ssh_enabled'] = not bool(int(ssh_status))
     cam_status, _, _ = cmd_output("raspi-config nonint get_camera")
-    settings['pi_camera_enabled'] = not bool(int(cam_status))
+    if cam_status:
+        settings['pi_camera_enabled'] = not bool(int(cam_status))
     one_wire_status, _, _ = cmd_output("raspi-config nonint get_onewire")
-    settings['one_wire_enabled'] = not bool(int(one_wire_status))
+    if one_wire_status:
+        settings['one_wire_enabled'] = not bool(int(one_wire_status))
     serial_status, _, _ = cmd_output("raspi-config nonint get_serial")
-    settings['serial_enabled'] = not bool(int(serial_status))
+    if serial_status:
+        settings['serial_enabled'] = not bool(int(serial_status))
     spi_status, _, _ = cmd_output("raspi-config nonint get_spi")
-    settings['spi_enabled'] = not bool(int(spi_status))
+    if spi_status:
+        settings['spi_enabled'] = not bool(int(spi_status))
     hostname_out, _, _ = cmd_output("raspi-config nonint get_hostname")
-    settings['hostname'] = hostname_out.decode("utf-8")
+    if hostname_out:
+        settings['hostname'] = hostname_out.decode("utf-8")
     return settings

@@ -12,7 +12,7 @@ logger = logging.getLogger("mycodo.device.lcd_pioled_circuitpython")
 
 
 class PiOLEDCircuitpython:
-    """Output to the PiOLED"""
+    """Output to the PiOLED."""
     def __init__(self, lcd_dev=None, lcd_settings_dict=None, font=None):
         self.disp = None
         self.font = font
@@ -89,7 +89,7 @@ class PiOLEDCircuitpython:
                 "Unable to set up display. Check the LCD settings.")
 
     def lcd_init(self):
-        """ Initialize LCD display """
+        """Initialize LCD display."""
         try:
             self.disp.fill(0)
             self.disp.show()
@@ -108,7 +108,7 @@ class PiOLEDCircuitpython:
                         message_line_6=None,
                         message_line_7=None,
                         message_line_8=None):
-        """ Send strings to display """
+        """Send strings to display."""
         x = 0
         top = -2  # padding
         if not self.font:
@@ -145,5 +145,5 @@ class PiOLEDCircuitpython:
         time.sleep(0.1)
 
     def lcd_backlight(self, state):
-        """ backlight not supported """
+        """backlight not supported."""
         pass

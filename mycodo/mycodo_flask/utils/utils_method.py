@@ -40,42 +40,37 @@ def validate_method_data(form_data, this_method):
         if (not form_data.time_start.data or
                 not form_data.time_end.data or
                 form_data.setpoint_start.data == ''):
-            flash(gettext("Required: Start date/time, end date/time, "
-                          "start setpoint"), "error")
+            flash(f"{gettext('Required')}: {gettext('Start date/time, end date/time, start setpoint')}", "error")
             return 1
         try:
-            start_time = datetime.strptime(form_data.time_start.data,
-                                           '%Y-%m-%d %H:%M:%S')
-            end_time = datetime.strptime(form_data.time_end.data,
-                                         '%Y-%m-%d %H:%M:%S')
+            start_time = datetime.strptime(
+                form_data.time_start.data, '%Y-%m-%d %H:%M:%S')
+            end_time = datetime.strptime(
+                form_data.time_end.data, '%Y-%m-%d %H:%M:%S')
         except ValueError:
-            flash(gettext("Invalid Date/Time format. Correct format: "
-                          "MM/DD/YYYY HH:MM:SS"), "error")
+            flash(f'{gettext("Invalid Date/Time format")}. {gettext("Required")}: {gettext("YYYY/MM/DD HH:MM:SS")}',
+                  "error")
             return 1
         if end_time <= start_time:
-            flash(gettext("The end time/date must be after the start "
-                          "time/date."), "error")
+            flash(gettext("The end time must be after the start time."), "error")
             return 1
 
     elif this_method.method_type == 'Daily':
         if (not form_data.daily_time_start.data or
                 not form_data.daily_time_end.data or
                 form_data.setpoint_start.data == ''):
-            flash(gettext("Required: Start time, end time, start "
-                          "setpoint"), "error")
+            flash(f"{gettext('Required')}: {gettext('Start time, end time, start setpoint')}", "error")
             return 1
         try:
-            start_time = datetime.strptime(form_data.daily_time_start.data,
-                                           '%H:%M:%S')
-            end_time = datetime.strptime(form_data.daily_time_end.data,
-                                         '%H:%M:%S')
+            start_time = datetime.strptime(
+                form_data.daily_time_start.data, '%H:%M:%S')
+            end_time = datetime.strptime(
+                form_data.daily_time_end.data, '%H:%M:%S')
         except ValueError:
-            flash(gettext("Invalid Date/Time format. Correct format: "
-                          "HH:MM:SS"), "error")
+            flash(f'{gettext("Invalid Date/Time format")}. {gettext("Required")}: {gettext("HH:MM:SS")}', "error")
             return 1
         if end_time <= start_time:
-            flash(gettext("The end time must be after the start time."),
-                  "error")
+            flash(gettext("The end time must be after the start time."), "error")
             return 1
 
     elif this_method.method_type == 'Duration':
@@ -90,18 +85,18 @@ def validate_method_data(form_data, this_method):
         except Exception:
             pass
         if not form_data.duration.data:
-            flash(gettext("Required: Duration"), "error")
+            flash(f"{gettext('Required')}: {gettext('Duration')}", "error")
             return 1
         elif not is_positive_integer(form_data.duration.data):
-            flash(gettext("Required: Duration must be positive"), "error")
+            flash(f"{gettext('Required')}: {gettext('Duration must be positive')}", "error")
             return 1
         if form_data.setpoint_start.data is None:
-            flash(gettext("Required: Start Setpoint"), "error")
+            flash(f"{gettext('Required')}: {gettext('Start Setpoint')}", "error")
             return 1
 
 
 def method_create(form_create_method):
-    """ Create new method table entry (all data stored in method_data table) """
+    """Create new method table entry (all data stored in method_data table)"""
     action = '{action} {controller}'.format(
         action=TRANSLATIONS['add']['title'],
         controller=TRANSLATIONS['method']['title'])
@@ -111,7 +106,7 @@ def method_create(form_create_method):
     if dep_unmet:
         list_unmet_deps = []
         for each_dep in dep_unmet:
-            list_unmet_deps.append(each_dep[0])
+            list_unmet_deps.append(each_dep[3])
         error.append(
             "The {dev} device you're trying to add has unmet dependencies: "
             "{dep}".format(dev=form_create_method.method_type.data,
@@ -122,14 +117,16 @@ def method_create(form_create_method):
         new_method = Method()
         new_method.name = form_create_method.name.data
         new_method.method_type = form_create_method.method_type.data
-        db.session.add(new_method)
-        db.session.commit()
 
-        # Add new method line id to method display order
-        method_order = DisplayOrder.query.first()
-        display_order = csv_to_list_of_str(method_order.method)
-        method_order.method = add_display_order(display_order, new_method.unique_id)
-        db.session.commit()
+        if not error:
+            db.session.add(new_method)
+            db.session.commit()
+
+            # Add new method line id to method display order
+            method_order = DisplayOrder.query.first()
+            display_order = csv_to_list_of_str(method_order.method)
+            method_order.method = add_display_order(display_order, new_method.unique_id)
+            db.session.commit()
 
         # Add new method data line id to method_data display order
         if new_method.method_type in ['DailyBezier', 'DailySine']:
@@ -156,15 +153,16 @@ def method_create(form_create_method):
                 new_method_data.x3 = 0.0
                 new_method_data.y3 = 20.0
 
-            db.session.add(new_method_data)
-            db.session.commit()
+            if not error:
+                db.session.add(new_method_data)
+                db.session.commit()
 
-            display_order = csv_to_list_of_str(new_method.method_order)
-            method = Method.query.filter(
-                Method.unique_id == new_method.unique_id).first()
-            method.method_order = add_display_order(
-                display_order, new_method_data.unique_id)
-            db.session.commit()
+                display_order = csv_to_list_of_str(new_method.method_order)
+                method = Method.query.filter(
+                    Method.unique_id == new_method.unique_id).first()
+                method.method_order = add_display_order(
+                    display_order, new_method_data.unique_id)
+                db.session.commit()
     except Exception as except_msg:
         error.append(except_msg)
 
@@ -175,7 +173,7 @@ def method_create(form_create_method):
 
 
 def method_add(form_add_method):
-    """ Add line to method_data table """
+    """Add line to method_data table"""
     action = '{action} {controller}'.format(
         action=TRANSLATIONS['add']['title'],
         controller=TRANSLATIONS['method']['title'])

@@ -44,9 +44,6 @@ from .function import Function
 from .function import Trigger
 from .input import Input
 from .input import InputChannel
-from .lcd import LCD
-from .lcd import LCDData
-from .math import Math
 from .measurement import Conversion
 from .measurement import DeviceMeasurements
 from .measurement import Measurement
@@ -67,10 +64,10 @@ from .user import User
 
 
 def alembic_upgrade_db():
-    """Upgrade sqlite3 database with alembic"""
+    """Upgrade sqlite3 database with alembic."""
 
     def upgrade_alembic():
-        """ Run alembic database upgrade """
+        """Run alembic database upgrade."""
         command = '/bin/bash {path}/mycodo/scripts/upgrade_commands.sh update-alembic'.format(path=INSTALL_DIRECTORY)
         upgrade = subprocess.Popen(
             command, stdout=subprocess.PIPE, shell=True)
@@ -114,19 +111,12 @@ def init_db():
     """
     Binds the database to the specific class tables
     and creates them if needed
-
-    :param db_uri:  URI to the database
-    :return: None
     """
     db.create_all()
 
 
 def drop_db():
-    """
-    Remove all entries in the database
-    :param db_uri: URI to the database
-    :return: None
-    """
+    """Remove all entries in the database."""
     db.drop_all()
 
 

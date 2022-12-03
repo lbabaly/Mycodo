@@ -43,7 +43,8 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('apt', 'ow-shell', 'ow-shell')
+        ('apt', 'ow-shell', 'ow-shell'),
+        ('apt', 'owfs', 'owfs')
     ],
 
     'interfaces': ['1WIRE'],
@@ -58,23 +59,23 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that monitors the DS18B20's temperature """
+    """A sensor support class that monitors the DS18B20's temperature."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.location = None
         self.resolution = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.location = self.input_dev.location
         self.resolution = self.input_dev.resolution
 
     def get_measurement(self):
-        """ Gets the DS18B20's temperature in Celsius """
+        """Gets the DS18B20's temperature in Celsius."""
         self.return_dict = copy.deepcopy(measurements_dict)
 
         temperature = None
@@ -92,12 +93,14 @@ class InputModule(AbstractInput):
                     str_temperature = 'temperature12'
                 try:
                     command = 'owread /{id}/{temp}; echo'.format(id=self.location, temp=str_temperature)
+                    self.logger.debug(f"Command: {command}")
                     owread = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
                     (owread_output, _) = owread.communicate()
                     owread.wait()
                     if owread_output:
                         self.logger.debug("Output: '{}'".format(owread_output))
                         temperature = float(owread_output.decode("latin1"))
+                        break
                 except Exception:
                     self.logger.exception("Obtaining measurement")
             except Exception as e:

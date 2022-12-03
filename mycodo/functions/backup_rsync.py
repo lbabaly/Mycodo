@@ -70,16 +70,16 @@ FUNCTION_INFORMATION = {
             'default_value': 1296000,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('Period (seconds)'),
-            'phrase': lazy_gettext('The duration (seconds) between measurements or actions')
+            'name': "{} ({})".format(lazy_gettext('Period'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The duration between measurements or actions')
         },
         {
             'id': 'start_offset',
             'type': 'integer',
             'default_value': 300,
             'required': True,
-            'name': 'Start Offset',
-            'phrase': 'The duration (seconds) to wait before the first operation'
+            'name': "{} ({})".format(lazy_gettext('Start Offset'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The duration to wait before the first operation')
         },
         {
             'id': 'local_user',
@@ -119,8 +119,16 @@ FUNCTION_INFORMATION = {
             'default_value': 3600,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': 'Rsync Timeout',
-            'phrase': 'How long to allow rsync to complete (seconds)'
+            'name': 'Rsync Timeout (Seconds)',
+            'phrase': 'How long to allow rsync to complete'
+        },
+        {
+            'id': 'local_backup_path',
+            'type': 'text',
+            'default_value': '',
+            'required': True,
+            'name': 'Local Backup Path',
+            'phrase': 'A local path to backup (leave blank to disable)'
         },
         {
             'id': 'do_backup_settings',
@@ -180,7 +188,7 @@ FUNCTION_INFORMATION = {
         }
     ],
 
-    'custom_actions': [
+    'custom_commands': [
         {
             'type': 'message',
             'default_value': 'Backup of settings are only created if the Mycodo version or database versions change. This is due to this Function running periodically- if it created a new backup every Period, there would soon be many identical backups. Therefore, if you want to induce the backup of settings, measurements, or camera directories and sync them to your remote system, use the buttons below.',
@@ -216,7 +224,7 @@ class CustomModule(AbstractFunction):
     """
 
     def __init__(self, function, testing=False):
-        super(CustomModule, self).__init__(function, testing=testing, name=__name__)
+        super().__init__(function, testing=testing, name=__name__)
 
         self.is_setup = False
         self.timer_loop = time.time()
@@ -230,6 +238,7 @@ class CustomModule(AbstractFunction):
         self.remote_host = None
         self.remote_backup_path = None
         self.rsync_timeout = None
+        self.local_backup_path = None
         self.do_backup_settings = None
         self.backup_remove_settings_archives = None
         self.do_backup_measurements = None
@@ -245,9 +254,9 @@ class CustomModule(AbstractFunction):
             FUNCTION_INFORMATION['custom_options'], custom_function)
 
         if not testing:
-            self.initialize_variables()
+            self.try_initialize()
 
-    def initialize_variables(self):
+    def initialize(self):
         self.timer_loop = time.time() + self.start_offset
 
         self.logger.debug(
@@ -272,6 +281,9 @@ class CustomModule(AbstractFunction):
             self.logger.error("Cannot run: Not all options are set")
             return
 
+        if self.local_backup_path:
+            self.local_backup()
+
         if self.do_backup_settings:
             self.backup_settings()
 
@@ -280,6 +292,20 @@ class CustomModule(AbstractFunction):
 
         if self.do_backup_cameras:
             self.backup_camera()
+
+    def local_backup(self):
+        rsync_cmd = "rsync -avz -e 'ssh -p {port}' {path_local} {user}@{host}:{remote_path}".format(
+            port=self.ssh_port,
+            path_local=self.local_backup_path,
+            user=self.remote_user,
+            host=self.remote_host,
+            remote_path=self.remote_backup_path)
+
+        self.logger.debug("rsync command: {}".format(rsync_cmd))
+        cmd_out, cmd_err, cmd_status = cmd_output(
+            rsync_cmd, timeout=self.rsync_timeout, user=self.local_user)
+        self.logger.debug("rsync returned:\nOut: {}\nError: {}\nStatus: {}".format(
+            cmd_out.decode(), cmd_err.decode(), cmd_status))
 
     def backup_settings(self):
         filename = 'Mycodo_{mver}_Settings_{aver}_{host}_{dt}.zip'.format(

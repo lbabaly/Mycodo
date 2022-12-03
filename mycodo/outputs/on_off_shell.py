@@ -27,7 +27,7 @@ channels_dict = {
 # Output information
 OUTPUT_INFORMATION = {
     'output_name_unique': 'command',
-    'output_name': "Shell Script: {}".format(lazy_gettext('On/Off')),
+    'output_name': "{}: Shell Script".format(lazy_gettext('On/Off')),
     'output_library': 'subprocess.Popen',
     'measurements_dict': measurements_dict,
     'channels_dict': channels_dict,
@@ -40,9 +40,6 @@ OUTPUT_INFORMATION = {
         'button_on',
         'button_send_duration'
     ],
-    'options_disabled': ['interface'],
-
-    'interfaces': ['SHELL'],
 
     'custom_channel_options': [
         {
@@ -68,7 +65,7 @@ OUTPUT_INFORMATION = {
             'type': 'text',
             'default_value': 'mycodo',
             'name': lazy_gettext('User'),
-            'phrase': 'The user to execute the command'
+            'phrase': lazy_gettext('The user to execute the command')
         },
         {
             'id': 'state_startup',
@@ -113,7 +110,7 @@ OUTPUT_INFORMATION = {
             'type': 'float',
             'default_value': 0.0,
             'required': True,
-            'name': lazy_gettext('Current (Amps)'),
+            'name': "{} ({})".format(lazy_gettext('Current'), lazy_gettext('Amps')),
             'phrase': 'The current draw of the device being controlled'
         }
     ]
@@ -121,26 +118,32 @@ OUTPUT_INFORMATION = {
 
 
 class OutputModule(AbstractOutput):
-    """
-    An output support class that operates an output
-    """
+    """An output support class that operates an output."""
     def __init__(self, output, testing=False):
-        super(OutputModule, self).__init__(output, testing=testing, name=__name__)
+        super().__init__(output, testing=testing, name=__name__)
 
         output_channels = db_retrieve_table_daemon(
             OutputChannel).filter(OutputChannel.output_id == self.output.unique_id).all()
         self.options_channels = self.setup_custom_channel_options_json(
             OUTPUT_INFORMATION['custom_channel_options'], output_channels)
 
-    def setup_output(self):
+    def initialize(self):
         self.setup_output_variables(OUTPUT_INFORMATION)
 
         if self.options_channels['on_command'][0] and self.options_channels['off_command'][0]:
             self.output_setup = True
             if self.options_channels['state_startup'][0] == 1:
-                self.output_switch('on')
+                self.output_switch('on', output_channel=0)
             elif self.options_channels['state_startup'][0] == 0:
-                self.output_switch('off')
+                self.output_switch('off', output_channel=0)
+
+            if (self.options_channels['state_startup'][0] in [0, 1] and
+                    self.options_channels['trigger_functions_startup'][0]):
+                try:
+                    self.check_triggers(self.unique_id, output_channel=0)
+                except Exception as err:
+                    self.logger.error(
+                        f"Could not check Trigger for channel 0 of output {self.unique_id}: {err}")
         else:
             self.logger.error("Output must have both On and Off commands set")
 
@@ -174,7 +177,7 @@ class OutputModule(AbstractOutput):
         return self.output_setup
 
     def stop_output(self):
-        """ Called when Output is stopped """
+        """Called when Output is stopped."""
         if self.is_setup():
             if self.options_channels['state_shutdown'][0] == 1:
                 self.output_switch('on')

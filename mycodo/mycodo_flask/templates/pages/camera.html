@@ -15,7 +15,7 @@
       "debug": false,
       "newestOnTop": false,
       "progressBar": false,
-      "positionClass": "toast-top-right",
+      "positionClass": "toast-top-left",
       "preventDuplicates": false,
       "onclick": null,
       "showDuration": "300",
@@ -34,7 +34,7 @@
       if (submitter_btn.attr("name") === 'camera_mod' ||
           submitter_btn.attr("name") === 'camera_del' ||
           submitter_btn.attr("name") === 'timelapse_generate') {
-        toastr['info']('Command sent. Please wait...');
+            {% if not misc.hide_alert_info %}toastr['info']('Command sent. Please wait...');{% endif %}
         $.ajax({
           type: "POST",
           url: '/camera_submit',
@@ -49,15 +49,21 @@
                   $('#camera_' + data.data.camera_id).hide('slow');
                   $('#spacer_' + data.data.camera_id).hide('slow');
               }
+              {% if not misc.hide_alert_warning %}
               if ('warning' in data.data.messages && data.data.messages.warning.length !== 0) {
                 toastr['warning']('Warning: ' + data.data.messages.warning.join(", "));
               }
+              {% endif %}
+              {% if not misc.hide_alert_info %}
               if ('info' in data.data.messages && data.data.messages.info.length !== 0) {
                 toastr['info']('Info: ' + data.data.messages.info.join(", "));
               }
+              {% endif %}
+              {% if not misc.hide_alert_success %}
               if ('success' in data.data.messages && data.data.messages.success.length !== 0) {
                 toastr['success']('Success: ' + data.data.messages.success.join(", "));
               }
+              {% endif %}
             } else {
               toastr['error']('Error: ' + data.data.messages.error.join(", "));
             }
@@ -302,9 +308,14 @@
             <input id="hide_timelapse" name="hide_timelapse" type="checkbox" value="y"{% if each_camera.hide_timelapse %} checked{% endif %}>
           </div>
         </div>
-
-      {% include 'pages/camera_options/' + each_camera.library + '.html' %}
-
+      {% set template_file = 'pages/camera_options/'+each_camera.library+'.html' %}
+      {% if template_exists(template_file) %}
+        {% include template_file %}
+      {% else %}
+        <div class="col-auto">
+          Error: Template {{template_file}} doesn't exist.
+        </div>
+      {% endif %}
       </div>
     </div>
 
@@ -325,7 +336,7 @@
         <br/>Start time: {{epoch_to_time_string(each_camera.timelapse_start_time)}}
         <br/>End time: {{epoch_to_time_string(each_camera.timelapse_end_time)}}
         <br/>Interval: {{each_camera.timelapse_interval}} seconds
-        <br/>Next Capture: {{epoch_to_time_string(each_camera.timelapse_next_capture)}}
+        <br/>Next capture: {{epoch_to_time_string(each_camera.timelapse_next_capture)}}
         <br/>Next capture number: {{each_camera.timelapse_capture_number}}
       </div>
     {% endif %}

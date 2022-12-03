@@ -16,7 +16,6 @@ from mycodo.databases.models import CustomController
 from mycodo.databases.models import Dashboard
 from mycodo.databases.models import DeviceMeasurements
 from mycodo.databases.models import Input
-from mycodo.databases.models import Math
 from mycodo.databases.models import Output
 from mycodo.databases.models import PID
 from mycodo.databases.models import Widget
@@ -37,14 +36,14 @@ logger = logging.getLogger(__name__)
 #
 
 def dashboard_add():
-    """Add a dashboard"""
+    """Add a dashboard."""
     error = []
 
     last_dashboard = Dashboard.query.order_by(
         Dashboard.id.desc()).first()
 
     new_dash = Dashboard()
-    new_dash.name = '{} {}'.format(TRANSLATIONS['dashboard']['title'], last_dashboard.id + 1)
+    new_dash.name = f"{TRANSLATIONS['dashboard']['title']} {last_dashboard.id + 1}"
 
     if not error:
         new_dash.save()
@@ -57,7 +56,7 @@ def dashboard_add():
 
 
 def dashboard_mod(form):
-    """Modify a dashboard"""
+    """Modify a dashboard."""
     action = '{action} {controller}'.format(
         action=TRANSLATIONS['modify']['title'],
         controller=TRANSLATIONS['dashboard']['title'])
@@ -81,7 +80,7 @@ def dashboard_mod(form):
 
 
 def dashboard_lock(dashboard_id, lock):
-    """Lock a dashboard"""
+    """Lock a dashboard."""
     action = '{action} {controller}'.format(
         action=TRANSLATIONS['lock']['title'],
         controller=TRANSLATIONS['dashboard']['title'])
@@ -105,7 +104,7 @@ def dashboard_lock(dashboard_id, lock):
 
 
 def dashboard_copy(form):
-    """Duplicate a dashboard and its widgets"""
+    """Duplicate a dashboard and its widgets."""
     action = '{action} {controller}'.format(
         action=TRANSLATIONS['duplicate']['title'],
         controller=TRANSLATIONS['dashboard']['title'])
@@ -134,7 +133,7 @@ def dashboard_copy(form):
 
 
 def dashboard_del(form):
-    """Delete a dashboard"""
+    """Delete a dashboard."""
     action = '{action} {controller}'.format(
         action=TRANSLATIONS['delete']['title'],
         controller=TRANSLATIONS['dashboard']['title'])
@@ -161,7 +160,7 @@ def dashboard_del(form):
 #
 
 def widget_add(form_base, request_form):
-    """Add a widget to the dashboard"""
+    """Add a widget to the dashboard."""
     action = '{action} {controller}'.format(
         action=TRANSLATIONS['add']['title'],
         controller=TRANSLATIONS['widget']['title'])
@@ -182,7 +181,7 @@ def widget_add(form_base, request_form):
         if dep_unmet:
             list_unmet_deps = []
             for each_dep in dep_unmet:
-                list_unmet_deps.append(each_dep[0])
+                list_unmet_deps.append(each_dep[3])
             error.append("The {dev} device you're trying to add has unmet dependencies: {dep}".format(
                 dev=widget_name, dep=', '.join(list_unmet_deps)))
 
@@ -236,28 +235,29 @@ def widget_add(form_base, request_form):
 
             register_widget_endpoints()
 
-            # Refresh widget settings
-            control = DaemonControl()
-            control.widget_add_refresh(new_widget.unique_id)
+            if not current_app.config['TESTING']:
+                # Refresh widget settings
+                control = DaemonControl()
+                control.widget_add_refresh(new_widget.unique_id)
 
             flash(gettext(
                 "{dev} with ID %(id)s successfully added".format(
                     dev=dict_widgets[form_base.widget_type.data]['widget_name']),
                 id=new_widget.id),
                 "success")
-        else:
-            for each_error in error:
-                flash(each_error, "error")
     except sqlalchemy.exc.OperationalError as except_msg:
         error.append(except_msg)
     except sqlalchemy.exc.IntegrityError as except_msg:
         error.append(except_msg)
 
+    for each_error in error:
+        flash(each_error, "error")
+
     return dep_unmet
 
 
 def widget_mod(form_base, request_form):
-    """Modify the settings of an item on the dashboard"""
+    """Modify the settings of an item on the dashboard."""
     action = '{action} {controller}'.format(
         action=TRANSLATIONS['modify']['title'],
         controller=TRANSLATIONS['widget']['title'])
@@ -313,7 +313,7 @@ def widget_mod(form_base, request_form):
 
 
 def widget_del(form_base):
-    """Delete a widget from a dashboard"""
+    """Delete a widget from a dashboard."""
     action = '{action} {controller}'.format(
         action=TRANSLATIONS['delete']['title'],
         controller=TRANSLATIONS['widget']['title'])
@@ -343,7 +343,7 @@ def widget_del(form_base):
 
 
 def graph_y_axes_async(dict_measurements, ids_measures):
-    """ Determine which y-axes to use for each Graph """
+    """Determine which y-axes to use for each Graph."""
     if not ids_measures:
         return
 
@@ -352,11 +352,10 @@ def graph_y_axes_async(dict_measurements, ids_measures):
     function = CustomController.query.all()
     device_measurements = DeviceMeasurements.query.all()
     input_dev = Input.query.all()
-    math = Math.query.all()
     output = Output.query.all()
     pid = PID.query.all()
 
-    devices_list = [input_dev, math, output, pid]
+    devices_list = [input_dev, output, pid]
 
     # Iterate through device tables
     for each_device in devices_list:
@@ -418,7 +417,6 @@ def graph_y_axes_async(dict_measurements, ids_measures):
                                                 device_measurements,
                                                 input_dev,
                                                 output,
-                                                math,
                                                 function)
 
                 elif len(each_id_measure.split(',')) == 3:
@@ -439,7 +437,6 @@ def graph_y_axes_async(dict_measurements, ids_measures):
                                                 device_measurements,
                                                 input_dev,
                                                 output,
-                                                math,
                                                 function,
                                                 unit=unit)
 
@@ -454,12 +451,11 @@ def check_func(all_devices,
                device_measurements,
                input_dev,
                output,
-               math,
                function,
                unit=None):
     """
     Generate a list of y-axes
-    :param all_devices: Input, Math, Output, and PID SQL entries of a table
+    :param all_devices: Input, Output, and PID SQL entries of a table
     :param unique_id: The ID of the measurement
     :param y_axes: empty list to populate
     :param measurement:
@@ -467,7 +463,6 @@ def check_func(all_devices,
     :param device_measurements:
     :param input_dev:
     :param output:
-    :param math:
     :param function
     :param unit:
     :return: None
@@ -479,7 +474,7 @@ def check_func(all_devices,
         if each_device.unique_id == unique_id:
 
             use_unit = use_unit_generate(
-                device_measurements, input_dev, output, math, function)
+                device_measurements, input_dev, output, function)
 
             # Add duration
             if measurement == 'duration_time':

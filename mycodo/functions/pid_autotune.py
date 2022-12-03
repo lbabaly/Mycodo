@@ -26,7 +26,7 @@ import time
 
 from flask_babel import lazy_gettext
 
-from mycodo.config import SQL_DATABASE_MYCODO
+from mycodo.config import MYCODO_DB_PATH
 from mycodo.databases.models import CustomController
 from mycodo.databases.utils import session_scope
 from mycodo.functions.base_function import AbstractFunction
@@ -35,7 +35,6 @@ from mycodo.utils.PID_hirschmann.pid_autotune import PIDAutotune
 from mycodo.utils.constraints_pass import constraints_pass_positive_value
 from mycodo.utils.database import db_retrieve_table_daemon
 
-MYCODO_DB_PATH = 'sqlite:///' + SQL_DATABASE_MYCODO
 
 FUNCTION_INFORMATION = {
     'function_name_unique': 'pid_autotune',
@@ -64,7 +63,6 @@ FUNCTION_INFORMATION = {
             'required': True,
             'options_select': [
                 'Input',
-                'Math',
                 'Function'
             ],
             'name': lazy_gettext('Measurement'),
@@ -140,7 +138,7 @@ class CustomModule(AbstractFunction):
     Class to operate custom controller
     """
     def __init__(self, function, testing=False):
-        super(CustomModule, self).__init__(function, testing=testing, name=__name__)
+        super().__init__(function, testing=testing, name=__name__)
 
         self.autotune = None
         self.autotune_active = None
@@ -172,9 +170,9 @@ class CustomModule(AbstractFunction):
         self.output_channel = self.get_output_channel_from_channel_id(self.output_channel_id)
 
         if not testing:
-            self.initialize_variables()
+            self.try_initialize()
 
-    def initialize_variables(self):
+    def initialize(self):
         self.timestamp = time.time()
         self.autotune = PIDAutotune(
             self.setpoint,

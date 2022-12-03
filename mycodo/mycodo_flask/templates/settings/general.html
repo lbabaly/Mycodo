@@ -16,7 +16,7 @@
       "debug": false,
       "newestOnTop": false,
       "progressBar": false,
-      "positionClass": "toast-top-right",
+      "positionClass": "toast-top-left",
       "preventDuplicates": false,
       "onclick": null,
       "showDuration": "300",
@@ -44,15 +44,21 @@
               + submitter_btn.attr("value"),
           success: function (data) {
             if (data.data.messages.error.length === 0) {
+              {% if not misc.hide_alert_warning %}
               if ('warning' in data.data.messages && data.data.messages.warning.length !== 0) {
                 toastr['warning']('Warning: ' + data.data.messages.warning.join(", "));
               }
+              {% endif %}
+              {% if not misc.hide_alert_info %}
               if ('info' in data.data.messages && data.data.messages.info.length !== 0) {
                 toastr['info']('Info: ' + data.data.messages.info.join(", "));
               }
+              {% endif %}
+              {% if not misc.hide_alert_success %}
               if ('success' in data.data.messages && data.data.messages.success.length !== 0) {
                 toastr['success']('Success: ' + data.data.messages.success.join(", "));
               }
+              {% endif %}
             } else {
               toastr['error']('Error: ' + data.data.messages.error.join(", "));
             }
@@ -199,9 +205,62 @@
           &nbsp;&nbsp;{{_('Check if you do not wish to send anonymous usage statistics.')}} <a href="/admin/statistics">{{_('View collected statistics')}}</a>
         </div>
       </div>
+
       <div class="form-group">
         <div class="col-sm-12">
-          <h3>Dashboard Options</h3>
+          <h3>Time Series Database Settings</h3>
+          A properly-configured time series database is required for Mycodo to function and is used to store and query measurements.
+        </div>
+      </div>
+      <div class="form-group">
+        {{form_settings_general.use_database.label(class_='col-sm-12 control-label checkbox-nopad')}}
+        <div class="col-sm-12">
+          <select class="form-control form-tooltip form-dropdown" id="use_database" name="use_database" title="">
+            <option value="influxdb_1"{% if misc.measurement_db_name == 'influxdb' and misc.measurement_db_version == '1' %} selected{% endif %}>Influxdb 1.x</option>
+            <option value="influxdb_2"{% if misc.measurement_db_name == 'influxdb' and misc.measurement_db_version == '2' %} selected{% endif %}>Influxdb 2.x</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        {{form_settings_general.measurement_db_retention_policy.label(class_='col-sm-12 control-label checkbox-nopad')}}
+        <div class="col-sm-12">
+          {{form_settings_general.measurement_db_retention_policy(class_='form-control', value=misc.measurement_db_retention_policy)}}
+        </div>
+      </div>
+      <div class="form-group">
+        {{form_settings_general.measurement_db_host.label(class_='col-sm-12 control-label checkbox-nopad')}}
+        <div class="col-sm-12">
+          {{form_settings_general.measurement_db_host(class_='form-control', value=misc.measurement_db_host)}}
+        </div>
+      </div>
+      <div class="form-group">
+        {{form_settings_general.measurement_db_port.label(class_='col-sm-12 control-label checkbox-nopad')}}
+        <div class="col-sm-12">
+          {{form_settings_general.measurement_db_port(class_='form-control', value=misc.measurement_db_port)}}
+        </div>
+      </div>
+      <div class="form-group">
+        {{form_settings_general.measurement_db_dbname.label(class_='col-sm-12 control-label checkbox-nopad')}}
+        <div class="col-sm-12">
+          {{form_settings_general.measurement_db_dbname(class_='form-control', value=misc.measurement_db_dbname)}}
+        </div>
+      </div>
+      <div class="form-group">
+        {{form_settings_general.measurement_db_user.label(class_='col-sm-12 control-label checkbox-nopad')}}
+        <div class="col-sm-12">
+          {{form_settings_general.measurement_db_user(class_='form-control', value=misc.measurement_db_user)}}
+        </div>
+      </div>
+      <div class="form-group">
+        {{form_settings_general.measurement_db_password.label(class_='col-sm-12 control-label checkbox-nopad')}}
+        <div class="col-sm-12">
+          {{form_settings_general.measurement_db_password(class_='form-control', **{'title':"Only enter a password to change the saved password"})}}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <div class="col-sm-12">
+          <h3>Dashboard Settings</h3>
         </div>
       </div>
       <div class="form-group">
@@ -212,7 +271,7 @@
       </div>
       <div class="form-group">
         <div class="col-sm-12">
-          <h3>Upgrade Options</h3>
+          <h3>Upgrade Settings</h3>
         </div>
       </div>
       <div class="form-group">
@@ -246,7 +305,7 @@
       </div>
       <div class="form-group">
         <div class="col-sm-12">
-          <h3>{{dict_translation['energy_usage']['title']}}</h3>
+          <h3>{{dict_translation['energy_usage']['title']}} Settings</h3>
         </div>
       </div>
       <div class="form-group">
@@ -287,7 +346,7 @@
           {%- else -%}
             {{form_settings_general.output_usage_report_gen()}}
           {%- endif -%}
-          &nbsp;&nbsp;{{_('Automatically generate output usage reports on a daily/weekly/monthly schedule')}}
+          &nbsp;&nbsp;{{_('Automatically generate output usage reports on a daily/weekly/monthly schedule')}}. Saved to {{report_path}}.
         </div>
       </div>
       <div class="form-group">
@@ -312,6 +371,50 @@
           {{form_settings_general.output_usage_report_hour(class_='form-control', value=misc.output_usage_report_hour, **{'title':_('Hour Options: 0-23')})}}
         </div>
       </div>
+
+      <div class="form-group">
+        <div class="col-sm-12">
+          <h3>Controller Sample Rate Settings</h3>
+          The sample rates of Mycodo daemon controllers can be changed below. Note that the daemon will need to be restarted after saving in order for the new options to take effect. Select Config [Gear Icon] -> Restart Backend to restart the daemon.
+        </div>
+      </div>
+      <div class="form-group">
+        {{form_settings_general.sample_rate_controller_conditional.label(class_='col-sm-12 control-label')}}
+        <div class="col-sm-12">
+          {{form_settings_general.sample_rate_controller_conditional(class_='form-control', value=misc.sample_rate_controller_conditional)}}
+        </div>
+      </div>
+      <div class="form-group">
+        {{form_settings_general.sample_rate_controller_function.label(class_='col-sm-12 control-label')}}
+        <div class="col-sm-12">
+          {{form_settings_general.sample_rate_controller_function(class_='form-control', value=misc.sample_rate_controller_function)}}
+        </div>
+      </div>
+      <div class="form-group">
+        {{form_settings_general.sample_rate_controller_input.label(class_='col-sm-12 control-label')}}
+        <div class="col-sm-12">
+          {{form_settings_general.sample_rate_controller_input(class_='form-control', value=misc.sample_rate_controller_input)}}
+        </div>
+      </div>
+      <div class="form-group">
+        {{form_settings_general.sample_rate_controller_output.label(class_='col-sm-12 control-label')}}
+        <div class="col-sm-12">
+          {{form_settings_general.sample_rate_controller_output(class_='form-control', value=misc.sample_rate_controller_output)}}
+        </div>
+      </div>
+      <div class="form-group">
+        {{form_settings_general.sample_rate_controller_pid.label(class_='col-sm-12 control-label')}}
+        <div class="col-sm-12">
+          {{form_settings_general.sample_rate_controller_pid(class_='form-control', value=misc.sample_rate_controller_pid)}}
+        </div>
+      </div>
+      <div class="form-group">
+        {{form_settings_general.sample_rate_controller_widget.label(class_='col-sm-12 control-label')}}
+        <div class="col-sm-12">
+          {{form_settings_general.sample_rate_controller_widget(class_='form-control', value=misc.sample_rate_controller_widget)}}
+        </div>
+      </div>
+
       <div class="form-group">
         <div class="col-sm-offset-4 col-sm-12">
           {{form_settings_general.settings_general_save(class_='btn btn-primary')}}

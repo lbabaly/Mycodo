@@ -39,13 +39,14 @@ INPUT_INFORMATION = {
     'input_name_unique': 'TH16_10_Generic',
     'input_manufacturer': 'Sonoff',
     'input_name': 'TH16/10 (Tasmota firmware) with AM2301/Si7021',
+    'input_name_short': 'TH16/10 + AM2301/Si7021',
     'input_library': 'requests',
     'measurements_name': 'Humidity/Temperature',
     'measurements_dict': measurements_dict,
     'url_manufacturer': 'https://sonoff.tech/product/wifi-diy-smart-switches/th10-th16',
     'measurements_use_same_timestamp': False,
 
-    'message': "This Input module allows the use of any temperature/huidity sensor with the TH10/TH16. Changing the Sensor Name option changes the key that's queried from the returned dictionary of measurements. If you would like to use this module with a version of this device that uses the AM2301, change Sensor Name to AM2301.",
+    'message': "This Input module allows the use of any temperature/humidity sensor with the TH10/TH16. Changing the Sensor Name option changes the key that's queried from the returned dictionary of measurements. If you would like to use this module with a version of this device that uses the AM2301, change Sensor Name to AM2301.",
 
     'options_enabled': [
         'measurements_select',
@@ -81,7 +82,7 @@ INPUT_INFORMATION = {
 
 class InputModule(AbstractInput):
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.ip_address = None
         self.sensor_name = None

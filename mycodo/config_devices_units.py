@@ -45,8 +45,12 @@ MEASUREMENTS = {
         'name': lazy_gettext('Boolean'),
         'meas': 'boolean',
         'units': ['bool']},
+    'brightness': {
+        'name': lazy_gettext('Brightness'),
+        'meas': 'brightness',
+        'units': ['percent']},
     'co2': {
-        'name': lazy_gettext('CO2'),
+        'name': lazy_gettext('Carbon Dioxide'),
         'meas': 'co2',
         'units': ['ppm', 'ppb', 'percent']},
     'color_red': {
@@ -61,6 +65,10 @@ MEASUREMENTS = {
         'name': "{} ({})".format(lazy_gettext('Color'), lazy_gettext('Blue')),
         'meas': 'color_blue',
         'units': ['eight_bit_color']},
+    'color_temperature': {
+        'name': lazy_gettext('Color Temperature'),
+        'meas': 'color_temperature',
+        'units': ['K']},
     'color_x': {
         'name': "{} (x)".format(lazy_gettext('Color')),
         'meas': 'color_x',
@@ -74,15 +82,15 @@ MEASUREMENTS = {
         'meas': 'color_Y',
         'units': ['cie']},
     'cpu_load_1m': {
-        'name': "{} (1 {})".format(lazy_gettext('CPU Load'), lazy_gettext('min')),
+        'name': "{} (1 {})".format(lazy_gettext('CPU Load'), lazy_gettext('Minute')),
         'meas': 'cpu_load',
         'units': ['cpu_load']},
     'cpu_load_5m': {
-        'name': "{} (5 {})".format(lazy_gettext('CPU Load'), lazy_gettext('min')),
+        'name': "{} (5 {})".format(lazy_gettext('CPU Load'), lazy_gettext('Minutes')),
         'meas': 'cpu_load',
         'units': ['cpu_load']},
     'cpu_load_15m': {
-        'name': "{} (15 {})".format(lazy_gettext('CPU Load'), lazy_gettext('min')),
+        'name': "{} (15 {})".format(lazy_gettext('CPU Load'), lazy_gettext('Minutes')),
         'meas': 'cpu_load',
         'units': ['cpu_load']},
     'dewpoint': {
@@ -137,10 +145,14 @@ MEASUREMENTS = {
         'name': lazy_gettext('GPIO State'),
         'meas': 'gpio_state',
         'units': ['bool']},
+    'hue': {
+        'name': lazy_gettext('Hue'),
+        'meas': 'hue',
+        'units': ['degree']},
     'humidity': {
         'name': lazy_gettext('Humidity'),
         'meas': 'humidity',
-        'units': ['percent', 'decimal']},
+        'units': ['decimal', 'percent', 'ppb', 'ppm', 'ppt']},
     'humidity_ratio': {
         'name': lazy_gettext('Humidity Ratio'),
         'meas': 'humidity_ratio',
@@ -161,10 +173,18 @@ MEASUREMENTS = {
         'name': lazy_gettext('Magnetic Flux Density'),
         'meas': 'magnetic_flux_density',
         'units': ['uT']},
+    'methane': {
+        'name': lazy_gettext('Methane'),
+        'meas': 'methane',
+        'units': ['ppm', 'ppb', 'percent']},
     'moisture': {
         'name': lazy_gettext('Moisture'),
         'meas': 'moisture',
         'units': ['none']},
+    'o2': {
+        'name': lazy_gettext('Oxygen'),
+        'meas': 'o2',
+        'units': ['ppt', 'ppm', 'ppb', 'percent']},
     'oxidation_reduction_potential': {
         'name': lazy_gettext('Oxidation Reduction Potential'),
         'meas': 'oxidation_reduction_potential',
@@ -241,6 +261,10 @@ MEASUREMENTS = {
         'name': lazy_gettext('Salinity'),
         'meas': 'salinity',
         'units': ['ppt']},
+    'saturation': {
+        'name': lazy_gettext('Saturation'),
+        'meas': 'saturation',
+        'units': ['percent']},
     'setpoint': {
         'name': lazy_gettext('Setpoint'),
         'meas': 'setpoint',

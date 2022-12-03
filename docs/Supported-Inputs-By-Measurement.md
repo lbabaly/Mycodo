@@ -38,10 +38,11 @@ Measurements
  - [Light](#light)
  - [Magnetic Flux Density](#magnetic-flux-density)
  - [Moisture](#moisture)
+ - [O2](#o2)
  - [Oxidation Reduction Potential](#oxidation-reduction-potential)
  - [PM10](#pm10)
  - [PM1](#pm1)
- - [PM2.5](#pm2.5)
+ - [PM2.5](#pm25)
  - [Power](#power)
  - [Apparent Power](#apparent-power)
  - [Power Factor](#power-factor)
@@ -127,9 +128,9 @@ Measurements
 
 ## Boolean
 
-### [System: Server Ping](/Mycodo/Supported-Inputs/#system-server-ping)
+### [Mycodo: Server Ping](/Mycodo/Supported-Inputs/#mycodo-server-ping)
 
-### [System: Server Port Open](/Mycodo/Supported-Inputs/#system-server-port-open)
+### [Mycodo: Server Port Open](/Mycodo/Supported-Inputs/#mycodo-server-port-open)
 
 ## CO2
 
@@ -137,17 +138,19 @@ Measurements
 
 ### [AMS: CCS811 (without Temperature)](/Mycodo/Supported-Inputs/#ams-ccs811-without-temperature)
 
-### [Atlas Scientific: Atlas CO2](/Mycodo/Supported-Inputs/#atlas-scientific-atlas-co2)
+### [Atlas Scientific: Atlas CO2 (Carbon Dioxide Gas)](/Mycodo/Supported-Inputs/#atlas-scientific-atlas-co2-carbon-dioxide-gas)
 
 ### [CO2Meter: K30](/Mycodo/Supported-Inputs/#co2meter-k30)
 
 ### [Cozir: Cozir CO2](/Mycodo/Supported-Inputs/#cozir-cozir-co2)
 
-### [Sensirion: SCD-4x (SCD-40, SCD-41)](/Mycodo/Supported-Inputs/#sensirion-scd-4x-scd-40-scd-41)
+### [Sensirion: SCD-4x (40, 41)](/Mycodo/Supported-Inputs/#sensirion-scd-4x-40-41)
 
 ### [Sensirion: SCD30](/Mycodo/Supported-Inputs/#sensirion-scd30)
 
 ### [Sensirion: SCD30](/Mycodo/Supported-Inputs/#sensirion-scd30)
+
+### [Winsen: MH-Z14A](/Mycodo/Supported-Inputs/#winsen-mh-z14a)
 
 ### [Winsen: MH-Z16](/Mycodo/Supported-Inputs/#winsen-mh-z16)
 
@@ -181,15 +184,15 @@ Measurements
 
 ## CPU Load (15 min)
 
-### [System: CPU Load](/Mycodo/Supported-Inputs/#system-cpu-load)
+### [Mycodo: CPU Load](/Mycodo/Supported-Inputs/#mycodo-cpu-load)
 
 ## CPU Load (1 min)
 
-### [System: CPU Load](/Mycodo/Supported-Inputs/#system-cpu-load)
+### [Mycodo: CPU Load](/Mycodo/Supported-Inputs/#mycodo-cpu-load)
 
 ## CPU Load (5 min)
 
-### [System: CPU Load](/Mycodo/Supported-Inputs/#system-cpu-load)
+### [Mycodo: CPU Load](/Mycodo/Supported-Inputs/#mycodo-cpu-load)
 
 ## Dewpoint
 
@@ -217,7 +220,7 @@ Measurements
 
 ### [Seeedstudio: DHT11/22](/Mycodo/Supported-Inputs/#seeedstudio-dht11-22)
 
-### [Sensirion: SCD-4x (SCD-40, SCD-41)](/Mycodo/Supported-Inputs/#sensirion-scd-4x-scd-40-scd-41)
+### [Sensirion: SCD-4x (40, 41)](/Mycodo/Supported-Inputs/#sensirion-scd-4x-40-41)
 
 ### [Sensirion: SCD30](/Mycodo/Supported-Inputs/#sensirion-scd30)
 
@@ -241,6 +244,8 @@ Measurements
 
 ### [Silicon Labs: Si7021](/Mycodo/Supported-Inputs/#silicon-labs-si7021)
 
+### [Sonoff: TH16/10 (Tasmota firmware) with AM2301/Si7021](/Mycodo/Supported-Inputs/#sonoff-th16-10-tasmota-firmware-with-am2301-si7021)
+
 ### [Sonoff: TH16/10 (Tasmota firmware) with AM2301](/Mycodo/Supported-Inputs/#sonoff-th16-10-tasmota-firmware-with-am2301)
 
 ### [TE Connectivity: HTU21D](/Mycodo/Supported-Inputs/#te-connectivity-htu21d)
@@ -263,9 +268,9 @@ Measurements
 
 ## Disk
 
-### [Mycodo: Mycodo RAM](/Mycodo/Supported-Inputs/#mycodo-mycodo-ram)
+### [Mycodo: Free Space](/Mycodo/Supported-Inputs/#mycodo-free-space)
 
-### [System: Free Space](/Mycodo/Supported-Inputs/#system-free-space)
+### [Mycodo: Mycodo RAM](/Mycodo/Supported-Inputs/#mycodo-mycodo-ram)
 
 ## Dissolved Oxygen
 
@@ -297,6 +302,10 @@ Measurements
 
 ## Electrical Current
 
+### [Power Monitor: RPi Power Monitor (6 Channels)](/Mycodo/Supported-Inputs/#power-monitor-rpi-power-monitor-6-channels)
+
+### [TP-Link: Kasa WiFi Power Plug/Strip Energy Statistics](/Mycodo/Supported-Inputs/#tp-link-kasa-wifi-power-plug-strip-energy-statistics)
+
 ### [Tasmota: Tasmota Outlet Energy Monitor (HTTP)](/Mycodo/Supported-Inputs/#tasmota-tasmota-outlet-energy-monitor-http)
 
 ### [Texas Instruments: INA219x](/Mycodo/Supported-Inputs/#texas-instruments-ina219x)
@@ -305,7 +314,13 @@ Measurements
 
 ### [Microchip: MCP3008](/Mycodo/Supported-Inputs/#microchip-mcp3008)
 
+### [Microchip: MCP3208](/Mycodo/Supported-Inputs/#microchip-mcp3208)
+
 ### [Microchip: MCP342x (x=2,3,4,6,7,8)](/Mycodo/Supported-Inputs/#microchip-mcp342x-x=2-3-4-6-7-8)
+
+### [Power Monitor: RPi Power Monitor (6 Channels)](/Mycodo/Supported-Inputs/#power-monitor-rpi-power-monitor-6-channels)
+
+### [TP-Link: Kasa WiFi Power Plug/Strip Energy Statistics](/Mycodo/Supported-Inputs/#tp-link-kasa-wifi-power-plug-strip-energy-statistics)
 
 ### [Tasmota: Tasmota Outlet Energy Monitor (HTTP)](/Mycodo/Supported-Inputs/#tasmota-tasmota-outlet-energy-monitor-http)
 
@@ -322,6 +337,8 @@ Measurements
 ### [Texas Instruments: INA219x](/Mycodo/Supported-Inputs/#texas-instruments-ina219x)
 
 ## Energy
+
+### [TP-Link: Kasa WiFi Power Plug/Strip Energy Statistics](/Mycodo/Supported-Inputs/#tp-link-kasa-wifi-power-plug-strip-energy-statistics)
 
 ### [Tasmota: Tasmota Outlet Energy Monitor (HTTP)](/Mycodo/Supported-Inputs/#tasmota-tasmota-outlet-energy-monitor-http)
 
@@ -363,7 +380,7 @@ Measurements
 
 ### [Seeedstudio: DHT11/22](/Mycodo/Supported-Inputs/#seeedstudio-dht11-22)
 
-### [Sensirion: SCD-4x (SCD-40, SCD-41)](/Mycodo/Supported-Inputs/#sensirion-scd-4x-scd-40-scd-41)
+### [Sensirion: SCD-4x (40, 41)](/Mycodo/Supported-Inputs/#sensirion-scd-4x-40-41)
 
 ### [Sensirion: SCD30](/Mycodo/Supported-Inputs/#sensirion-scd30)
 
@@ -386,6 +403,8 @@ Measurements
 ### [Sensorion: SHT31 Smart Gadget](/Mycodo/Supported-Inputs/#sensorion-sht31-smart-gadget)
 
 ### [Silicon Labs: Si7021](/Mycodo/Supported-Inputs/#silicon-labs-si7021)
+
+### [Sonoff: TH16/10 (Tasmota firmware) with AM2301/Si7021](/Mycodo/Supported-Inputs/#sonoff-th16-10-tasmota-firmware-with-am2301-si7021)
 
 ### [Sonoff: TH16/10 (Tasmota firmware) with AM2301](/Mycodo/Supported-Inputs/#sonoff-th16-10-tasmota-firmware-with-am2301)
 
@@ -453,6 +472,10 @@ Measurements
 
 ### [Xiaomi: Miflora](/Mycodo/Supported-Inputs/#xiaomi-miflora)
 
+## O2
+
+### [Atlas Scientific: Atlas O2 (Oxygen Gas)](/Mycodo/Supported-Inputs/#atlas-scientific-atlas-o2-oxygen-gas)
+
 ## Oxidation Reduction Potential
 
 ### [AnyLeaf: AnyLeaf ORP](/Mycodo/Supported-Inputs/#anyleaf-anyleaf-orp)
@@ -473,6 +496,10 @@ Measurements
 
 ## Power
 
+### [Power Monitor: RPi Power Monitor (6 Channels)](/Mycodo/Supported-Inputs/#power-monitor-rpi-power-monitor-6-channels)
+
+### [TP-Link: Kasa WiFi Power Plug/Strip Energy Statistics](/Mycodo/Supported-Inputs/#tp-link-kasa-wifi-power-plug-strip-energy-statistics)
+
 ### [Tasmota: Tasmota Outlet Energy Monitor (HTTP)](/Mycodo/Supported-Inputs/#tasmota-tasmota-outlet-energy-monitor-http)
 
 ## Apparent Power
@@ -480,6 +507,8 @@ Measurements
 ### [Tasmota: Tasmota Outlet Energy Monitor (HTTP)](/Mycodo/Supported-Inputs/#tasmota-tasmota-outlet-energy-monitor-http)
 
 ## Power Factor
+
+### [Power Monitor: RPi Power Monitor (6 Channels)](/Mycodo/Supported-Inputs/#power-monitor-rpi-power-monitor-6-channels)
 
 ### [Tasmota: Tasmota Outlet Energy Monitor (HTTP)](/Mycodo/Supported-Inputs/#tasmota-tasmota-outlet-energy-monitor-http)
 
@@ -535,7 +564,9 @@ Measurements
 
 ## Revolutions
 
-### [Raspberry Pi: Signal (Revolutions)](/Mycodo/Supported-Inputs/#raspberry-pi-signal-revolutions)
+### [Raspberry Pi: Signal (Revolutions) (pigpio method #1)](/Mycodo/Supported-Inputs/#raspberry-pi-signal-revolutions--pigpio-method-#1)
+
+### [Raspberry Pi: Signal (Revolutions) (pigpio method #2)](/Mycodo/Supported-Inputs/#raspberry-pi-signal-revolutions--pigpio-method-#2)
 
 ## Salinity
 
@@ -605,7 +636,13 @@ Measurements
 
 ### [MAXIM: DS28EA00](/Mycodo/Supported-Inputs/#maxim-ds28ea00)
 
+### [MAXIM: MAX3010x (MAX30101/MAX30105)](/Mycodo/Supported-Inputs/#maxim-max3010x-max30101-max30105)
+
 ### [MAXIM: MAX31850K](/Mycodo/Supported-Inputs/#maxim-max31850k)
+
+### [MAXIM: MAX31855 (Gravity PT100)](/Mycodo/Supported-Inputs/#maxim-max31855-gravity-pt100)
+
+### [MAXIM: MAX31855 (Gravity PT100)](/Mycodo/Supported-Inputs/#maxim-max31855-gravity-pt100)
 
 ### [MAXIM: MAX31855](/Mycodo/Supported-Inputs/#maxim-max31855)
 
@@ -629,7 +666,7 @@ Measurements
 
 ### [Seeedstudio: DHT11/22](/Mycodo/Supported-Inputs/#seeedstudio-dht11-22)
 
-### [Sensirion: SCD-4x (SCD-40, SCD-41)](/Mycodo/Supported-Inputs/#sensirion-scd-4x-scd-40-scd-41)
+### [Sensirion: SCD-4x (40, 41)](/Mycodo/Supported-Inputs/#sensirion-scd-4x-40-41)
 
 ### [Sensirion: SCD30](/Mycodo/Supported-Inputs/#sensirion-scd30)
 
@@ -652,6 +689,8 @@ Measurements
 ### [Sensorion: SHT31 Smart Gadget](/Mycodo/Supported-Inputs/#sensorion-sht31-smart-gadget)
 
 ### [Silicon Labs: Si7021](/Mycodo/Supported-Inputs/#silicon-labs-si7021)
+
+### [Sonoff: TH16/10 (Tasmota firmware) with AM2301/Si7021](/Mycodo/Supported-Inputs/#sonoff-th16-10-tasmota-firmware-with-am2301-si7021)
 
 ### [Sonoff: TH16/10 (Tasmota firmware) with AM2301](/Mycodo/Supported-Inputs/#sonoff-th16-10-tasmota-firmware-with-am2301)
 
@@ -699,7 +738,7 @@ Measurements
 
 ### [Seeedstudio: DHT11/22](/Mycodo/Supported-Inputs/#seeedstudio-dht11-22)
 
-### [Sensirion: SCD-4x (SCD-40, SCD-41)](/Mycodo/Supported-Inputs/#sensirion-scd-4x-scd-40-scd-41)
+### [Sensirion: SCD-4x (40, 41)](/Mycodo/Supported-Inputs/#sensirion-scd-4x-40-41)
 
 ### [Sensirion: SCD30](/Mycodo/Supported-Inputs/#sensirion-scd30)
 
@@ -722,6 +761,8 @@ Measurements
 ### [Sensorion: SHT31 Smart Gadget](/Mycodo/Supported-Inputs/#sensorion-sht31-smart-gadget)
 
 ### [Silicon Labs: Si7021](/Mycodo/Supported-Inputs/#silicon-labs-si7021)
+
+### [Sonoff: TH16/10 (Tasmota firmware) with AM2301/Si7021](/Mycodo/Supported-Inputs/#sonoff-th16-10-tasmota-firmware-with-am2301-si7021)
 
 ### [Sonoff: TH16/10 (Tasmota firmware) with AM2301](/Mycodo/Supported-Inputs/#sonoff-th16-10-tasmota-firmware-with-am2301)
 

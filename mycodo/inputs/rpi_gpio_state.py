@@ -20,6 +20,8 @@ INPUT_INFORMATION = {
     'measurements_name': 'GPIO State',
     'measurements_dict': measurements_dict,
 
+    'message': 'Measures the state of a GPIO pin, returning either 0 (low) or 1 (high).',
+
     'options_enabled': [
         'gpio_location',
         'period',
@@ -28,7 +30,7 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('pip-pypi', 'RPi.GPIO', 'RPi.GPIO==0.7.0')
+        ('pip-pypi', 'RPi.GPIO', 'RPi.GPIO==0.7.1')
     ],
 
     'interfaces': ['GPIO'],
@@ -51,10 +53,10 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that monitors the K30's CO2 concentration """
+    """A sensor support class that monitors the K30's CO2 concentration."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.gpio = None
 
@@ -63,9 +65,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import RPi.GPIO as GPIO
 
         self.gpio = GPIO
@@ -83,7 +85,7 @@ class InputModule(AbstractInput):
             self.gpio.setup(self.location, self.gpio.IN)
 
     def get_measurement(self):
-        """ Gets the GPIO state via RPi.GPIO """
+        """Gets the GPIO state via RPi.GPIO."""
         self.return_dict = copy.deepcopy(measurements_dict)
 
         self.value_set(0, self.gpio.input(self.location))

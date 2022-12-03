@@ -10,7 +10,8 @@ from mycodo.inputs.base_input import AbstractInput
 from mycodo.utils.constraints_pass import constraints_pass_positive_value
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.influx import add_measurements_influxdb
-from mycodo.utils.influx import parse_measurement
+from mycodo.utils.inputs import parse_measurement
+from mycodo.utils.utils import random_alphanumeric
 
 # Measurements
 measurements_dict = {}
@@ -23,8 +24,9 @@ channels_dict = {
 # Input information
 INPUT_INFORMATION = {
     'input_name_unique': 'MQTT_PAHO',
-    'input_manufacturer': 'Mycodo',
+    'input_manufacturer': 'MQTT',
     'input_name': 'MQTT Subscribe (Value payload)',
+    'input_name_short': 'MQTT Value',
     'input_library': 'paho-mqtt',
     'measurements_name': 'Variable measurements',
     'measurements_dict': measurements_dict,
@@ -38,7 +40,8 @@ INPUT_INFORMATION = {
     'message': 'A topic is subscribed to for each channel Subscription Topic and the returned '
                'payload value will be stored for that channel. Be sure you select and save the '
                'Measurement Unit for each of the channels. Once the unit has been saved, you '
-               'can convert to other units in the Convert Measurement section.',
+               'can convert to other units in the Convert Measurement section. Warning: If using '
+               'multiple MQTT Inputs or Functions, ensure the Client IDs are unique.',
 
     'options_enabled': [
         'measurements_select'
@@ -80,7 +83,7 @@ INPUT_INFORMATION = {
         {
             'id': 'mqtt_clientid',
             'type': 'text',
-            'default_value': 'mycodo_mqtt_client',
+            'default_value': 'client_{}'.format(random_alphanumeric(8)),
             'required': True,
             'name': 'Client ID',
             'phrase': 'Unique client ID for connecting to the server'
@@ -114,6 +117,14 @@ INPUT_INFORMATION = {
             'required': False,
             'name': lazy_gettext('Password'),
             'phrase': 'Password for connecting to the server. Leave blank to disable.'
+        },
+        {
+            'id': 'mqtt_use_websockets',
+            'type': 'bool',
+            'default_value': False,
+            'required': False,
+            'name': 'Use Websockets',
+            'phrase': 'Use websockets to connect to the server.'
         }
     ],
 
@@ -139,10 +150,10 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that retrieves stored data from MQTT """
+    """A sensor support class that retrieves stored data from MQTT."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.client = None
 
@@ -155,13 +166,14 @@ class InputModule(AbstractInput):
         self.mqtt_use_tls = None
         self.mqtt_username = None
         self.mqtt_password = None
+        self.mqtt_use_websockets = None
 
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import paho.mqtt.client as mqtt
 
         input_channels = db_retrieve_table_daemon(
@@ -169,7 +181,9 @@ class InputModule(AbstractInput):
         self.options_channels = self.setup_custom_channel_options_json(
             INPUT_INFORMATION['custom_channel_options'], input_channels)
 
-        self.client = mqtt.Client(self.mqtt_clientid)
+        self.client = mqtt.Client(
+            self.mqtt_clientid,
+            transport='websockets' if self.mqtt_use_websockets else 'tcp')
         self.logger.debug("Client created with ID {}".format(self.mqtt_clientid))
         if self.mqtt_login:
             if not self.mqtt_password:
@@ -186,7 +200,7 @@ class InputModule(AbstractInput):
         self.client.loop_start()
 
     def callbacks_connect(self):
-        """ Connect the callback functions """
+        """Connect the callback functions."""
         try:
             self.logger.debug("Connecting MQTT callback functions")
             self.client.on_connect = self.on_connect
@@ -198,7 +212,7 @@ class InputModule(AbstractInput):
             self.logger.error("Unable to connect mqtt callback functions")
 
     def connect(self):
-        """ Set up the connection to the MQTT Server """
+        """Set up the connection to the MQTT Server."""
         try:
             self.client.connect(
                 self.mqtt_hostname,
@@ -211,7 +225,7 @@ class InputModule(AbstractInput):
                 self.mqtt_hostname, self.mqtt_port))
 
     def subscribe(self):
-        """ Set up the subscriptions to the proper MQTT channels to listen to """
+        """Set up the subscriptions to the proper MQTT channels to listen to."""
         try:
             for channel in self.channels_measurement:
                 self.logger.debug("Subscribing to MQTT topic '{}'".format(
@@ -302,7 +316,7 @@ class InputModule(AbstractInput):
         self.logger.debug("Disconnected. Return code: {}".format(rc))
 
     def stop_input(self):
-        """ Called when Input is deactivated """
+        """Called when Input is deactivated."""
         self.running = False
         self.client.loop_stop()
         self.client.disconnect()

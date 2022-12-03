@@ -62,12 +62,12 @@ INPUT_INFORMATION = {
         }
     ],
 
-    'custom_actions_message':
+    'custom_commands_message':
         'The I2C address of the sensor can be changed. Enter a new address in the 0xYY format '
         '(e.g. 0x22, 0x50), then press Set I2C Address. Remember to deactivate the Input and '
         'change the I2C address option after setting the new address.',
 
-    'custom_actions': [
+    'custom_commands': [
         {
             'id': 'new_i2c_address',
             'type': 'text',
@@ -89,7 +89,7 @@ class InputModule(AbstractInput):
     A sensor support class that measures the sensor
     """
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
         self.setting_i2c = False
@@ -100,9 +100,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import VL53L0X
 
         self.VL53L0X = VL53L0X
@@ -132,7 +132,7 @@ class InputModule(AbstractInput):
 
     def get_measurement(self):
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)
@@ -175,7 +175,7 @@ class InputModule(AbstractInput):
             self.setting_i2c = False
 
     def stop_input(self):
-        """ Called when Input is deactivated """
+        """Called when Input is deactivated."""
         self.sensor.stop_ranging()
         self.sensor.close()
         self.running = False

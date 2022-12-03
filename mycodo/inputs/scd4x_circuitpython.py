@@ -34,13 +34,15 @@ measurements_dict = {
 INPUT_INFORMATION = {
     'input_name_unique': 'SCD4x_CIRCUITPYTHON',
     'input_manufacturer': 'Sensirion',
-    'input_name': 'SCD-4x (SCD-40, SCD-41)',
-    'input_library': 'Adafruit-CircuitPython-SCD4x',
+    'input_name': 'SCD-4x (40, 41)',
+    'input_name_short': 'SCD-4x',
+    'input_library': 'Adafruit_CircuitPython_SCD4x',
     'measurements_name': 'CO2/Temperature/Humidity',
     'measurements_dict': measurements_dict,
     'url_manufacturer': 'https://www.sensirion.com/en/environmental-sensors/carbon-dioxide-sensors/carbon-dioxide-sensor-scd4x/',
 
     'options_enabled': [
+        'measurements_select',
         'i2c_location',
         'period',
         'pre_output'
@@ -49,18 +51,18 @@ INPUT_INFORMATION = {
 
     'dependencies_module': [
         ('pip-pypi', 'usb.core', 'pyusb==1.1.1'),
-        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.1'),
-        ('pip-pypi', 'adafruit_scd4x', 'adafruit-circuitpython-scd4x==1.2.1 ')
+        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.2'),
+        ('pip-pypi', 'adafruit_scd4x', 'adafruit-circuitpython-scd4x==1.2.2')
     ],
 
     'interfaces': ['I2C'],
     'i2c_location': ['0x62'],
     'i2c_address_editable': False,
 
-    'custom_actions': [
+    'custom_commands': [
         {
             'type': 'message',
-            'default_value': """You can force the CO2 calibration for a specific CO2 concentration value (in ppmv)."""
+            'default_value': """You can force the CO2 calibration for a specific CO2 concentration value (in ppmv). The sensor needs to be active for at least 3 minutes prior to calibration."""
         },
         {
             'id': 'co2_concentration',
@@ -80,7 +82,7 @@ INPUT_INFORMATION = {
         {
             'id': 'temperature_offset',
             'type': 'float',
-            'default_value': 4,
+            'default_value': 4.0,
             'required': True,
             'name': 'Temperature Offset',
             'phrase': 'Set the sensor temperature offset'
@@ -96,14 +98,14 @@ INPUT_INFORMATION = {
         {
             'id': 'self_calibration_enabled',
             'type': 'bool',
-            'default_value': True,
+            'default_value': False,
             'name': 'Automatic Self-Calibration',
             'phrase': 'Set the sensor automatic self-calibration'
         },
         {
             'id': 'persist_settings',
             'type': 'bool',
-            'default_value': False,
+            'default_value': True,
             'name': 'Persist Settings',
             'phrase': 'Settings will persist after powering off'
         },
@@ -112,9 +114,9 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that measures """
+    """A sensor support class that measures."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
         self.temperature_offset = None
@@ -125,24 +127,29 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import adafruit_scd4x
         from adafruit_extended_bus import ExtendedI2C
 
         self.sensor = adafruit_scd4x.SCD4X(
             ExtendedI2C(self.input_dev.i2c_bus),
             address=int(str(self.input_dev.i2c_location), 16))
+
         self.logger.debug("Serial number: {}".format([hex(i) for i in self.sensor.serial_number]))
 
-        self.sensor.temperature_offset = self.temperature_offset
-        self.sensor.altitude = self.altitude
-        self.sensor.self_calibration_enabled = self.self_calibration_enabled
-
+        if self.sensor.temperature_offset != self.temperature_offset:
+            self.sensor.temperature_offset = self.temperature_offset
         self.logger.debug("Temperature offset: {}".format(self.sensor.temperature_offset))
-        self.logger.debug("Self-calibration enabled: {}".format(self.sensor.self_calibration_enabled))
+
+        if self.sensor.altitude != self.altitude:
+            self.sensor.altitude = self.altitude
         self.logger.debug("Altitude: {} meters above sea level".format(self.sensor.altitude))
+
+        if self.sensor.self_calibration_enabled != self.self_calibration_enabled:
+            self.sensor.self_calibration_enabled = self.self_calibration_enabled
+        self.logger.debug("Self-calibration enabled: {}".format(self.sensor.self_calibration_enabled))
 
         if self.persist_settings:
             self.sensor.persist_settings()
@@ -150,9 +157,9 @@ class InputModule(AbstractInput):
         self.sensor.start_periodic_measurement()
 
     def get_measurement(self):
-        """ Gets the measurements """
+        """Gets the measurements."""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)
@@ -190,7 +197,8 @@ class InputModule(AbstractInput):
             self.logger.error("CO2 Concentration required")
             return
         try:
-            self.sensor.force_calibration(float(args_dict['co2_concentration']))
+            self.sensor.force_calibration(int(args_dict['co2_concentration']))
+            self.sensor.start_periodic_measurement()
         except Exception as err:
             self.logger.error(
                 "Error setting CO2 Concentration: {}".format(err))

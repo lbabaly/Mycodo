@@ -34,7 +34,7 @@ from mycodo.mycodo_client import DaemonControl
 from mycodo.utils.constraints_pass import constraints_pass_positive_value
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.influx import add_measurements_influxdb
-from mycodo.utils.influx import parse_measurement
+from mycodo.utils.inputs import parse_measurement
 
 # Measurements
 measurements_dict = {
@@ -70,8 +70,8 @@ FUNCTION_INFORMATION = {
             'default_value': 60,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('Period (seconds)'),
-            'phrase': lazy_gettext('The duration (seconds) between measurements or actions')
+            'name': "{} ({})".format(lazy_gettext('Period'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The duration between measurements or actions')
         }
     ],
 
@@ -93,7 +93,7 @@ class CustomModule(AbstractFunction):
     Class to operate custom controller
     """
     def __init__(self, function, testing=False):
-        super(CustomModule, self).__init__(function, testing=testing, name=__name__)
+        super().__init__(function, testing=testing, name=__name__)
 
         self.options_channels = {}
         self.timer_loop = time.time()
@@ -111,9 +111,9 @@ class CustomModule(AbstractFunction):
             FUNCTION_INFORMATION['custom_options'], custom_function)
 
         if not testing:
-            self.initialize_variables()
+            self.try_initialize()
 
-    def initialize_variables(self):
+    def initialize(self):
         function_channels = db_retrieve_table_daemon(
             FunctionChannel).filter(FunctionChannel.function_id == self.unique_id).all()
         self.options_channels = self.setup_custom_channel_options_json(

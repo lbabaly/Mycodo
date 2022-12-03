@@ -21,9 +21,9 @@ class AbstractWidget(AbstractBaseController):
     """
     def __init__(self, widget, testing=False, name=__name__):
         if not testing:
-            super(AbstractWidget, self).__init__(widget.unique_id, testing=testing, name=__name__)
+            super().__init__(widget.unique_id, testing=testing, name=__name__)
         else:
-            super(AbstractWidget, self).__init__(None, testing=testing, name=__name__)
+            super().__init__(None, testing=testing, name=__name__)
 
         self.startup_timer = timeit.default_timer()
 
@@ -36,17 +36,17 @@ class AbstractWidget(AbstractBaseController):
             self.unique_id = widget.unique_id
 
     def __iter__(self):
-        """ Support the iterator protocol """
+        """Support the iterator protocol."""
         return self
 
     def __repr__(self):
-        """  Representation of object """
+        """Representation of object."""
         return_str = '<{cls}'.format(cls=type(self).__name__)
         return_str += '>'
         return return_str
 
     def __str__(self):
-        """ Return measurement information """
+        """Return measurement information."""
         return_str = ''
         return return_str
 
@@ -58,15 +58,8 @@ class AbstractWidget(AbstractBaseController):
         raise NotImplementedError
 
     def stop_widget(self):
-        """ Called when Widget is stopped """
+        """Called when Widget is stopped."""
         self.running = False
-        try:
-            # Release all locks
-            for lockfile, lock_state in self.lockfile.locked.items():
-                if lock_state:
-                    self.lock_release(lockfile)
-        except:
-            pass
 
     #
     # Do not overwrite the function below

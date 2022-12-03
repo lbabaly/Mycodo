@@ -22,9 +22,9 @@ class AbstractInput(AbstractBaseController):
     """
     def __init__(self, input_dev, testing=False, name=__name__):
         if not testing:
-            super(AbstractInput, self).__init__(input_dev.unique_id, testing=testing, name=__name__)
+            super().__init__(input_dev.unique_id, testing=testing, name=__name__)
         else:
-            super(AbstractInput, self).__init__(None, testing=testing, name=__name__)
+            super().__init__(None, testing=testing, name=__name__)
 
         self.logger = None
         self.setup_logger(testing=testing, name=name, input_dev=input_dev)
@@ -43,11 +43,11 @@ class AbstractInput(AbstractBaseController):
             self.initialize_measurements()
 
     def __iter__(self):
-        """ Support the iterator protocol """
+        """Support the iterator protocol."""
         return self
 
     def __repr__(self):
-        """  Representation of object """
+        """Representation of object."""
         return_str = '<{cls}'.format(cls=type(self).__name__)
         if self._measurements:
             for each_channel, channel_data in self._measurements.items():
@@ -63,7 +63,7 @@ class AbstractInput(AbstractBaseController):
             return "Measurements dictionary empty"
 
     def __str__(self):
-        """ Return measurement information """
+        """Return measurement information."""
         return_str = ''
         skip_first_separator = False
         if self._measurements:
@@ -86,17 +86,24 @@ class AbstractInput(AbstractBaseController):
         return self.next()
 
     def next(self):
-        """ Get next measurement reading """
+        """Get next measurement reading."""
         if self.read():  # raised an error
             raise StopIteration  # required
         return self.measurements
 
     @property
     def measurements(self):
-        """ Store measurements """
+        """Store measurements."""
         if self._measurements is None:  # update if needed
             self.read()
         return self._measurements
+
+    def initialize(self):
+        self.logger.error(
+            "{cls} did not overwrite the initialize() method. All "
+            "subclasses of the AbstractInput class are required to overwrite "
+            "this method".format(cls=type(self).__name__))
+        raise NotImplementedError
 
     def get_measurement(self):
         self.logger.error(
@@ -167,19 +174,12 @@ class AbstractInput(AbstractBaseController):
                 self.logger.setLevel(logging.INFO)
 
     def start_input(self):
-        """ Not used yet """
+        """Not used yet."""
         self.running = True
 
     def stop_input(self):
-        """ Called when Input is deactivated """
+        """Called when Input is deactivated."""
         self.running = False
-        try:
-            # Release all locks
-            for lockfile, lock_state in self.lockfile.locked.items():
-                if lock_state:
-                    self.lock_release(lockfile)
-        except:
-            pass
 
     def value_get(self, channel):
         """
@@ -205,8 +205,9 @@ class AbstractInput(AbstractBaseController):
         :return:
         """
         if value is None:
-            self.logger.error("Cannot set a value of None. Must be a float or string representing a float. "
-                              "Check the sensor and Input module is working correctly.")
+            self.logger.error(
+                f"Error 100: Cannot set a value of '{value}' of type {type(value)}. Must be a float or string "
+                f"representing a float. See https://kizniche.github.io/Mycodo/Error-Codes#error-100 for more info.")
             return
 
         if not self.is_enabled(chan):
@@ -265,7 +266,7 @@ class AbstractInput(AbstractBaseController):
         return self._set_custom_option(Input, self.unique_id, option, value)
 
     def get_custom_option(self, option):
-        return self._get_custom_option(self.input_dev.custom_options, option)
+        return self._get_custom_option(Input, self.unique_id, option)
 
     def delete_custom_option(self, option):
         return self._delete_custom_option(Input, self.unique_id, option)

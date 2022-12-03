@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import re
-from mycodo.databases import clone_model
+
 import sqlalchemy
 from flask import current_app
 from flask import flash
@@ -11,7 +11,9 @@ from flask_babel import gettext
 
 from mycodo.config import PATH_PYTHON_CODE_USER
 from mycodo.config_translations import TRANSLATIONS
+from mycodo.databases import clone_model
 from mycodo.databases import set_uuid
+from mycodo.databases.models import Actions
 from mycodo.databases.models import DeviceMeasurements
 from mycodo.databases.models import Input
 from mycodo.databases.models import InputChannel
@@ -49,8 +51,9 @@ def input_add(form_add):
 
     # only one comma should be in the input_type string
     if form_add.input_type.data.count(',') > 1:
-        messages["error"].append("Invalid input module formatting. It appears there is "
-                     "a comma in either 'input_name_unique' or 'interfaces'.")
+        messages["error"].append(
+            "Invalid input module formatting. It appears there is "
+            "a comma in either 'input_name_unique' or 'interfaces'.")
 
     if form_add.input_type.data.count(',') == 1:
         input_name = form_add.input_type.data.split(',')[0]
@@ -64,14 +67,13 @@ def input_add(form_add):
         dep_unmet, _, dep_message = return_dependencies(input_name)
         if dep_unmet:
             for each_dep in dep_unmet:
-                list_unmet_deps.append(each_dep[0])
+                list_unmet_deps.append(each_dep[3])
             messages["error"].append(
-                "{dev} has unmet dependencies. They must be installed before the Input can be added.".format(
-                    dev=input_name))
+                f"{input_name} has unmet dependencies. They must be installed before the Input can be added.")
             if input_name in dict_inputs:
                 dep_name = dict_inputs[input_name]['input_name']
             else:
-                messages["error"].append("Input not found: {}".format(input_name))
+                messages["error"].append(f"Input not found: {input_name}")
 
             return messages, dep_name, list_unmet_deps, dep_message, None
 
@@ -83,17 +85,11 @@ def input_add(form_add):
         if input_interface:
             new_input.interface = input_interface
 
-        try:
-            from RPi import GPIO
-            if GPIO.RPI_INFO['P1_REVISION'] == 1:
-                new_input.i2c_bus = 0
-            else:
-                new_input.i2c_bus = 1
-        except:
-            logger.error(
-                "RPi.GPIO and Raspberry Pi required for this action")
+        new_input.i2c_bus = 1
 
-        if 'input_name' in dict_inputs[input_name]:
+        if 'input_name_short' in dict_inputs[input_name]:
+            new_input.name = dict_inputs[input_name]['input_name_short']
+        elif 'input_name' in dict_inputs[input_name]:
             new_input.name = dict_inputs[input_name]['input_name']
         else:
             new_input.name = 'Name'
@@ -300,9 +296,8 @@ def input_add(form_add):
 
                         new_channel.save()
 
-                messages["success"].append('{action} {controller}'.format(
-                    action=TRANSLATIONS['add']['title'],
-                    controller=TRANSLATIONS['input']['title']))
+                messages["success"].append(
+                    f"{TRANSLATIONS['add']['title']} {TRANSLATIONS['input']['title']}")
         except sqlalchemy.exc.OperationalError as except_msg:
             messages["error"].append(except_msg)
         except sqlalchemy.exc.IntegrityError as except_msg:
@@ -335,7 +330,7 @@ def input_duplicate(form_mod):
 
     # Duplicate dashboard with new unique_id and name
     new_input = clone_model(
-        mod_input, unique_id=set_uuid(), name="Copy of {}".format(mod_input.name))
+        mod_input, unique_id=set_uuid(), name=f"Copy of {mod_input.name}")
 
     # Deactivate Input
     mod_input = Input.query.filter(
@@ -354,9 +349,8 @@ def input_duplicate(form_mod):
         for each_dev in dev_channels:
             clone_model(each_dev, unique_id=set_uuid(), input_id=mod_input.unique_id)
 
-    messages["success"].append('{action} {controller}'.format(
-        action=TRANSLATIONS['duplicate']['title'],
-        controller=TRANSLATIONS['input']['title']))
+    messages["success"].append(
+        f"{TRANSLATIONS['duplicate']['title']} {TRANSLATIONS['input']['title']}")
 
     return messages, new_input.unique_id
 
@@ -565,7 +559,10 @@ def input_mod(form_mod, request_form):
 
         # Parse post-save custom options for output device and its channels
         messages["error"], custom_options_json_postsave = custom_options_return_json(
-            messages["error"], dict_inputs, request_form, mod_dev=mod_input, device=mod_input.device)
+            messages["error"], dict_inputs, request_form,
+            mod_dev=mod_input,
+            device=mod_input.device,
+            custom_options=custom_options_dict_presave)
         custom_options_dict_postsave = json.loads(custom_options_json_postsave)
 
         custom_options_channels_dict_postsave = {}
@@ -606,9 +603,8 @@ def input_mod(form_mod, request_form):
 
         if not messages["error"]:
             db.session.commit()
-            messages["success"].append('{action} {controller}'.format(
-                action=TRANSLATIONS['modify']['title'],
-                controller=TRANSLATIONS['input']['title']))
+            messages["success"].append(
+                f"{TRANSLATIONS['modify']['title']} {TRANSLATIONS['input']['title']}")
 
     except Exception as except_msg:
         logger.exception("input_mod")
@@ -635,17 +631,19 @@ def input_del(input_id):
             messages = controller_activate_deactivate(
                 messages, 'deactivate', 'Input', input_id)
 
+        actions = Actions.query.filter(
+            Actions.function_id == input_id).all()
+        for each_action in actions:
+            delete_entry_with_id(
+                Actions, each_action.unique_id, flash_message=False)
+
         device_measurements = DeviceMeasurements.query.filter(
             DeviceMeasurements.device_id == input_id).all()
-
         for each_measurement in device_measurements:
             delete_entry_with_id(
                 DeviceMeasurements,
                 each_measurement.unique_id,
                 flash_message=False)
-
-        delete_entry_with_id(
-            Input, input_id, flash_message=False)
 
         channels = InputChannel.query.filter(
             InputChannel.input_id == input_id).all()
@@ -655,18 +653,18 @@ def input_del(input_id):
                 each_channel.unique_id,
                 flash_message=False)
 
+        delete_entry_with_id(Input, input_id, flash_message=False)
+
         try:
             file_path = os.path.join(
-                PATH_PYTHON_CODE_USER, 'input_python_code_{}.py'.format(
-                    input_dev.unique_id))
+                PATH_PYTHON_CODE_USER, f'input_python_code_{input_dev.unique_id}.py')
             os.remove(file_path)
         except:
             pass
 
         db.session.commit()
-        messages["success"].append('{action} {controller}'.format(
-            action=TRANSLATIONS['delete']['title'],
-            controller=TRANSLATIONS['input']['title']))
+        messages["success"].append(
+            f"{TRANSLATIONS['delete']['title']} {TRANSLATIONS['input']['title']}")
     except Exception as except_msg:
         messages["error"].append(str(except_msg))
 
@@ -714,16 +712,18 @@ def input_activate(form_mod):
 
             if each_option['id'] not in custom_options_values_inputs[input_dev.unique_id]:
                 if 'required' in each_option and each_option['required']:
-                    messages["error"].append("{} not found and is required to be set. "
-                                 "Set option and save Input.".format(
-                        each_option['name']))
+                    messages["error"].append(
+                        f"{each_option['name']} not found and is required to be set. "
+                        "Set option and save Input.")
             else:
                 value = custom_options_values_inputs[input_dev.unique_id][each_option['id']]
                 if ('required' in each_option and
                         each_option['required'] and
+                        value != 0 and
                         not value):
-                    messages["error"].append("{} is required to be set".format(
-                        each_option['name']))
+                    messages["error"].append(
+                        f"{each_option['name']} is required to be set. "
+                        f"Current value: {value}")
 
     #
     # Input-specific checks
@@ -747,9 +747,8 @@ def input_activate(form_mod):
         messages, 'activate', 'Input',  input_id, flash_message=False)
 
     if not messages["error"]:
-        messages["success"].append('{action} {controller}'.format(
-            action=TRANSLATIONS['activate']['title'],
-            controller=TRANSLATIONS['input']['title']))
+        messages["success"].append(
+            f"{TRANSLATIONS['activate']['title']} {TRANSLATIONS['input']['title']}")
 
     return messages
 
@@ -767,11 +766,10 @@ def input_deactivate(form_mod):
         # messages = input_deactivate_associated_controllers(messages, input_id)
         messages = controller_activate_deactivate(
             messages, 'deactivate', 'Input', input_id, flash_message=False)
-        messages["success"].append('{action} {controller}'.format(
-            action=TRANSLATIONS['deactivate']['title'],
-            controller=TRANSLATIONS['input']['title']))
+        messages["success"].append(
+            f"{TRANSLATIONS['deactivate']['title']} {TRANSLATIONS['input']['title']}")
     except Exception as err:
-        messages["error"].append("Error deactivating Input: {}".format(err))
+        messages["error"].append(f"Error deactivating Input: {err}")
 
     return messages
 
@@ -809,12 +807,11 @@ def force_acquire_measurements(unique_id):
             control = DaemonControl()
             status = control.input_force_measurements(unique_id)
             if status[0]:
-                messages["error"].append("Force Input Measurement: {}".format(status[1]))
+                messages["error"].append(f"Force Input Measurement: {status[1]}")
             else:
-                messages["success"].append('{action}, {controller}'.format(
-                    action=gettext("Force Measurements"),
-                    controller=TRANSLATIONS['input']['title']))
-                flash("Force Input Measurement: {}".format(status[1]), "success")
+                messages["success"].append(
+                    f"{gettext('Force Measurements')}, {TRANSLATIONS['input']['title']}")
+                flash(f"Force Input Measurement: {status[1]}", "success")
     except Exception as except_msg:
         messages["error"].append(str(except_msg))
 

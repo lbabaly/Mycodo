@@ -22,7 +22,7 @@
       "debug": false,
       "newestOnTop": false,
       "progressBar": false,
-      "positionClass": "toast-top-right",
+      "positionClass": "toast-top-left",
       "preventDuplicates": false,
       "onclick": null,
       "showDuration": "300",
@@ -71,6 +71,7 @@
 
     <div class="grid-stack">
       {%- for each_function in conditional -%}
+        {% set controller_type = "Conditional" %}
       <div id="gridstack_function_{{each_function.unique_id}}"
         class="grid-stack-item"
         gs-id="{{each_function.unique_id}}"
@@ -80,7 +81,7 @@
         gs-h="1"
         gs-no-resize="true">
         {% include 'pages/function_options/conditional_entry.html' %}
-      </div> <!- grid-stack-item ->
+      </div> <!-- grid-stack-item -->
       {% endfor %}
 
       {%- for each_function in pid -%}
@@ -93,7 +94,7 @@
         gs-h="1"
         gs-no-resize="true">
         {% include 'pages/function_options/pid_entry.html' %}
-      </div> <!- grid-stack-item ->
+      </div> <!-- grid-stack-item -->
       {% endfor %}
 
       {%- for each_function in trigger -%}
@@ -106,7 +107,7 @@
         gs-h="1"
         gs-no-resize="true">
         {% include 'pages/function_options/trigger_entry.html' %}
-      </div> <!- grid-stack-item ->
+      </div> <!-- grid-stack-item -->
       {% endfor %}
 
       {%- for each_function in function_dev -%}
@@ -119,7 +120,7 @@
         gs-h="1"
         gs-no-resize="true">
         {% include 'pages/function_options/function_entry.html' %}
-      </div> <!- grid-stack-item ->
+      </div> <!-- grid-stack-item -->
       {% endfor %}
 
       {%- for each_function in function -%}
@@ -132,9 +133,9 @@
         gs-h="1"
         gs-no-resize="true">
         {% include 'pages/function_options/custom_function_entry.html' %}
-      </div> <!- grid-stack-item ->
+      </div> <!-- grid-stack-item -->
       {% endfor %}
-    </div> <!- grid-stack ->
+    </div> <!-- grid-stack -->
 
   {% include 'admin/dependencies_install.html' %}
 
@@ -177,15 +178,21 @@
       if ('error' in data.data.messages && data.data.messages.error.length !== 0) {
         toastr['error']('Error: ' + data.data.messages.error.join(", "));
       }
+      {% if not misc.hide_alert_warning %}
       if ('warning' in data.data.messages && data.data.messages.warning.length !== 0) {
         toastr['warning']('Warning: ' + data.data.messages.warning.join(", "));
       }
+      {% endif %}
+      {% if not misc.hide_alert_info %}
       if ('info' in data.data.messages && data.data.messages.info.length !== 0) {
         toastr['info']('Info: ' + data.data.messages.info.join(", "));
       }
+      {% endif %}
+      {% if not misc.hide_alert_success %}
       if ('success' in data.data.messages && data.data.messages.success.length !== 0) {
         toastr['success']('Success: ' + data.data.messages.success.join(", "));
       }
+      {% endif %}
     }
 
     var status_message = {};
@@ -197,10 +204,19 @@
           if (jqXHR.status !== 204) {
             if (data && "string_status" in data) {
               document.getElementById("function_status_message_" + function_id).innerHTML = data['string_status'].replace(/(?:\r\n|\r|\n)/g, "<br>");
+            } else {
+                document.getElementById("function_status_message_" + function_id).innerHTML = '';
+            }
+            if (data && "error" in data && data['error'].length) {
+              let errors = ''
+              for (let c = 0; c < data['error'].length; c++) {
+                errors += data['error'][c].replace(/(?:\r\n|\r|\n)/g, "<br>") + '<br>';
+              }
+              document.getElementById("function_status_message_" + function_id).innerHTML += "<p><pre>Error(s):<br>" + errors + "</pre></p>";
             }
           }
           else {
-            document.getElementById("function_status_message_" + function_id).innerHTML = "Error";
+            document.getElementById("function_status_message_" + function_id).innerHTML = "Error querying status.";
           }
         }
       );
@@ -278,7 +294,7 @@
           action === 'pid_hold' ||
           action === 'pid_resume' ||
           action.startsWith('custom_button_')) {
-        toastr['info']('Command sent. Please wait...');
+        {% if not misc.hide_alert_info %}toastr['info']('Command sent. Please wait...');{% endif %}
         $.ajax({
           type: "POST",
           url: '/function_submit',
@@ -308,6 +324,8 @@
                         y: 999
                       });
                       {% if not hide_tooltips %}$('input[title]').tooltip({placement: 'top'});{% endif %}
+                      $('#action_type_' + data.data.function_id).selectpicker('refresh');
+                      $('#condition_type_' + data.data.function_id).selectpicker('refresh');
                     }
                     popup_response(data);
                   },
@@ -319,7 +337,6 @@
               return;
             }
             else if (action === 'add_action' && 'dep_unmet' in data.data && data.data.dep_unmet.length > 0) {
-              console.log("TEST11");
               $(".dependencies_device_name").text(data.data.dep_name);
               $(".dependencies_device").text(data.data.dep_unmet);
               $(".dependencies_unmet").text(data.data.dep_list.join(", "));
@@ -367,7 +384,7 @@
                 if ("function_type" in form_values && ["conditional", "function", "pid"].includes(form_values.function_type)) {
                   ids_show(data.data.function_id, ["status_enable"]);
                   function_status(data.data.function_id);
-                  if ("period_status" in data.data.messages) {
+                  if ("period_status" in data.data.messages && data.data.messages.period_status) {
                     repeat_function_status(data.data.function_id, data.data.messages.period_status);
                   } else {
                     repeat_function_status(data.data.function_id, 30);
@@ -419,7 +436,7 @@
                 document.getElementById("pid_activity_indicator_" + data.data.function_id).value = "PID Controller [Active]";
               }
               if (action === 'delete_action' && 'action_id' in data.data) {
-                document.getElementById("mod_function_action_" + data.data.action_id).remove();
+                document.getElementById("mod_action_" + data.data.action_id).remove();
                 popup_response(data);
               }
               if (action === 'delete_condition' && 'condition_id' in data.data) {

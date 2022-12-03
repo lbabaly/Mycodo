@@ -18,7 +18,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'HCSR04_CIRCUITPYTHON',
     'input_manufacturer': 'Multiple Manufacturers',
     'input_name': 'HC-SR04',
-    'input_library': 'Adafruit-CircuitPython-HCSR04',
+    'input_library': 'Adafruit_CircuitPython_HCSR04',
     'measurements_name': 'Ultrasonic Distance',
     'measurements_dict': measurements_dict,
     'url_manufacturer': 'https://www.cytron.io/p-5v-hc-sr04-ultrasonic-sensor',
@@ -64,9 +64,9 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that measures the HCSR04's temperature """
+    """A sensor support class that measures the HCSR04's temperature"""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
 
@@ -76,9 +76,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import board
         import adafruit_hcsr04
 
@@ -120,9 +120,9 @@ class InputModule(AbstractInput):
             self.logger.error("Must set trigger and enable pins")
 
     def get_measurement(self):
-        """ Gets the measurement """
+        """Gets the measurement."""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)

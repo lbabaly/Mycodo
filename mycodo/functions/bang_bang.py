@@ -8,20 +8,17 @@ import time
 
 from flask_babel import lazy_gettext
 
-from mycodo.config import SQL_DATABASE_MYCODO
 from mycodo.databases.models import CustomController
 from mycodo.functions.base_function import AbstractFunction
 from mycodo.mycodo_client import DaemonControl
 from mycodo.utils.constraints_pass import constraints_pass_positive_value
 from mycodo.utils.database import db_retrieve_table_daemon
 
-MYCODO_DB_PATH = 'sqlite:///' + SQL_DATABASE_MYCODO
-
-
 # TODO: Remove this at next major version (obsolete because a On/Off Raise/Lower/Both Bang-Bang exists
 FUNCTION_INFORMATION = {
     'function_name_unique': 'bang_bang',
     'function_name': 'Bang-Bang Hysteretic (On/Off) (Raise/Lower)',
+    'function_name_short': 'Bang-Bang (On/Off, Raise/Lower)',
 
     'message': 'A simple bang-bang control for controlling one output from one input.'
         ' Select an input, an output, enter a setpoint and a hysteresis, and select a direction.'
@@ -43,11 +40,19 @@ FUNCTION_INFORMATION = {
             'required': True,
             'options_select': [
                 'Input',
-                'Math',
                 'Function'
             ],
             'name': lazy_gettext('Measurement'),
             'phrase': lazy_gettext('Select a measurement the selected output will affect')
+        },
+        {
+            'id': 'measurement_max_age',
+            'type': 'integer',
+            'default_value': 360,
+            'required': True,
+            'name': "{}: {} ({})".format(lazy_gettext("Measurement"), lazy_gettext("Max Age"),
+                                           lazy_gettext("Seconds")),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
         },
         {
             'id': 'output',
@@ -95,8 +100,8 @@ FUNCTION_INFORMATION = {
             'default_value': 5,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('Period (seconds)'),
-            'phrase': lazy_gettext('The duration (seconds) between measurements or actions')
+            'name': "{} ({})".format(lazy_gettext('Period'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The duration between measurements or actions')
         }
     ]
 }
@@ -107,10 +112,9 @@ class CustomModule(AbstractFunction):
     Class to operate custom controller
     """
     def __init__(self, function, testing=False):
-        super(CustomModule, self).__init__(function, testing=testing, name=__name__)
+        super().__init__(function, testing=testing, name=__name__)
 
         self.control_variable = None
-        self.timestamp = None
         self.control = DaemonControl()
         self.outputIsOn = False
         self.timer_loop = time.time()
@@ -118,6 +122,7 @@ class CustomModule(AbstractFunction):
         # Initialize custom options
         self.measurement_device_id = None
         self.measurement_measurement_id = None
+        self.measurement_max_age = None
         self.output_device_id = None
         self.output_measurement_id = None
         self.output_channel_id = None
@@ -134,11 +139,9 @@ class CustomModule(AbstractFunction):
             FUNCTION_INFORMATION['custom_options'], custom_function)
 
         if not testing:
-            self.initialize_variables()
+            self.try_initialize()
 
-    def initialize_variables(self):
-        self.timestamp = time.time()
-
+    def initialize(self):
         self.output_channel = self.get_output_channel_from_channel_id(
             self.output_channel_id)
 
@@ -169,36 +172,42 @@ class CustomModule(AbstractFunction):
 
         last_measurement = self.get_last_measurement(
             self.measurement_device_id,
-            self.measurement_measurement_id)[1]
-        outputState = self.control.output_state(self.output_device_id, self.output_channel)
+            self.measurement_measurement_id,
+            max_age=self.measurement_max_age)
 
-        self.logger.info("Input: {}, output: {}, target: {}, hyst: {}".format(
-            last_measurement, outputState, self.setpoint, self.hysteresis))
+        if not last_measurement:
+            self.logger.error("Could not acquire a measurement")
+            return
+
+        output_state = self.control.output_state(self.output_device_id, self.output_channel)
+
+        self.logger.debug(
+            f"Input: {last_measurement[1]}, output: {output_state}, target: {self.setpoint}, hyst: {self.hysteresis}")
 
         if self.direction == 'raise':
-            if last_measurement > (self.setpoint + self.hysteresis):
-                if outputState == 'on':
+            if last_measurement[1] > (self.setpoint + self.hysteresis):
+                if output_state == 'on':
                     self.control.output_off(
                         self.output_device_id,
                         output_channel=self.output_channel)
             else:
-                if last_measurement < (self.setpoint - self.hysteresis):
+                if last_measurement[1] < (self.setpoint - self.hysteresis):
                     self.control.output_on(
                         self.output_device_id,
                         output_channel=self.output_channel)
         elif self.direction == 'lower':
-            if last_measurement < (self.setpoint - self.hysteresis):
-                if outputState == 'on':
+            if last_measurement[1] < (self.setpoint - self.hysteresis):
+                if output_state == 'on':
                     self.control.output_off(
                         self.output_device_id,
                         output_channel=self.output_channel)
             else:
-                if last_measurement > (self.setpoint + self.hysteresis):
+                if last_measurement[1] > (self.setpoint + self.hysteresis):
                     self.control.output_on(
                         self.output_device_id,
                         output_channel=self.output_channel)
         else:
-            self.logger.info("Unknown controller direction: '{}'".format(self.direction))
+            self.logger.error("Unknown controller direction: '{}'".format(self.direction))
 
     def stop_function(self):
         self.control.output_off(self.output_device_id, self.output_channel)

@@ -20,15 +20,17 @@
 #  along with Mycodo. If not, see <http://www.gnu.org/licenses/>.
 #
 #  Contact at kylegabriel.com
-
 import logging
 
+from mycodo.utils.logging_utils import set_log_level
+
 logger = logging.getLogger("mycodo.utils.image")
+logger.setLevel(set_log_level(logging))
 
 
 def generate_thermal_image_from_pixels(
         pixels, nx, ny, path_file, rotate_ccw=270, scale=25, temp_min=None, temp_max=None):
-    """ Generate and save image from list of pixels """
+    """Generate and save image from list of pixels."""
     from colour import Color
     from PIL import Image
     from PIL import ImageDraw

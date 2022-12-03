@@ -21,9 +21,10 @@
 #
 #  Contact at kylegabriel.com
 
-import sys
-
+import random
 import re
+import string
+import sys
 
 
 def is_email(email):
@@ -42,7 +43,7 @@ def is_email(email):
         return True
 
 
-def pass_length_min(pw, min_len=6):
+def pass_length_min(pw, min_len=4):
     """
     Validate password length
 
@@ -52,7 +53,6 @@ def pass_length_min(pw, min_len=6):
     :type min_len: int
     :return: Whether the password is long enough
     :rtype: bool
-
     """
     if not len(pw) >= min_len:
         print("The password provided is too short.")
@@ -78,7 +78,7 @@ def characters(un):
         return True
 
 
-def user_length_min(un, min_len=2):
+def user_length_min(un, min_len=3):
     """
     Validate Username length
 
@@ -212,7 +212,7 @@ def query_yes_no(question, default="yes"):
 
 
 def sort_tuple(tup):
-    """sort a list of tuples by its second item"""
+    """sort a list of tuples by its second item."""
     lst = len(tup)
     for i in range(0, lst):
         for j in range(0, lst - i - 1):
@@ -221,3 +221,11 @@ def sort_tuple(tup):
                 tup[j] = tup[j + 1]
                 tup[j + 1] = temp
     return tup
+
+
+def random_alphanumeric(length):
+    """Generates a random alphanumeric string."""
+    key = ''
+    for i in range(length):
+        key += random.choice(string.ascii_letters + string.digits)
+    return key

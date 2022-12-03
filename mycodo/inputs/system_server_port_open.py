@@ -16,8 +16,9 @@ measurements_dict = {
 # Input information
 INPUT_INFORMATION = {
     'input_name_unique': 'SERVER_PORT_OPEN',
-    'input_manufacturer': 'System',
+    'input_manufacturer': 'Mycodo',
     'input_name': 'Server Port Open',
+    'input_name_short': 'Open Port',
     'input_library': 'nc',
     'measurements_name': 'Boolean',
     'measurements_dict': measurements_dict,
@@ -30,9 +31,7 @@ INPUT_INFORMATION = {
         'period',
         'pre_output'
     ],
-    'options_disabled': ['interface'],
 
-    'interfaces': ['Mycodo'],
     'location': {
         'name': TRANSLATIONS["host"]["title"],
         'phrase': TRANSLATIONS["host"]["phrase"],
@@ -47,20 +46,20 @@ class InputModule(AbstractInput):
     A sensor support class that pings a server and returns 1 if it's up and 0 if it's down.
     """
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.location = None
         self.port = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.location = self.input_dev.location
         self.port = self.input_dev.port
 
     def get_measurement(self):
-        """ Determine if the return value of the command is a number """
+        """Determine if the return value of the command is a number."""
         self.return_dict = copy.deepcopy(measurements_dict)
 
         response = os.system("nc -zv {host} {port} > /dev/null 2>&1".format(

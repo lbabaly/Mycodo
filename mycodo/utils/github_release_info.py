@@ -2,13 +2,12 @@
 import argparse
 import json
 import logging
-import sys
-from urllib.request import Request
-from urllib.request import urlopen
-
 import os
 import re
+import sys
 from pkg_resources import parse_version
+from urllib.request import Request
+from urllib.request import urlopen
 
 sys.path.append(
     os.path.abspath(os.path.join(
@@ -16,8 +15,10 @@ sys.path.append(
 
 from mycodo.config import MYCODO_VERSION
 from mycodo.config import RELEASE_URL
+from mycodo.utils.logging_utils import set_log_level
 
 logger = logging.getLogger("mycodo.release_info")
+logger.setLevel(set_log_level(logging))
 
 
 class MycodoRelease:
@@ -57,7 +58,7 @@ class MycodoRelease:
             return {}
 
     def github_releases(self, mycodo_releases, major_version):
-        """ Return the tarball URL for the latest Mycodo release version """
+        """Return the tarball URL for the latest Mycodo release version."""
         all_versions = []
         for each_release in mycodo_releases:
             if re.match('v{maj}.*(\d\.\d)'.format(maj=major_version),
@@ -66,7 +67,7 @@ class MycodoRelease:
         return self.sort_reverse_list(all_versions)
 
     def github_latest_release(self, mycodo_releases):
-        """ Return the latest Mycodo release version """
+        """Return the latest Mycodo release version."""
         all_versions = []
         for each_release in mycodo_releases:
             if re.match('v.*(\d\.\d\.\d)', each_release['name']):
@@ -128,7 +129,7 @@ class MycodoRelease:
         return versions_sorted
 
     def return_latest_version_url(self, version_only):
-        """ Return the tarball URL for the latest Mycodo release version """
+        """Return the tarball URL for the latest Mycodo release version."""
         all_versions = []
         for each_release in self.mycodo_releases:
             if re.match('v.*(\d\.\d\.\d)', each_release['name']):

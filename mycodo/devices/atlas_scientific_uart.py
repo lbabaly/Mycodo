@@ -10,22 +10,25 @@ from serial.serialutil import SerialTimeoutException
 
 sys.path.append(os.path.abspath(os.path.join(os.path.realpath(__file__), '../../..')))
 
-from mycodo.utils.lockfile import LockFile
 from mycodo.devices.base_atlas import AbstractBaseAtlasScientific
+from mycodo.utils.lockfile import LockFile
 
 
 class AtlasScientificUART(AbstractBaseAtlasScientific):
-    """A Class to communicate with Atlas Scientific sensors via UART"""
+    """A Class to communicate with Atlas Scientific sensors via UART."""
 
     def __init__(self, serial_device, baudrate=9600):
-        super(AtlasScientificUART, self).__init__(interface='UART', name=serial_device.replace("/", "_"))
+        super().__init__(interface='UART', name=serial_device.replace("/", "_"))
+
+        self.lock_timeout = 10
+        self.lock_file = '/var/lock/atlas_UART_{}_{}.lock'.format(
+            __name__.replace(".", "_"), serial_device.replace("/", "_"))
 
         self.logger = logging.getLogger(
-            "{}{}".format(__name__, serial_device.replace("/", "_")))
+            "{}_{}".format(__name__, serial_device.replace("/", "_")))
 
         self.setup = False
         self.serial_device = serial_device
-        self.lockfile = LockFile()
 
         try:
             self.atlas_device = serial.Serial(
@@ -72,19 +75,21 @@ class AtlasScientificUART(AbstractBaseAtlasScientific):
         return b''.join(line_buffer)
 
     def query(self, query_str):
-        """ Send command and return reply """
-        lock_file_amend = '/var/lock/sensor-atlas.{dev}'.format(
-            dev=self.serial_device.replace("/", "-"))
-
-        if self.lockfile.lock_acquire(lock_file_amend, timeout=3600):
+        """Send command and return reply."""
+        lf = LockFile()
+        if lf.lock_acquire(self.lock_file, timeout=self.lock_timeout):
             try:
                 self.send_cmd(query_str)
                 time.sleep(1.3)
                 response = self.read_lines()
                 return 'success', response
+            except Exception as err:
+                self.logger.exception(
+                    "{cls} raised an exception when taking a reading: "
+                    "{err}".format(cls=type(self).__name__, err=err))
+                return "error", err
             finally:
-                self.lockfile.lock_release(lock_file_amend)
-        return None, None
+                lf.lock_release(self.lock_file)
 
     def read_lines(self):
         """
@@ -105,9 +110,6 @@ class AtlasScientificUART(AbstractBaseAtlasScientific):
         except AttributeError:
             self.logger.exception('UART device not initialized')
             return None
-
-    def atlas_write(self, cmd):
-        self.write(cmd)
 
     def write(self, cmd):
         self.send_cmd(cmd)

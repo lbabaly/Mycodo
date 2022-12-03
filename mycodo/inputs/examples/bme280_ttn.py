@@ -13,14 +13,14 @@
 # Author: Tony DiCola
 # Based on the BMP280 driver with BME280 changes provided by
 # David J Taylor, Edinburgh (www.satsignal.eu)
-import time
-
 import copy
+import time
 
 from mycodo.inputs.base_input import AbstractInput
 from mycodo.inputs.sensorutils import calculate_altitude
 from mycodo.inputs.sensorutils import calculate_dewpoint
 from mycodo.inputs.sensorutils import calculate_vapor_pressure_deficit
+from mycodo.utils.lockfile import LockFile
 
 # Measurements
 measurements_dict = {
@@ -56,6 +56,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'BME280_TTN',
     'input_manufacturer': 'BOSCH',
     'input_name': 'BME280 (->Serial->TTN)',
+    'input_name_short': 'BME280 TTN',
     'input_library': 'Adafruit_BME280/pyserial',
     'measurements_name': 'Pressure/Humidity/Temperature',
     'measurements_dict': measurements_dict,
@@ -108,7 +109,7 @@ class InputModule(AbstractInput):
     """
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.serial = None
         self.serial_send = None
@@ -124,7 +125,7 @@ class InputModule(AbstractInput):
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
 
-    def initialize_input(self):
+    def initialize(self):
         from Adafruit_BME280 import BME280
         import serial
 
@@ -134,7 +135,7 @@ class InputModule(AbstractInput):
         self.serial = serial
 
     def get_measurement(self):
-        """ Gets the measurement in units by reading the """
+        """Gets the measurement in units by reading the."""
         self.return_dict = copy.deepcopy(measurements_dict)
 
         if self.is_enabled(0):
@@ -174,7 +175,8 @@ class InputModule(AbstractInput):
                     self.value_get(2),
                     self.value_get(0))
 
-                if self.lock_acquire(self.lock_file, timeout=10):
+                lf = LockFile()
+                if lf.lock_acquire(self.lock_file, timeout=10):
                     try:
                         self.serial_send = self.serial.Serial(
                             port=self.serial_device,
@@ -184,7 +186,7 @@ class InputModule(AbstractInput):
                         self.serial_send.write(string_send.encode())
                         time.sleep(4)
                     finally:
-                        self.lock_release(self.lock_file)
+                        lf.lock_release(self.lock_file)
                 self.ttn_serial_error = False
         except Exception as e:
             if not self.ttn_serial_error:

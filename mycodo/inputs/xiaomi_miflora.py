@@ -2,6 +2,7 @@
 import copy
 
 from mycodo.inputs.base_input import AbstractInput
+from mycodo.utils.lockfile import LockFile
 
 # Measurements
 measurements_dict = {
@@ -61,14 +62,14 @@ class InputModule(AbstractInput):
     A sensor support class that measures
     """
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         from miflora.miflora_poller import MiFloraPoller
         from btlewrap import BluepyBackend
 
@@ -85,14 +86,15 @@ class InputModule(AbstractInput):
             self.logger.exception("Setting up sensor")
 
     def get_measurement(self):
-        """ Gets the light, moisture, and temperature """
+        """Gets the light, moisture, and temperature"""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)
 
-        if self.lock_acquire(self.lock_file, timeout=3600):
+        lf = LockFile()
+        if lf.lock_acquire(self.lock_file, timeout=3600):
             try:
                 from miflora.miflora_poller import MI_CONDUCTIVITY
                 from miflora.miflora_poller import MI_MOISTURE
@@ -119,4 +121,4 @@ class InputModule(AbstractInput):
             except:
                 self.logger.exception("acquiring measurements")
             finally:
-                self.lock_release(self.lock_file)
+                lf.lock_release(self.lock_file)

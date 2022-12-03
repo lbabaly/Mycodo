@@ -10,7 +10,7 @@ from wtforms import DecimalField
 from wtforms import IntegerField
 from wtforms import StringField
 from wtforms import widgets
-from wtforms.widgets.html5 import NumberInput
+from wtforms.widgets import NumberInput
 
 from mycodo.config_translations import TRANSLATIONS
 
@@ -45,9 +45,9 @@ class Trigger(FlaskForm):
 
     # Timer
     period = DecimalField(
-        lazy_gettext('Period (seconds)'), widget=NumberInput(step='any'))
+        "{} ({})".format(lazy_gettext('Period'), lazy_gettext('Seconds')), widget=NumberInput(step='any'))
     timer_start_offset = IntegerField(
-        lazy_gettext('Start Offset (seconds)'), widget=NumberInput())
+        "{} ({})".format(lazy_gettext('Start Offset'), lazy_gettext('Seconds')), widget=NumberInput())
     timer_start_time = StringField(lazy_gettext('Start Time (HH:MM)'))
     timer_end_time = StringField(lazy_gettext('End Time (HH:MM)'))
 
@@ -60,6 +60,7 @@ class Trigger(FlaskForm):
     unique_id_2 = StringField(lazy_gettext('If ID 2'))
     output_state = StringField(lazy_gettext('If State'))
     output_duration = DecimalField(
-        lazy_gettext('If Duration (seconds)'), widget=NumberInput(step='any'))
+        "{} ({})".format(lazy_gettext('If Duration'), lazy_gettext('Seconds')),
+        widget=NumberInput(step='any'))
     output_duty_cycle = DecimalField(
         lazy_gettext('If Duty Cycle (%%)'), widget=NumberInput(step='any'))

@@ -20,6 +20,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'ADAFRUIT_I2C_SOIL',
     'input_manufacturer': 'Adafruit',
     'input_name': 'I2C Capacitive Moisture Sensor',
+    'input_name_short': 'Capacitive Moisture',
     'input_library': 'adafruit_seesaw',
     'measurements_name': 'Moisture/Temperature',
     'measurements_dict': measurements_dict,
@@ -36,7 +37,7 @@ INPUT_INFORMATION = {
 
     'dependencies_module': [
         ('pip-pypi', 'usb.core', 'pyusb==1.1.1'),
-        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.1'),
+        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.2'),
         ('pip-pypi', 'adafruit_seesaw', 'adafruit-circuitpython-seesaw==1.7.2')
     ],
 
@@ -47,16 +48,16 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that measures soil moisture using adafruit's i2c soil sensor """
+    """A sensor support class that measures soil moisture using adafruit's i2c soil sensor."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         from adafruit_seesaw.seesaw import Seesaw
         from adafruit_extended_bus import ExtendedI2C
 
@@ -69,7 +70,7 @@ class InputModule(AbstractInput):
 
     def get_measurement(self):
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)

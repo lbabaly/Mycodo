@@ -9,12 +9,12 @@
 #
 # Comment will be updated with other code to go along with this module
 #
-import time
-
 import copy
+import time
 
 from mycodo.inputs.base_input import AbstractInput
 from mycodo.inputs.sensorutils import is_device
+from mycodo.utils.lockfile import LockFile
 
 airtime_seconds = 0.0515  # 51.5 ms
 ttn_max_seconds_transmit_per_day = 30
@@ -34,6 +34,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'K30_TTN',
     'input_manufacturer': 'CO2Meter',
     'input_name': 'K30 (->Serial->TTN)',
+    'input_name_short': 'K30 TTN',
     'input_library': 'serial',
     'measurements_name': 'CO2',
     'measurements_dict': measurements_dict,
@@ -70,10 +71,10 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that monitors the K30's CO2 concentration """
+    """A sensor support class that monitors the K30's CO2 concentration."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.ser = None
         self.serial = None
@@ -90,7 +91,7 @@ class InputModule(AbstractInput):
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
 
-    def initialize_input(self):
+    def initialize(self):
         import serial
 
         # Check if device is valid
@@ -116,7 +117,7 @@ class InputModule(AbstractInput):
                 min_seconds_between_transmissions))
 
     def get_measurement(self):
-        """ Gets the K30's CO2 concentration in ppmv via UART"""
+        """Gets the K30's CO2 concentration in ppmv via UART."""
         if not self.ser:  # Don't measure if device isn't validated
             return None
 
@@ -143,7 +144,8 @@ class InputModule(AbstractInput):
                 # "K" designates this data belonging to the K30
                 string_send = 'K,{}'.format(self.value_get(0))
 
-                if self.lock_acquire(self.lock_file, timeout=10):
+                lf = LockFile()
+                if lf.lock_acquire(self.lock_file, timeout=10):
                     try:
                         self.serial_send = self.serial.Serial(
                             port=self.serial_device,
@@ -153,7 +155,7 @@ class InputModule(AbstractInput):
                         self.serial_send.write(string_send.encode())
                         time.sleep(4)
                     finally:
-                        self.lock_release(self.lock_file)
+                        lf.lock_release(self.lock_file)
                 self.ttn_serial_error = False
         except Exception as e:
             if not self.ttn_serial_error:

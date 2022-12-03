@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Generate markdown file of Widget information to be inserted into the manual"""
+"""Generate markdown file of Widget information to be inserted into the manual."""
 
 import sys
 
@@ -48,7 +48,6 @@ if __name__ == "__main__":
     ]
 
     with open(save_path, 'w') as out_file:
-        out_file.write("Supported Widget devices are listed below.\n\n")
         for each_list in list_widgets:
             out_file.write("## {}\n\n".format(each_list[1]))
 
@@ -77,9 +76,6 @@ if __name__ == "__main__":
                                     out_file.write("[{0}](https://pypi.org/project/{0})".format(each_dep[2].split("==")[0]))
                                 else:
                                     out_file.write("[{0}](https://pypi.org/project/{0})".format(each_dep[2]))
-                            elif each_dep[0] == "pip-git":
-                                url = re.search('git://(.*).git', each_dep[2])
-                                out_file.write("[{name}](https://{url})".format(name=each_dep[1], url=url.group(1)))
                             elif each_dep[0] == "bash-commands":
                                 list_files = []
                                 for each_path in each_dep[1]:

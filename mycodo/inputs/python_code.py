@@ -157,7 +157,10 @@ INPUT_INFORMATION = {
     'execute_at_modification': execute_at_modification,
 
     'message': 'All channels require a Measurement Unit to be selected and saved in order to store values to the '
-               'database.',
+               'database. Your code is executed from the same Python virtual environment that Mycodo runs from. '
+               'Therefore, you must install Python libraries to this environment if you want them to be available to '
+               'your code. This virtualenv is located at ~/Mycodo/env and if you wanted to install a library, for '
+               'example "my_library" using pip, you would execute "sudo ~/Mycodo/env/bin/pip install my_library".',
 
     'options_enabled': [
         'measurements_select',
@@ -183,18 +186,18 @@ self.store_measurement(channel=0, measurement=random_value_channel_0)"""
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that returns a value from a command """
+    """A sensor support class that returns a value from a command."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.input_dev = input_dev
         self.python_code = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         self.unique_id = self.input_dev.unique_id
 
         self.measure_info = {}
@@ -209,9 +212,9 @@ class InputModule(AbstractInput):
         self.python_code = self.input_dev.cmd_command
 
     def get_measurement(self):
-        """ Determine if the return value of the command is a number """
+        """Determine if the return value of the command is a number."""
         if not self.python_code:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)
@@ -234,3 +237,5 @@ class InputModule(AbstractInput):
             run.python_code_run()
         except Exception:
             self.logger.exception(1)
+
+        return self.return_dict

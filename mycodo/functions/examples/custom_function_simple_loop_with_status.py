@@ -40,6 +40,10 @@ FUNCTION_INFORMATION = {
                'with the current time will be displayed for the user every Status Period. The Status '
                'Widget will also display this status.',
 
+    'options_enabled': [
+        'custom_options',
+        'function_status'
+    ],
     'options_disabled': [
         'measurements_select',
         'measurements_configure'
@@ -55,24 +59,24 @@ FUNCTION_INFORMATION = {
             'default_value': 60,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('Period (seconds)'),
-            'phrase': lazy_gettext('The duration (seconds) between measurements or actions')
+            'name': "{} ({})".format(lazy_gettext('Period'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The duration between measurements or actions')
         },
         {
             'id': 'start_offset',
             'type': 'integer',
             'default_value': 10,
             'required': True,
-            'name': 'Start Offset',
-            'phrase': 'The duration (seconds) to wait before the first operation'
+            'name': "{} ({})".format(lazy_gettext('Start Offset'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The duration to wait before the first operation')
         },
         {
             'id': 'period_status',
             'type': 'integer',
             'default_value': 60,
             'required': True,
-            'name': 'Status Period (seconds)',
-            'phrase': 'The duration (seconds) to update the Function status on the UI'
+            'name': 'Status Period (Seconds)',
+            'phrase': 'The duration to update the Function status on the UI'
         }
     ]
 }
@@ -83,7 +87,7 @@ class CustomModule(AbstractFunction):
     Class to operate custom controller
     """
     def __init__(self, function, testing=False):
-        super(CustomModule, self).__init__(function, testing=testing, name=__name__)
+        super().__init__(function, testing=testing, name=__name__)
 
         self.timer_loop = None
         self.loop_counter = 0
@@ -105,9 +109,9 @@ class CustomModule(AbstractFunction):
             FUNCTION_INFORMATION['custom_options'], custom_function)
 
         if not testing:
-            self.initialize_variables()
+            self.try_initialize()
 
-    def initialize_variables(self):
+    def initialize(self):
         # import controller-specific modules here
         # You may import something you defined in dependencies_module
         self.timer_loop = time.time() + self.start_offset

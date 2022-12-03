@@ -28,7 +28,6 @@ import math
 import time
 import traceback
 
-from flask import flash
 from flask_babel import lazy_gettext
 
 from mycodo.config import MYCODO_VERSION
@@ -87,7 +86,7 @@ def execute_at_modification(
     dictionaries. Additionally, both the pre-saved and post-saved options are available, as it's
     sometimes useful to know what settings changed and from what values. You can modify the post-saved
     options and these will be stored in the database.
-    :param mod_output: The post-saved output database entry, minus the custom_options settings
+    :param mod_function: The post-saved output database entry, minus the custom_options settings
     :param request_form: The requests.form object the user submitted
     :param custom_options_dict_presave: dict of pre-saved custom output options
     :param custom_options_channels_dict_presave: dict of pre-saved custom output channel options
@@ -178,9 +177,9 @@ FUNCTION_INFORMATION = {
         ('apt', 'libjpeg-dev', 'libjpeg-dev'),
         ('pip-pypi', 'PIL', 'Pillow==8.1.2'),
         ('pip-pypi', 'usb.core', 'pyusb==1.1.1'),
-        ('pip-pypi', 'adafruit_extended_bus', 'adafruit-extended-bus==1.0.1'),
-        ('pip-pypi', 'adafruit_framebuf', 'adafruit-circuitpython-framebuf'),
-        ('pip-pypi', 'adafruit_ssd1306', 'Adafruit-Circuitpython-SSD1306')
+        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.2'),
+        ('pip-pypi', 'adafruit_framebuf', 'adafruit-circuitpython-framebuf==1.4.9'),
+        ('pip-pypi', 'adafruit_ssd1306', 'adafruit-circuitpython-ssd1306==2.12.4')
     ],
 
     'interface': 'I2C',
@@ -192,8 +191,8 @@ FUNCTION_INFORMATION = {
             'default_value': 10,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('Period (seconds)'),
-            'phrase': lazy_gettext('The duration (seconds) between measurements or actions')
+            'name': "{} ({})".format(lazy_gettext('Period'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The duration between measurements or actions')
         },
         {
             'id': 'i2c_address',
@@ -201,7 +200,7 @@ FUNCTION_INFORMATION = {
             'default_value': '0x3c',
             'required': True,
             'name': TRANSLATIONS['i2c_location']['title'],
-            'phrase': TRANSLATIONS['i2c_location']['phrase']
+            'phrase': ''
         },
         {
             'id': 'i2c_bus',
@@ -209,7 +208,7 @@ FUNCTION_INFORMATION = {
             'default_value': 1,
             'required': True,
             'name': TRANSLATIONS['i2c_bus']['title'],
-            'phrase': TRANSLATIONS['i2c_bus']['phrase']
+            'phrase': ''
         },
         {
             'id': 'number_line_sets',
@@ -285,7 +284,6 @@ FUNCTION_INFORMATION = {
             'default_value': '',
             'options_select': [
                 'Input',
-                'Math',
                 'Function',
                 'Output',
                 'PID'
@@ -295,12 +293,20 @@ FUNCTION_INFORMATION = {
         },
         {
             'id': 'measure_max_age',
-            'type': 'float',
+            'type': 'integer',
             'default_value': 360,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('Max Age'),
-            'phrase': lazy_gettext('The maximum age (seconds) of the measurement to use')
+            'name': "{} ({})".format(lazy_gettext('Max Age'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
+        },
+        {
+            'id': 'measurement_label',
+            'type': 'text',
+            'default_value': '',
+            'required': False,
+            'name': 'Measurement Label',
+            'phrase': 'Set to overwrite the default measurement label'
         },
         {
             'id': 'measure_decimal',
@@ -336,7 +342,7 @@ class CustomModule(AbstractFunction):
     Class to operate custom controller
     """
     def __init__(self, function, testing=False):
-        super(CustomModule, self).__init__(function, testing=testing, name=__name__)
+        super().__init__(function, testing=testing, name=__name__)
 
         self.options_channels = {}
         self.device = None
@@ -364,9 +370,9 @@ class CustomModule(AbstractFunction):
             FUNCTION_INFORMATION['custom_options'], custom_function)
 
         if not testing:
-            self.initialize_variables()
+            self.try_initialize()
 
-    def initialize_variables(self):
+    def initialize(self):
         from mycodo.devices.lcd_pioled_circuitpython import PiOLEDCircuitpython
 
         try:
@@ -445,7 +451,7 @@ class CustomModule(AbstractFunction):
                     if self.options_channels['line_display_type'][current_channel] == 'measurement_value':
                         if measure_value:
                             if self.options_channels['measure_decimal'][current_channel] == 0:
-                                val_rounded = int(self.options_channels['measure_decimal'][current_channel])
+                                val_rounded = int(measure_value)
                             else:
                                 val_rounded = round(
                                     measure_value,
@@ -456,16 +462,13 @@ class CustomModule(AbstractFunction):
                                 self.options_channels['select_measurement'][current_channel]['measurement_id'],
                                 val_rounded,
                                 self.characters_x,
-                                display_unit=self.options_channels['display_unit'][current_channel])
+                                display_unit=self.options_channels['display_unit'][current_channel],
+                                label=self.options_channels['measurement_label'][current_channel])
 
                     elif self.options_channels['line_display_type'][current_channel] == 'measurement_ts':
                         if measure_ts:
                             # Convert UTC timestamp to local timezone
-                            utc_dt = datetime.datetime.strptime(
-                                measure_ts.split(".")[0], '%Y-%m-%dT%H:%M:%S')
-                            utc_timestamp = calendar.timegm(utc_dt.timetuple())
-                            lines_display[current_line] = str(
-                                datetime.datetime.fromtimestamp(utc_timestamp))
+                            lines_display[current_line] = str(datetime.datetime.fromtimestamp(measure_ts))
 
                 elif self.options_channels['line_display_type'][current_channel] == 'current_time':
                     lines_display[current_line] = time.strftime('%Y-%m-%d %H:%M:%S')

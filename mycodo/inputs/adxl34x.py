@@ -25,7 +25,8 @@ INPUT_INFORMATION = {
     'input_name_unique': 'ADXL34x',
     'input_manufacturer': 'Analog Devices',
     'input_name': 'ADXL34x (343, 344, 345, 346)',
-    'input_library': 'Adafruit_CircuitPython',
+    'input_name_short': 'ADXL34x',
+    'input_library': 'Adafruit_CircuitPython_ADXL34x',
     'measurements_name': 'Acceleration',
     'measurements_dict': measurements_dict,
     'url_datasheet': [
@@ -51,7 +52,7 @@ INPUT_INFORMATION = {
 
     'dependencies_module': [
         ('pip-pypi', 'usb.core', 'pyusb==1.1.1'),
-        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.1'),
+        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.2'),
         ('pip-pypi', 'adafruit_adxl34x', 'adafruit-circuitpython-adxl34x==1.11.7')
     ],
 
@@ -78,10 +79,10 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class for the ADXL34x """
+    """A sensor support class for the ADXL34x."""
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
 
@@ -90,9 +91,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import adafruit_adxl34x
         from adafruit_extended_bus import ExtendedI2C
 
@@ -110,9 +111,9 @@ class InputModule(AbstractInput):
             self.sensor.range = adafruit_adxl34x.Range.RANGE_16_G
 
     def get_measurement(self):
-        """ Gets the ADXL34x measurements and stores them in the database """
+        """Gets the ADXL34x measurements and stores them in the database."""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)

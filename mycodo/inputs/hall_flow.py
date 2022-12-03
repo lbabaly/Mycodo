@@ -23,6 +23,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'HALL_FLOW',
     'input_manufacturer': 'Generic',
     'input_name': 'Hall Flow Meter',
+    'input_name_short': 'Hall Flow',
     'input_library': 'pigpio',
     'measurements_name': 'Flow Rate, Total Volume',
     'measurements_dict': measurements_dict,
@@ -36,7 +37,8 @@ INPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('internal', 'file-exists /opt/mycodo/pigpio_installed', 'pigpio')
+        ('internal', 'file-exists /opt/mycodo/pigpio_installed', 'pigpio'),
+        ('pip-pypi', 'pigpio', 'pigpio==1.78')
     ],
 
     'interfaces': ['GPIO'],
@@ -51,12 +53,12 @@ INPUT_INFORMATION = {
         }
     ],
 
-    'custom_actions_message': 'The total session volume can be cleared with the following button or as a Function Action.',
-    'custom_actions': [
+    'custom_commands_message': 'The total volume can be cleared with the following button or with the Clear Total Volume Function Action.',
+    'custom_commands': [
         {
-            'id': 'clear_total_session_volume',
+            'id': 'clear_total_volume',
             'type': 'button',
-            'name': lazy_gettext('Clear Total Volume')
+            'name': "{}: {}".format(lazy_gettext('Clear Total'), lazy_gettext('Volume'))
         }
     ]
 
@@ -64,9 +66,9 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that monitors flow rate / volume """
+    """A sensor support class that monitors flow rate / volume."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
 
@@ -78,9 +80,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import pigpio
 
         self.pi = pigpio.pi()
@@ -89,8 +91,14 @@ class InputModule(AbstractInput):
         self.sensor = ReadHall(
             self.logger, self.pi, self.gpio, pigpio, self.k_value)
 
+        self.sensor.set_total_pulses(self.get_custom_option("total_pulses"))
+
     def get_measurement(self):
-        """ Gets the flow rate and volume """
+        """Gets the flow rate and volume."""
+        if not self.sensor:
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
+            return
+
         if not self.pi.connected:  # Check if pigpiod is running
             self.logger.error("Could not connect to pigpiod. Ensure it is running and try again.")
             return
@@ -108,18 +116,21 @@ class InputModule(AbstractInput):
         self.value_set(0, l_min)
         self.value_set(1, total_volume)
 
+        self.set_custom_option("total_pulses", total_pulses)
+
         return self.return_dict
 
     def stop_input(self):
         self.sensor.cancel()
         self.pi.stop()
 
-    def clear_total_session_volume(self, args_dict):
+    def clear_total_volume(self, args_dict):
+        self.set_custom_option("total_pulses", 0)
         self.sensor.clear_totals()
 
 
 class ReadHall:
-    """A class to read pulses and calculate the Flow Rate"""
+    """A class to read pulses and calculate the Flow Rate."""
     def __init__(self, logger, pi, gpio, pigpio, pulses_per_l=1.0):
         self.logger = logger
 
@@ -150,7 +161,7 @@ class ReadHall:
             self._high_tick = tick
 
     def flow_period(self):
-        """Returns the Flow Rate in l/min"""
+        """Returns the Flow Rate in l/min."""
         l_min = 0
         pulses = self.period_pulses()
         minutes = (time.time() - self._last_time) / 60
@@ -166,19 +177,24 @@ class ReadHall:
         finally:
             self._period_pulses = 0
 
+    def set_total_pulses(self, pulses):
+        """Sets the total pulses."""
+        if pulses:
+            self._total_pulses = pulses
+
     def total_pulses(self):
-        """Returns the total pulses"""
+        """Returns the total pulses."""
         return self._total_pulses
 
     def total_volume(self):
-        """Returns the total volume in liters"""
+        """Returns the total volume in liters."""
         volume = 0
         if self._total_pulses:
             volume = float(self._total_pulses / self.pulses_per_l)
         return volume
 
     def cancel(self):
-        """Cancels the reader and releases resources"""
+        """Cancels the reader and releases resources."""
         self.pi.set_watchdog(self.gpio, 0)  # cancel watchdog
         self._cb.cancel()
 

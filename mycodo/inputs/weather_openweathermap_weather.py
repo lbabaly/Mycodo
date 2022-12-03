@@ -42,6 +42,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'OPENWEATHERMAP_CALL_WEATHER',
     'input_manufacturer': 'Weather',
     'input_name': 'OpenWeatherMap (City, Current)',
+    'input_name_short': 'OpenWeather City',
     'measurements_name': 'Humidity/Temperature/Pressure/Wind',
     'measurements_dict': measurements_dict,
     'url_additional': 'https://openweathermap.org',
@@ -56,10 +57,6 @@ INPUT_INFORMATION = {
         'period',
         'pre_output'
     ],
-    'options_disabled': ['interface'],
-
-    'dependencies_module': [],
-    'interfaces': ['MYCODO'],
 
     'custom_options': [
         {
@@ -83,9 +80,9 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """A sensor support class that gets weather for a city"""
+    """A sensor support class that gets weather for a city."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.api_url = None
         self.api_key = None
@@ -94,16 +91,16 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         if self.api_key and self.city:
             self.api_url = "http://api.openweathermap.org/data/2.5/weather?appid={key}&units=metric&q={city}".format(
                 key=self.api_key, city=self.city)
             self.logger.debug("URL: {}".format(self.api_url))
 
     def get_measurement(self):
-        """ Gets the weather data """
+        """Gets the weather data."""
         if not self.api_url:
             self.logger.error("API Key and City required")
             return

@@ -46,7 +46,7 @@ FUNCTION_INFORMATION = {
     'measurements_dict': measurements_dict,
     'enable_channel_unit_select': True,
 
-    'message': "This function acquires 2 measurements, calculates the difference, and if the difference is not larger than the set threshold, the Measurement A value is stored. This enables verifying one sensor's measurement with another sensor's measurement. Only when they are both in agreement is a measurement stored. This stored measurement can be used in functions such as Conditional Statements that will notify the user if no measurement is avilable to indicate there may be an issue with a sensor.",
+    'message': "This function acquires 2 measurements, calculates the difference, and if the difference is not larger than the set threshold, the Measurement A value is stored. This enables verifying one sensor's measurement with another sensor's measurement. Only when they are both in agreement is a measurement stored. This stored measurement can be used in functions such as Conditional Functions that will notify the user if no measurement is available to indicate there may be an issue with a sensor.",
 
     'options_enabled': [
         'measurements_select_measurement_unit',
@@ -60,8 +60,8 @@ FUNCTION_INFORMATION = {
             'default_value': 60,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('Period (seconds)'),
-            'phrase': lazy_gettext('The duration (seconds) between measurements or actions')
+            'name': "{} ({})".format(lazy_gettext('Period'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The duration between measurements or actions')
         },
         {
             'id': 'select_measurement_a',
@@ -69,10 +69,9 @@ FUNCTION_INFORMATION = {
             'default_value': '',
             'options_select': [
                 'Input',
-                'Math',
                 'Function'
             ],
-            'name': 'Measurement A',
+            'name': '{} A'.format(lazy_gettext("Measurement")),
             'phrase': 'Measurement A'
         },
         {
@@ -80,8 +79,8 @@ FUNCTION_INFORMATION = {
             'type': 'integer',
             'default_value': 360,
             'required': True,
-            'name': lazy_gettext('{} A {}'.format(lazy_gettext('Measurement'), lazy_gettext('Max Age'))),
-            'phrase': lazy_gettext('The maximum age (seconds) of the measurement to use')
+            'name': "{} A: {} ({})".format(lazy_gettext("Measurement"), lazy_gettext("Max Age"), lazy_gettext("Seconds")),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
         },
         {
             'id': 'select_measurement_b',
@@ -89,10 +88,9 @@ FUNCTION_INFORMATION = {
             'default_value': '',
             'options_select': [
                 'Input',
-                'Math',
                 'Function'
             ],
-            'name': 'Measurement B',
+            'name': '{} B'.format(lazy_gettext("Measurement")),
             'phrase': 'Measurement B'
         },
         {
@@ -100,8 +98,8 @@ FUNCTION_INFORMATION = {
             'type': 'integer',
             'default_value': 360,
             'required': True,
-            'name': lazy_gettext('{} A {}'.format(lazy_gettext('Measurement'), lazy_gettext('Max Age'))),
-            'phrase': lazy_gettext('The maximum age (seconds) of the measurement to use')
+            'name': "{} B: {} ({})".format(lazy_gettext("Measurement"), lazy_gettext("Max Age"), lazy_gettext("Seconds")),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
         },
         {
             'id': 'max_difference',
@@ -110,6 +108,14 @@ FUNCTION_INFORMATION = {
             'required': True,
             'name': 'Maximum Difference',
             'phrase': 'The maximum allowed difference between the measurements'
+        },
+        {
+            'id': 'average_measurements',
+            'type': 'bool',
+            'default_value': False,
+            'required': True,
+            'name': 'Average Measurements',
+            'phrase': "Store the average of the measurements in the database"
         }
     ]
 }
@@ -120,7 +126,7 @@ class CustomModule(AbstractFunction):
     Class to operate custom controller
     """
     def __init__(self, function, testing=False):
-        super(CustomModule, self).__init__(function, testing=testing, name=__name__)
+        super().__init__(function, testing=testing, name=__name__)
 
         self.timer_loop = time.time()
 
@@ -135,6 +141,7 @@ class CustomModule(AbstractFunction):
         self.select_measurement_b_measurement_id = None
         self.measurement_max_age_b = None
         self.max_difference = None
+        self.average_measurements = None
 
         # Set custom options
         custom_function = db_retrieve_table_daemon(
@@ -143,9 +150,9 @@ class CustomModule(AbstractFunction):
             FUNCTION_INFORMATION['custom_options'], custom_function)
 
         if not testing:
-            self.initialize_variables()
+            self.try_initialize()
 
-    def initialize_variables(self):
+    def initialize(self):
         self.logger.debug(
             "Custom controller started with options: "
             "{}, {}, {}, {}, {}, {}, {}".format(
@@ -207,11 +214,16 @@ class CustomModule(AbstractFunction):
                     "Not storing measurement.".format(difference, self.max_difference))
                 return
 
+            if self.average_measurements:
+                store_value = (last_measurement_a[1] + last_measurement_b[1]) / 2
+            else:
+                store_value = last_measurement_a[1]
+
             measurement_dict = {
                 0: {
                     'measurement': self.channels_measurement[0].measurement,
                     'unit': self.channels_measurement[0].unit,
-                    'value': last_measurement_a[1]
+                    'value': store_value
                 }
             }
 

@@ -16,7 +16,7 @@
       "debug": false,
       "newestOnTop": false,
       "progressBar": false,
-      "positionClass": "toast-top-right",
+      "positionClass": "toast-top-left",
       "preventDuplicates": false,
       "onclick": null,
       "showDuration": "300",
@@ -38,7 +38,7 @@
           submitter_btn.attr("name") === 'user_save' ||
           submitter_btn.attr("name") === 'user_role_save' ||
           submitter_btn.attr("name") === 'user_role_delete') {
-        toastr['info']('Command sent. Please wait...');
+        {% if not misc.hide_alert_info %}toastr['info']('Command sent. Please wait...');{% endif %}
         $.ajax({
           type: "POST",
           url: '/settings/users_submit',
@@ -63,15 +63,21 @@
                 $('#role_' + data.data.role_id).hide('slow');
                 $('#role_spacer_' + data.data.role_id).hide('slow');
               }
+              {% if not misc.hide_alert_warning %}
               if ('warning' in data.data.messages && data.data.messages.warning.length !== 0) {
                 toastr['warning']('Warning: ' + data.data.messages.warning.join(", "));
               }
+              {% endif %}
+              {% if not misc.hide_alert_info %}
               if ('info' in data.data.messages && data.data.messages.info.length !== 0) {
                 toastr['info']('Info: ' + data.data.messages.info.join(", "));
               }
+              {% endif %}
+              {% if not misc.hide_alert_success %}
               if ('success' in data.data.messages && data.data.messages.success.length !== 0) {
                 toastr['success']('Success: ' + data.data.messages.success.join(", "));
               }
+              {% endif %}
             } else {
               toastr['error']('Error: ' + data.data.messages.error.join(", "));
             }
@@ -107,7 +113,7 @@
         <div class="col-auto">
           {{form_user.default_login_page.label(class_='control-label')}}
           <div>
-            <select class="form-control form-tooltip form-dropdown" data-placement="top" id="default_login_page" name="default_login_page" title="{{_('Which page to land on for logging in')}}">
+            <select class="form-control form-tooltip form-dropdown" data-placement="top" id="default_login_page" name="default_login_page" title="{{_('Which page to land on before logging in')}}">
               <option value="password"{% if misc.default_login_page == 'password' %} selected{% endif %}>{{_('Password')}}</option>
               <option value="keypad"{% if misc.default_login_page == 'keypad' %} selected{% endif %}>{{_('Keypad')}}</option>
             </select>

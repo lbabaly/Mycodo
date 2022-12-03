@@ -60,22 +60,22 @@ class InputModule(AbstractInput):
     """
 
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         from Adafruit_BMP import BMP085
 
         self.sensor = BMP085.BMP085(busnum=self.input_dev.i2c_bus)
 
     def get_measurement(self):
-        """ Gets the measurement in units by reading the BMP180/085 """
+        """Gets the measurement in units by reading the BMP180/085"""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         time.sleep(2)

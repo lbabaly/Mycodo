@@ -20,7 +20,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'AHTx0_CIRCUITPYTHON',
     'input_manufacturer': 'ASAIR',
     'input_name': 'AHTx0',
-    'input_library': 'Adafruit-CircuitPython-AHTx0',
+    'input_library': 'Adafruit_CircuitPython_AHTx0',
     'measurements_name': 'Temperature/Humidity',
     'measurements_dict': measurements_dict,
     'url_manufacturer': 'http://www.aosong.com/en/products-40.html',
@@ -35,7 +35,7 @@ INPUT_INFORMATION = {
 
     'dependencies_module': [
         ('pip-pypi', 'usb.core', 'pyusb==1.1.1'),
-        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.1'),
+        ('pip-pypi', 'adafruit_extended_bus', 'Adafruit-extended-bus==1.0.2'),
         ('pip-pypi', 'adafruit_ahtx0', 'adafruit-circuitpython-ahtx0==1.0.5')
     ],
 
@@ -46,16 +46,16 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ A sensor support class that measures """
+    """A sensor support class that measures."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         import adafruit_ahtx0
         from adafruit_extended_bus import ExtendedI2C
 
@@ -64,9 +64,9 @@ class InputModule(AbstractInput):
             address=int(str(self.input_dev.i2c_location), 16))
 
     def get_measurement(self):
-        """ Gets the measurements """
+        """Gets the measurements."""
         if not self.sensor:
-            self.logger.error("Input not set up")
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
             return
 
         self.return_dict = copy.deepcopy(measurements_dict)

@@ -1,14 +1,14 @@
 # coding=utf-8
+import copy
 import datetime
 import time
-
-import copy
 
 from mycodo.inputs.base_input import AbstractInput
 from mycodo.inputs.sensorutils import calculate_dewpoint
 from mycodo.inputs.sensorutils import calculate_vapor_pressure_deficit
-from mycodo.utils.influx import parse_measurement
+from mycodo.utils.inputs import parse_measurement
 from mycodo.utils.influx import write_influxdb_value
+from mycodo.utils.lockfile import LockFile
 
 
 def constraints_pass_logging_interval(mod_input, value):
@@ -72,6 +72,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'SHT31_SMART_GADGET',
     'input_manufacturer': 'Sensorion',
     'input_name': 'SHT31 Smart Gadget',
+    'input_name_short': 'SHT31 SG',
     'input_library': 'bluepy',
     'measurements_name': 'Humidity/Temperature',
     'measurements_dict': measurements_dict,
@@ -110,8 +111,8 @@ INPUT_INFORMATION = {
             'default_value': 600,
             'required': True,
             'constraints_pass': constraints_pass_logging_interval,
-            'name': 'Set Logging Interval',
-            'phrase': 'Set the logging interval (seconds) the device will store measurements on its internal memory.'
+            'name': 'Set Logging Interval (Seconds)',
+            'phrase': 'Set the logging interval the device will store measurements on its internal memory.'
         }
     ]
 }
@@ -122,7 +123,7 @@ class InputModule(AbstractInput):
     A support class for Sensorion's SHT31 Smart Gadget
     """
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.gadget = None
         self.connected = False
@@ -138,9 +139,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         from mycodo.devices.sht31_smart_gadget import SHT31
         from bluepy import btle
 
@@ -153,9 +154,12 @@ class InputModule(AbstractInput):
         self.bt_adapter = self.input_dev.bt_adapter
         self.lock_file = '/var/lock/bluetooth_dev_hci{}'.format(self.bt_adapter)
 
-    def initialize(self):
-        """Initialize the device by obtaining sensor information"""
-        self.logger.debug("Input Initializing (Initialized: {})".format(self.initialized))
+        """Initialize the device by obtaining sensor information."""
+        if not self.SHT31:
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
+            return
+
+        self.logger.debug("Input Initializing")
 
         if not self.initialized:
             for _ in range(3):
@@ -198,6 +202,8 @@ class InputModule(AbstractInput):
                     sw=self.device_information['software_revision'],
                     sec=self.device_information['logger_interval_ms'] / 1000))
             self.initialized = True
+
+        self.logger.debug("Initialized: {}".format(self.initialized))
 
     def connect(self):
         # Make three attempts to connect
@@ -275,6 +281,7 @@ class InputModule(AbstractInput):
                     measurement_single,
                     self.channels_measurement[0].channel,
                     measurement_single[0])
+
                 write_influxdb_value(
                     self.unique_id,
                     measurement_single[0]['unit'],
@@ -308,6 +315,7 @@ class InputModule(AbstractInput):
                     measurement_single,
                     self.channels_measurement[1].channel,
                     measurement_single[1])
+
                 write_influxdb_value(
                     self.unique_id,
                     measurement_single[1]['unit'],
@@ -347,6 +355,7 @@ class InputModule(AbstractInput):
                     measurement_single,
                     self.channels_measurement[3].channel,
                     measurement_single[3])
+
                 write_influxdb_value(
                     self.unique_id,
                     measurement_single[3]['unit'],
@@ -371,6 +380,7 @@ class InputModule(AbstractInput):
                     measurement_single,
                     self.channels_measurement[4].channel,
                     measurement_single[4])
+
                 write_influxdb_value(
                     self.unique_id,
                     measurement_single[4]['unit'],
@@ -385,20 +395,21 @@ class InputModule(AbstractInput):
 
     def get_device_information(self):
         if not self.initialized:
-            self.initialize()
+            self.try_initialize()
 
         if 'info_timestamp' in self.device_information:
             return self.device_information
 
     def get_measurement(self):
-        """ Obtain and return the measurements """
+        """Obtain and return the measurements."""
         self.return_dict = copy.deepcopy(measurements_dict)
 
-        if self.lock_acquire(self.lock_file, timeout=3600):
+        lf = LockFile()
+        if lf.lock_acquire(self.lock_file, timeout=3600):
             self.logger.debug("Starting measurement")
             try:
                 if not self.initialized:
-                    self.initialize()
+                    self.try_initialize()
 
                 if not self.initialized:
                     self.logger.error("Count not initialize sensor.")
@@ -461,7 +472,7 @@ class InputModule(AbstractInput):
                 else:
                     self.logger.debug("Not connected: Not measuring")
             finally:
-                self.lock_release(self.lock_file)
+                lf.lock_release(self.lock_file)
                 time.sleep(1)
 
     def set_logging_interval(self):

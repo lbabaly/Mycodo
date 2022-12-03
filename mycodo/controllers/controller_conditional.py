@@ -29,7 +29,6 @@ import time
 import timeit
 
 from mycodo.config import PATH_PYTHON_CODE_USER
-from mycodo.config import SQL_DATABASE_MYCODO
 from mycodo.controllers.base_controller import AbstractController
 from mycodo.databases.models import Actions
 from mycodo.databases.models import Conditional
@@ -38,20 +37,18 @@ from mycodo.databases.models import Misc
 from mycodo.utils.conditional import save_conditional_code
 from mycodo.utils.database import db_retrieve_table_daemon
 
-MYCODO_DB_PATH = 'sqlite:///' + SQL_DATABASE_MYCODO
-
 
 class ConditionalController(AbstractController, threading.Thread):
     """
     Class to operate Conditional controller
 
-    Conditional statements are user-editable Python code that is executed.
+    Conditional controllers allow user-editable Python code to be executed.
     This code typically queries measurement data and causes execution of function
     actions as a result of the conditions set by the user.
     """
     def __init__(self, ready, unique_id):
         threading.Thread.__init__(self)
-        super(ConditionalController, self).__init__(ready, unique_id=unique_id, name=__name__)
+        super().__init__(ready, unique_id=unique_id, name=__name__)
 
         self.unique_id = unique_id
         self.pause_loop = False
@@ -62,6 +59,8 @@ class ConditionalController(AbstractController, threading.Thread):
         self.pyro_timeout = None
         self.log_level_debug = None
         self.message_include_code = None
+        self.conditional_import = None
+        self.conditional_initialize = None
         self.conditional_statement = None
         self.conditional_status = None
         self.timer_period = None
@@ -71,7 +70,7 @@ class ConditionalController(AbstractController, threading.Thread):
         self.conditional_run = None
 
     def loop(self):
-        # Pause loop to modify conditional statements.
+        # Pause loop to modify conditional.
         # Prevents execution of conditional while variables are
         # being modified.
         if self.pause_loop:
@@ -90,11 +89,13 @@ class ConditionalController(AbstractController, threading.Thread):
             self.attempt_execute(self.check_conditionals)
 
     def initialize_variables(self):
-        """ Define all settings """
+        """Define all settings."""
         cond = db_retrieve_table_daemon(
             Conditional, unique_id=self.unique_id)
         self.is_activated = cond.is_activated
         self.conditional_statement = cond.conditional_statement
+        self.conditional_import = cond.conditional_import
+        self.conditional_initialize = cond.conditional_initialize
         self.conditional_status = cond.conditional_status
         self.period = cond.period
         self.start_offset = cond.start_offset
@@ -110,13 +111,14 @@ class ConditionalController(AbstractController, threading.Thread):
         now = time.time()
         self.timer_period = now + self.start_offset
 
-        self.file_run = '{}/conditional_{}.py'.format(
-            PATH_PYTHON_CODE_USER, self.unique_id)
+        self.file_run = f'{PATH_PYTHON_CODE_USER}/conditional_{self.unique_id}.py'
 
         # If the file to execute doesn't exist, generate it
         if not os.path.exists(self.file_run):
             save_conditional_code(
                 [],
+                self.conditional_import,
+                self.conditional_initialize,
                 self.conditional_statement,
                 self.conditional_status,
                 self.unique_id,
@@ -124,8 +126,7 @@ class ConditionalController(AbstractController, threading.Thread):
                 db_retrieve_table_daemon(Actions, entry='all'),
                 timeout=self.pyro_timeout)
 
-        module_name = "mycodo.conditional.{}".format(
-            os.path.basename(self.file_run).split('.')[0])
+        module_name = f"mycodo.conditional.{os.path.basename(self.file_run).split('.')[0]}"
         spec = importlib.util.spec_from_file_location(
             module_name, self.file_run)
         conditional_run = importlib.util.module_from_spec(spec)
@@ -134,16 +135,17 @@ class ConditionalController(AbstractController, threading.Thread):
             self.logger, self.unique_id, '')
 
         self.logger.debug(
-            "Conditional Statement (pre-replacement):\n{}".format(
-                self.conditional_statement))
+            f"Run Python Code (pre-replacement):\n{self.conditional_statement}")
 
         with open(self.file_run, 'r') as file:
             self.logger.debug(
-                "Conditional Statement (post-replacement):\n{}".format(
-                    file.read()))
+                f"Run Python Code (post-replacement):\n{file.read()}")
+
+        self.ready.set()
+        self.running = True
 
     def refresh_settings(self):
-        """ Signal to pause the main loop and wait for verification, the refresh settings """
+        """Signal to pause the main loop and wait for verification, the refresh settings."""
         self.pause_loop = True
         while not self.verify_pause_loop:
             time.sleep(0.1)
@@ -164,18 +166,13 @@ class ConditionalController(AbstractController, threading.Thread):
 
         timestamp = datetime.datetime.fromtimestamp(
             self.time_conditional).strftime('%Y-%m-%d %H:%M:%S')
-        message = "{ts}\n[Conditional {id}]\n[Name: {name}]".format(
-            ts=timestamp,
-            name=cond.name,
-            id=self.unique_id)
+        message = f"{timestamp}\n[Conditional {self.unique_id}]\n[Name: {cond.name}]"
 
         if self.message_include_code:
-            message += '\n[Conditional Statement Code Executed]:' \
+            message += '\n[Run Python Code Code Executed]:' \
                        '\n--------------------' \
-                       '\n{statement}' \
-                       '\n--------------------' \
-                       '\n'.format(
-                           statement=cond.conditional_statement)
+                       f'\n{cond.conditional_statement}' \
+                       '\n--------------------\n'
 
         message += '\n[Messages]:\n'
 
@@ -183,7 +180,7 @@ class ConditionalController(AbstractController, threading.Thread):
         try:
             self.conditional_run.conditional_code_run()
         except Exception:
-            self.logger.exception("Exception executing Conditional Statement code")
+            self.logger.exception("Exception executing Run Python Code")
 
     def function_status(self):
         return self.conditional_run.function_status()

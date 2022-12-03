@@ -18,6 +18,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'MCP342x',
     'input_manufacturer': 'Microchip',
     'input_name': 'MCP342x (x=2,3,4,6,7,8)',
+    'input_name_short': 'MCP342x',
     'input_library': 'MCP342x',
     'measurements_name': 'Voltage (Analog-to-Digital Converter)',
     'measurements_dict': measurements_dict,
@@ -73,9 +74,9 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """ ADC Read """
+    """ADC Read."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.sensor = None
         self.bus = None
@@ -84,9 +85,9 @@ class InputModule(AbstractInput):
         self.adc_resolution = None
 
         if not testing:
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         from smbus2 import SMBus
         from MCP342x import MCP342x
 
@@ -98,6 +99,10 @@ class InputModule(AbstractInput):
         self.adc_resolution = self.input_dev.adc_resolution
 
     def get_measurement(self):
+        if not self.sensor:
+            self.logger.error("Error 101: Device not set up. See https://kizniche.github.io/Mycodo/Error-Codes#error-101 for more info.")
+            return
+
         self.return_dict = copy.deepcopy(measurements_dict)
 
         for channel in self.channels_measurement:

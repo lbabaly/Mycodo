@@ -29,24 +29,15 @@ import sys
 import traceback
 
 import Pyro5.errors
-import requests
 from Pyro5.api import Proxy
-from influxdb import InfluxDBClient
 
 sys.path.append(os.path.abspath(os.path.join(os.path.realpath(__file__), '../..')))
 
-from mycodo.config import INFLUXDB_DATABASE
-from mycodo.config import INFLUXDB_HOST
-from mycodo.config import INFLUXDB_PASSWORD
-from mycodo.config import INFLUXDB_PORT
-from mycodo.config import INFLUXDB_USER
 from mycodo.config import PYRO_URI
-from mycodo.databases.models import Misc
-from mycodo.databases.models import SMTP
+from mycodo.databases.models import SMTP, Misc
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.send_data import send_email as send_email_notification
 from mycodo.utils.widget_generate_html import generate_widget_html
-
 
 logging.basicConfig(
     stream=sys.stdout,
@@ -57,9 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 class DaemonControl:
-    """
-    Communicate with the daemon to execute commands or retrieve information.
-    """
+    """Communicate with the daemon to execute commands or retrieve information."""
     def __init__(self, pyro_uri=PYRO_URI, pyro_timeout=None):
         self.pyro_timeout = 30
         try:
@@ -67,10 +56,9 @@ class DaemonControl:
                 self.pyro_timeout = pyro_timeout
             else:
                 misc = db_retrieve_table_daemon(Misc, entry='first')
-                self.pyro_timeout = misc.rpyc_timeout  # TODO: Rename to pyro_timeout at next major revision
-        except Exception as e:
-            logger.exception(
-                "Could not access SQL table to determine Pyro Timeout. Using 30 seconds. Error: {}".format(e))
+                self.pyro_timeout = misc.rpyc_timeout  # TODO: Rename to rpc_timeout at next major revision
+        except Exception:
+            logger.exception("Could not access SQL table to determine Pyro Timeout. Using 30 seconds.")
 
         self.uri= pyro_uri
 
@@ -80,7 +68,7 @@ class DaemonControl:
             proxy._pyroTimeout = self.pyro_timeout
             return proxy
         except Exception as e:
-            logger.error("Pyro5 proxy error: {}".format(e))
+            logger.error(f"Pyro5 proxy error: {e}")
 
     #
     # Status functions
@@ -97,19 +85,19 @@ class DaemonControl:
             else:
                 return "GOOD"
         except Pyro5.errors.TimeoutError as err:
-            msg = "Pyro5 TimeoutError: {}".format(err)
+            msg = f"Pyro5 TimeoutError: {err}"
             logger.error(msg)
             return msg
         except Pyro5.errors.CommunicationError as err:
-            msg = "Pyro5 Communication error: {}".format(err)
+            msg = f"Pyro5 Communication error: {err}"
             logger.error(msg)
             return msg
         except Pyro5.errors.NamingError as err:
-            msg = "Failed to locate Pyro5 Nameserver: {}".format(err)
+            msg = f"Failed to locate Pyro5 Nameserver: {err}"
             logger.error(msg)
             return msg
         except Exception as err:
-            msg = "Pyro Exception: {}".format(err)
+            msg = f"Pyro Exception: {err}"
             logger.error(msg)
             return msg
         finally:
@@ -137,9 +125,6 @@ class DaemonControl:
     def controller_deactivate(self, controller_id):
         return self.proxy().controller_deactivate(controller_id)
 
-    def refresh_daemon_camera_settings(self):
-        return self.proxy().refresh_daemon_camera_settings()
-
     def refresh_daemon_conditional_settings(self, unique_id):
         return self.proxy().refresh_daemon_conditional_settings(unique_id)
 
@@ -157,10 +142,9 @@ class DaemonControl:
     #
 
     def trigger_action(
-            self, action_id, value=None, message='', single_action=True, debug=False):
+            self, action_id, value=None, message='', debug=False):
         return self.proxy().trigger_action(
-            action_id, value=value, message=message,
-            single_action=single_action, debug=debug)
+            action_id, value=value, message=message, debug=debug)
 
     def trigger_all_actions(self, function_id, message='', debug=False):
         return self.proxy().trigger_all_actions(
@@ -177,14 +161,14 @@ class DaemonControl:
             return 0, traceback.format_exc()
 
     #
-    # LCD Controller
+    # Display
     #
 
     def lcd_backlight(self, lcd_id, state):
         return self.proxy().lcd_backlight(lcd_id, state)
 
-    def lcd_backlight_color(self, lcd_id, color):
-        return self.proxy().lcd_backlight_color(lcd_id, color)
+    def display_backlight_color(self, lcd_id, color):
+        return self.proxy().display_backlight_color(lcd_id, color)
 
     def lcd_flash(self, lcd_id, state):
         return self.proxy().lcd_flash(lcd_id, state)
@@ -222,17 +206,17 @@ class DaemonControl:
             output_channel=output_channel, trigger_conditionals=trigger_conditionals)
 
     def output_on_off(self, output_id, state, output_type=None, amount=0.0, output_channel=None):
-        """ Turn an output on or off """
+        """Turn an output on or off."""
         if state in ['on', 1, True]:
             return self.output_on(
                 output_id, amount=amount, output_type=output_type, output_channel=output_channel)
         elif state in ['off', 0, False]:
             return self.output_off(output_id, output_channel=output_channel)
         else:
-            return 1, 'state not "on", 1, True, "off", 0, or False. Found: "{}"'.format(state)
+            return 1, f'state not "on", 1, True, "off", 0, or False. Found: "{state}"'
 
     def output_sec_currently_on(self, output_id, output_channel=None):
-        """ Return the amount of seconds an on/off output channel has been on """
+        """Return the amount of seconds an on/off output channel has been on."""
         return self.proxy().output_sec_currently_on(output_id, output_channel)
 
     def output_setup(self, action, output_id):
@@ -285,9 +269,9 @@ class DaemonControl:
             smtp.user, smtp.passw, smtp.email_from,
             recipients, message, subject=subject)
 
-    def custom_button(self, controller_type, unique_id, button_id, args_dict, thread=True):
+    def module_function(self, controller_type, unique_id, button_id, args_dict, thread=True):
         try:
-            return self.proxy().custom_button(
+            return self.proxy().module_function(
                 controller_type, unique_id, button_id, args_dict, thread)
         except Exception:
             return 0, traceback.format_exc()
@@ -302,7 +286,7 @@ class DaemonControl:
         return self.proxy().widget_execute(unique_id)
 
 def daemon_active():
-    """ Used to determine if the daemon is reachable to communicate """
+    """Used to determine if the daemon is reachable to communicate."""
     try:
         daemon = DaemonControl()
         if daemon.check_daemon() != 'GOOD':
@@ -318,11 +302,11 @@ def parseargs(parser):
                         help="Check if all active daemon controllers are running")
     parser.add_argument('--activatecontroller', nargs=2,
                         metavar=('CONTROLLER', 'ID'), type=str,
-                        help='Activate controller. Options: Conditional, LCD, Math, PID, Input',
+                        help='Activate controller. Options: Conditional, PID, Input',
                         required=False)
     parser.add_argument('--deactivatecontroller', nargs=2,
                         metavar=('CONTROLLER', 'ID'), type=str,
-                        help='Deactivate controller. Options: Conditional, LCD, Math, PID, Input',
+                        help='Deactivate controller. Options: Conditional, PID, Input',
                         required=False)
     parser.add_argument('--ramuse', action='store_true',
                         help="Return the amount of ram used by the Mycodo daemon")
@@ -343,20 +327,14 @@ def parseargs(parser):
                         required=False)
 
     # LCD Controller
-    parser.add_argument('--lcd_backlight_on', metavar='LCDID', type=str,
+    parser.add_argument('--backlight_on', metavar='LCDID', type=str,
                         help='Turn on LCD backlight with LCD ID',
                         required=False)
-    parser.add_argument('--lcd_backlight_off', metavar='LCDID', type=str,
+    parser.add_argument('--backlight_off', metavar='LCDID', type=str,
                         help='Turn off LCD backlight with LCD ID',
                         required=False)
     parser.add_argument('--lcd_reset', metavar='LCDID', type=str,
                         help='Reset LCD with LCD ID',
-                        required=False)
-
-    # Measurement
-    parser.add_argument('--get_measurement', nargs=3,
-                        metavar=('ID', 'UNIT', 'CHANNEL'), type=str,
-                        help='Get the last measurement',
                         required=False)
 
     # Output Controller
@@ -463,59 +441,31 @@ if __name__ == "__main__":
 
     if args.checkdaemon:
         return_msg = daemon.check_daemon()
-        logger.info("[Remote command] Check Daemon: {msg}".format(msg=return_msg))
+        logger.info(f"[Remote command] Check Daemon: {return_msg}")
 
     elif args.ramuse:
         return_msg = daemon.ram_use()
-        logger.info("[Remote command] Daemon Ram in Use: {msg} MB".format(msg=return_msg))
+        logger.info(f"[Remote command] Daemon Ram in Use: {return_msg} MB")
 
     elif args.input_force_measurements:
         return_msg = daemon.input_force_measurements(args.input_force_measurements)
         logger.info(
-            "[Remote command] Force acquiring measurements for Input with ID '{id}': Server returned: {msg}".format(
-                id=args.input_force_measurements, msg=return_msg[1]))
-
-    elif args.get_measurement:
-        client = InfluxDBClient(INFLUXDB_HOST, INFLUXDB_PORT, INFLUXDB_USER,
-                                INFLUXDB_PASSWORD, INFLUXDB_DATABASE, timeout=5)
-        query = "SELECT LAST(value) FROM {unit} " \
-                "WHERE device_id='{id}' " \
-                "AND channel='{channel}'".format(
-                    unit=args.get_measurement[1],
-                    id=args.get_measurement[0],
-                    channel=args.get_measurement[2])
-
-        try:
-            last_measurement = client.query(query).raw
-        except requests.exceptions.ConnectionError:
-            logger.debug("ERROR: Failed to establish a new influxdb connection. Ensure influxdb is running.")
-            last_measurement = None
-
-        if last_measurement and 'series' in last_measurement and last_measurement['series']:
-            try:
-                number = len(last_measurement['series'][0]['values'])
-                last_time = last_measurement['series'][0]['values'][number - 1][0]
-                last_measurement = last_measurement['series'][0]['values'][number - 1][1]
-                print("SUCCESS;{};{}".format(last_measurement,last_time))
-            except Exception:
-                logger.info("ERROR;Could not retrieve measurement.")
-        else:
-            logger.info("ERROR;Could not retrieve measurement.")
+            "[Remote command] Force acquiring measurements for Input with "
+            f"ID '{args.input_force_measurements}': Server returned: {return_msg[1]}")
 
     elif args.lcd_reset:
         return_msg = daemon.lcd_reset(args.lcd_reset)
-        logger.info("[Remote command] Reset LCD with ID '{id}': Server returned: {msg}".format(
-            id=args.lcd_reset, msg=return_msg))
+        logger.info(f"[Remote command] Reset LCD with ID '{args.lcd_reset}': Server returned: {return_msg}")
 
-    elif args.lcd_backlight_off:
-        return_msg = daemon.lcd_backlight(args.lcd_backlight_off, 0)
-        logger.info("[Remote command] Turn off LCD backlight with ID '{id}': Server returned: {msg}".format(
-            id=args.lcd_backlight_off, msg=return_msg))
+    elif args.backlight_off:
+        return_msg = daemon.lcd_backlight(args.backlight_off, 0)
+        logger.info("[Remote command] Turn off LCD backlight with "
+                    f"ID '{args.backlight_off}': Server returned: {return_msg}")
 
-    elif args.lcd_backlight_on:
-        return_msg = daemon.lcd_backlight(args.lcd_backlight_on, 1)
-        logger.info("[Remote command] Turn on LCD backlight with ID '{id}': Server returned: {msg}".format(
-            id=args.lcd_backlight_on, msg=return_msg))
+    elif args.backlight_on:
+        return_msg = daemon.lcd_backlight(args.backlight_on, 1)
+        logger.info("[Remote command] Turn on LCD backlight with "
+                    f"ID '{args.backlight_on}': Server returned: {return_msg}")
 
     elif args.output_currently_on and args.output_channel is None:
         parser.error("--output_currently_on requires --output_channel")
@@ -523,24 +473,26 @@ if __name__ == "__main__":
     elif args.output_currently_on:
         return_msg = daemon.output_sec_currently_on(
             args.output_currently_on, output_channel=args.output_channel)
-        logger.info("[Remote command] How many seconds output has been on. ID '{id}' CH{ch}: Server returned: {msg}".format(
-            id=args.output_currently_on, ch=args.output_channel, msg=return_msg))
+        logger.info("[Remote command] How many seconds output has been on. "
+                    f"ID '{args.output_currently_on}' CH{args.output_channel}: "
+                    f"Server returned: {return_msg}")
 
     elif args.output_state and args.output_channel is None:
         parser.error("--output_state requires --output_channel")
 
     elif args.output_state:
         return_msg = daemon.output_state(args.output_state, args.output_channel)
-        logger.info("[Remote command] State of output with ID '{id}' CH{ch}: Server returned: {msg}".format(
-            id=args.output_state, ch=args.output_channel, msg=return_msg))
+        logger.info("[Remote command] State of output with "
+                    f"ID '{args.output_state}' CH{args.output_channel}: "
+                    f"Server returned: {return_msg}")
 
     elif args.outputoff and args.output_channel is None:
         parser.error("--outputoff requires --output_channel")
 
     elif args.outputoff:
         return_msg = daemon.output_off(args.outputoff, args.output_channel)
-        logger.info("[Remote command] Turn off output with ID '{id}': Server returned: {msg}".format(
-            id=args.outputoff, msg=return_msg))
+        logger.info("[Remote command] Turn off output with "
+                    f"ID '{args.outputoff}': Server returned: {return_msg}")
 
     elif args.duration and args.outputon is None:
         parser.error("--duration requires --outputon")
@@ -565,20 +517,19 @@ if __name__ == "__main__":
             return_msg = daemon.output_on(
                 args.outputon,
                 output_channel=args.output_channel)
-        logger.info("[Remote command] Turn on output with ID '{id}': Server returned: {msg}".format(
-            id=args.outputon, msg=return_msg))
+        logger.info(f"[Remote command] Turn on output with ID '{args.outputon}': Server returned: {return_msg}")
 
     elif args.activatecontroller:
         return_msg = daemon.controller_activate(
             args.activatecontroller[0])
-        logger.info("[Remote command] Activate controller with ID '{id}': Server returned: {msg}".format(
-            id=args.activatecontroller[0], msg=return_msg))
+        logger.info("[Remote command] Activate controller with "
+                    f"ID '{args.activatecontroller[0]}': Server returned: {return_msg}")
 
     elif args.deactivatecontroller:
         return_msg = daemon.controller_deactivate(
             args.deactivatecontroller[0])
-        logger.info("[Remote command] Deactivate controller with ID '{id}': Server returned: {msg}".format(
-            id=args.deactivatecontroller[0], msg=return_msg))
+        logger.info("[Remote command] Deactivate controller with "
+                    f"ID '{args.deactivatecontroller[0]}': Server returned: {return_msg}")
 
     elif args.pid_pause:
         daemon.pid_pause(args.pid_pause[0])

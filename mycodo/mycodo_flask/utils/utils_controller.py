@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 def controller_mod(form_mod, request_form):
-    """Modify a Custom Function"""
+    """Modify a Custom Function."""
     messages = {
         "success": [],
         "info": [],
@@ -135,7 +135,8 @@ def controller_mod(form_mod, request_form):
             request_form=request_form,
             mod_dev=mod_controller,
             device=mod_controller.device,
-            use_defaults=True)
+            use_defaults=True,
+            custom_options=custom_options_dict_presave)
         custom_options_dict_postsave = json.loads(custom_options_json_postsave)
 
         custom_options_channels_dict_postsave = {}
@@ -194,7 +195,7 @@ def controller_mod(form_mod, request_form):
 
 
 def controller_del(cond_id):
-    """Delete a custom Function"""
+    """Delete a custom Function."""
     messages = {
         "success": [],
         "info": [],
@@ -254,7 +255,7 @@ def controller_del(cond_id):
 
 
 def controller_activate(controller_id):
-    """Activate a Conditional"""
+    """Activate a Conditional."""
     messages = {
         "success": [],
         "info": [],
@@ -301,7 +302,7 @@ def controller_activate(controller_id):
 
 
 def controller_deactivate(controller_id):
-    """Deactivate a Conditional"""
+    """Deactivate a Conditional."""
     messages = {
         "success": [],
         "info": [],

@@ -4,7 +4,6 @@
 #
 import copy
 import importlib.util
-import logging
 import os
 import textwrap
 
@@ -20,13 +19,11 @@ from mycodo.databases.models import OutputChannel
 from mycodo.outputs.base_output import AbstractOutput
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.influx import add_measurements_influxdb
-from mycodo.utils.influx import read_last_influxdb
+from mycodo.utils.influx import read_influxdb_single
 from mycodo.utils.system_pi import assure_path_exists
 from mycodo.utils.system_pi import cmd_output
 from mycodo.utils.system_pi import return_measurement_info
 from mycodo.utils.system_pi import set_user_grp
-
-logger = logging.getLogger("mycodo.influxdb")
 
 
 def generate_code(code_pwm, unique_id):
@@ -159,7 +156,7 @@ channels_dict = {
 # Output information
 OUTPUT_INFORMATION = {
     'output_name_unique': 'python_pwm',
-    'output_name': "Python 3 Code: {}".format(lazy_gettext('PWM')),
+    'output_name': "{}: Python 3 Code".format(lazy_gettext('PWM')),
     'measurements_dict': measurements_dict,
     'channels_dict': channels_dict,
     'execute_at_modification': execute_at_modification,
@@ -176,7 +173,7 @@ OUTPUT_INFORMATION = {
 
     'interfaces': ['PYTHON'],
 
-    'custom_actions': [
+    'custom_commands': [
         {
             'type': 'message',
             'default_value': """Set the Duty Cycle."""
@@ -215,7 +212,7 @@ self.logger.info(log_string)""",
             'type': 'text',
             'default_value': 'mycodo',
             'name': lazy_gettext('User'),
-            'phrase': 'The user to execute the command'
+            'phrase': lazy_gettext('The user to execute the command')
         },
         {
             'id': 'state_startup',
@@ -273,13 +270,6 @@ self.logger.info(log_string)""",
             'phrase': 'Invert the value that is saved to the measurement database'
         },
         {
-            'id': 'trigger_functions_startup',
-            'type': 'bool',
-            'default_value': False,
-            'name': lazy_gettext('Trigger Functions at Startup'),
-            'phrase': 'Whether to trigger functions when the output switches at startup'
-        },
-        {
             'id': 'command_force',
             'type': 'bool',
             'default_value': False,
@@ -291,7 +281,7 @@ self.logger.info(log_string)""",
             'type': 'float',
             'default_value': 0.0,
             'required': True,
-            'name': '{} ({})'.format(lazy_gettext('Current'), lazy_gettext('Amps')),
+            'name': "{} ({})".format(lazy_gettext('Current'), lazy_gettext('Amps')),
             'phrase': 'The current draw of the device being controlled'
         }
     ]
@@ -299,11 +289,9 @@ self.logger.info(log_string)""",
 
 
 class OutputModule(AbstractOutput):
-    """
-    An output support class that operates an output
-    """
+    """An output support class that operates an output."""
     def __init__(self, output, testing=False):
-        super(OutputModule, self).__init__(output, testing=testing, name=__name__)
+        super().__init__(output, testing=testing, name=__name__)
 
         self.output_run_python_pwm = None
 
@@ -312,7 +300,7 @@ class OutputModule(AbstractOutput):
         self.options_channels = self.setup_custom_channel_options_json(
             OUTPUT_INFORMATION['custom_channel_options'], output_channels)
 
-    def setup_output(self):
+    def initialize(self):
         self.setup_output_variables(OUTPUT_INFORMATION)
 
         if not self.options_channels['pwm_command'][0]:
@@ -343,12 +331,12 @@ class OutputModule(AbstractOutput):
                 last_measurement = None
                 if device_measurement:
                     channel, unit, measurement = return_measurement_info(device_measurement, None)
-                    last_measurement = read_last_influxdb(
+                    last_measurement = read_influxdb_single(
                         self.unique_id,
                         unit,
                         channel,
                         measure=measurement,
-                        duration_sec=None)
+                        value='LAST')
 
                 if last_measurement:
                     self.logger.info(
@@ -400,7 +388,7 @@ class OutputModule(AbstractOutput):
         return self.output_setup
 
     def stop_output(self):
-        """ Called when Output is stopped """
+        """Called when Output is stopped."""
         if self.is_setup():
             if self.options_channels['state_shutdown'][0] == 0:
                 self.output_switch('off')

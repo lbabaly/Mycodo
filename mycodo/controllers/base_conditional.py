@@ -10,13 +10,13 @@ NotImplementedErrors
 """
 import json
 
-from mycodo.config import SQL_DATABASE_MYCODO
+from mycodo.config import MYCODO_DB_PATH
+from mycodo.databases.models import Actions
 from mycodo.databases.models import Conditional
+from mycodo.databases.models import ConditionalConditions
 from mycodo.databases.utils import session_scope
 from mycodo.mycodo_client import DaemonControl
 from mycodo.utils.database import db_retrieve_table_daemon
-
-MYCODO_DB_PATH = 'sqlite:///' + SQL_DATABASE_MYCODO
 
 
 class AbstractConditional:
@@ -38,21 +38,53 @@ class AbstractConditional:
         self.message = self.control.trigger_all_actions(self.function_id, message=message)
 
     def run_action(self, action_id, value=None, message=None):
+        action = None
+        full_action_id = action_id
+        if len(action_id) < 36:
+            action_id = action_id.replace("{", "").replace("}", "")
+            with session_scope(MYCODO_DB_PATH) as new_session:
+                action = new_session.query(Actions).filter(
+                    Actions.unique_id.startswith(action_id)).first()
+                new_session.expunge_all()
+        if action:
+            full_action_id = action.unique_id
+
         if message is None:
             message = self.message
         self.message = self.control.trigger_action(
-            action_id, value=value, message=message, single_action=True)
+            full_action_id, value=value, message=message)
 
     def condition(self, condition_id):
-        return self.control.get_condition_measurement(condition_id)
+        full_cond_id = condition_id
+        cond = None
+        if len(condition_id) < 36:
+            condition_id = condition_id.replace("{", "").replace("}", "")
+            with session_scope(MYCODO_DB_PATH) as new_session:
+                cond = new_session.query(ConditionalConditions).filter(
+                    ConditionalConditions.unique_id.startswith(condition_id)).first()
+                new_session.expunge_all()
+        if cond:
+            full_cond_id = cond.unique_id
+
+        return self.control.get_condition_measurement(full_cond_id)
 
     def condition_dict(self, condition_id):
-        string_sets = self.control.get_condition_measurement_dict(condition_id)
-        if string_sets:
+        full_cond_id = condition_id
+        cond = None
+        if len(condition_id) < 36:
+            condition_id = condition_id.replace("{", "").replace("}", "")
+            with session_scope(MYCODO_DB_PATH) as new_session:
+                cond = new_session.query(ConditionalConditions).filter(
+                    ConditionalConditions.unique_id.startswith(condition_id)).first()
+                new_session.expunge_all()
+        if cond:
+            full_cond_id = cond.unique_id
+
+        list_times_values = self.control.get_condition_measurement_dict(full_cond_id)
+        if list_times_values:
             list_ts_values = []
-            for each_set in string_sets.split(';'):
-                ts_value = each_set.split(',')
-                list_ts_values.append({'time': ts_value[0], 'value': float(ts_value[1])})
+            for time, value in list_times_values:
+                list_ts_values.append({'time': time, 'value': float(value)})
             return list_ts_values
         return None
 

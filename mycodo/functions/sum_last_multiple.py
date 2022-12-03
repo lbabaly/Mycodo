@@ -32,7 +32,7 @@ from mycodo.mycodo_client import DaemonControl
 from mycodo.utils.constraints_pass import constraints_pass_positive_value
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.influx import add_measurements_influxdb
-from mycodo.utils.influx import read_last_influxdb
+from mycodo.utils.influx import read_influxdb_single
 from mycodo.utils.system_pi import get_measurement
 from mycodo.utils.system_pi import return_measurement_info
 
@@ -65,24 +65,24 @@ FUNCTION_INFORMATION = {
             'default_value': 60,
             'required': True,
             'constraints_pass': constraints_pass_positive_value,
-            'name': lazy_gettext('Period (seconds)'),
-            'phrase': lazy_gettext('The duration (seconds) between measurements or actions')
+            'name': "{} ({})".format(lazy_gettext('Period'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The duration between measurements or actions')
         },
         {
             'id': 'start_offset',
             'type': 'integer',
             'default_value': 10,
             'required': True,
-            'name': 'Start Offset',
-            'phrase': 'The duration (seconds) to wait before the first operation'
+            'name': "{} ({})".format(lazy_gettext('Start Offset'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The duration to wait before the first operation')
         },
         {
             'id': 'max_measure_age',
             'type': 'integer',
             'default_value': 360,
             'required': True,
-            'name': lazy_gettext('Max Age'),
-            'phrase': lazy_gettext('The maximum age (seconds) of the measurement to use')
+            'name': "{} ({})".format(lazy_gettext('Max Age'), lazy_gettext('Seconds')),
+            'phrase': lazy_gettext('The maximum age of the measurement to use')
         },
         {
             'id': 'select_measurement',
@@ -90,7 +90,6 @@ FUNCTION_INFORMATION = {
             'default_value': '',
             'options_select': [
                 'Input',
-                'Math',
                 'Function'
             ],
             'name': 'Measurement',
@@ -105,7 +104,7 @@ class CustomModule(AbstractFunction):
     Class to operate custom controller
     """
     def __init__(self, function, testing=False):
-        super(CustomModule, self).__init__(function, testing=testing, name=__name__)
+        super().__init__(function, testing=testing, name=__name__)
 
         self.timer_loop = time.time()
 
@@ -124,9 +123,9 @@ class CustomModule(AbstractFunction):
             FUNCTION_INFORMATION['custom_options'], custom_function)
 
         if not testing:
-            self.initialize_variables()
+            self.try_initialize()
 
-    def initialize_variables(self):
+    def initialize(self):
         self.timer_loop = time.time() + self.start_offset
 
     def loop(self):
@@ -152,12 +151,13 @@ class CustomModule(AbstractFunction):
             channel, unit, measurement = return_measurement_info(
                 device_measurement, conversion)
 
-            last_measurement = read_last_influxdb(
+            last_measurement = read_influxdb_single(
                 device_device_id,
                 unit,
                 channel,
                 measure=measurement,
-                duration_sec=self.max_measure_age)
+                duration_sec=self.max_measure_age,
+                value='LAST')
 
             if not last_measurement:
                 self.logger.error("Could not find measurement within the set Max Age")

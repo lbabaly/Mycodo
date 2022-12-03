@@ -23,7 +23,6 @@
 import threading
 import timeit
 
-from mycodo.config import SQL_DATABASE_MYCODO
 from mycodo.controllers.base_controller import AbstractController
 from mycodo.databases.models import Misc
 from mycodo.databases.models import Widget
@@ -32,14 +31,12 @@ from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.modules import load_module_from_file
 from mycodo.utils.widgets import parse_widget_information
 
-MYCODO_DB_PATH = 'sqlite:///' + SQL_DATABASE_MYCODO
-
 
 class WidgetController(AbstractController, threading.Thread):
-    """ class for controlling widgets """
+    """class for controlling widgets."""
     def __init__(self, ready, debug):
         threading.Thread.__init__(self)
-        super(WidgetController, self).__init__(ready, unique_id=None, name=__name__)
+        super().__init__(ready, unique_id=None, name=__name__)
 
         self.set_log_level_debug(debug)
         self.control = DaemonControl()
@@ -50,7 +47,7 @@ class WidgetController(AbstractController, threading.Thread):
         self.sample_rate = None
 
     def initialize_variables(self):
-        """ Begin initializing widget parameters """
+        """Begin initializing widget parameters."""
         self.dict_widgets = parse_widget_information()
 
         self.sample_rate = db_retrieve_table_daemon(
@@ -64,23 +61,22 @@ class WidgetController(AbstractController, threading.Thread):
                 if each_widget.graph_type in self.dict_widgets:
                     self.widget_add_refresh(each_widget.unique_id)
                 else:
-                    self.logger.debug("Widget '{device}' not recognized".format(
-                        device=each_widget.graph_type))
-                    raise Exception("'{device}' is not a valid widget type.".format(
-                        device=each_widget.graph_type))
+                    self.logger.error(f"'{each_widget.graph_type}' is not a valid widget type")
 
             self.logger.debug("Widgets Initialized")
-        except Exception as except_msg:
-            self.logger.exception(
-                "Problem initializing widgets: {err}".format(err=except_msg))
+        except Exception:
+            self.logger.exception("Problem initializing widgets")
+
+        self.ready.set()
+        self.running = True
 
     def loop(self):
         for each_unique_id in self.widget_ready:
             if self.widget_ready[each_unique_id] and each_unique_id in self.widget_loaded:
                 try:
                     self.widget_loaded[each_unique_id].loop()
-                except Exception as err:
-                    self.logger.exception(1)
+                except Exception:
+                    self.logger.exception("Error running widget loop()")
 
     def widget_add_refresh(self, unique_id):
         self.dict_widgets = parse_widget_information()
@@ -91,7 +87,7 @@ class WidgetController(AbstractController, threading.Thread):
 
         try:
             timer = timeit.default_timer()
-            widget_loaded = load_module_from_file(
+            widget_loaded, status = load_module_from_file(
                 self.dict_widgets[widget.graph_type]['file_path'], 'widgets')
             widget = db_retrieve_table_daemon(Widget, unique_id=unique_id)
 
@@ -99,21 +95,21 @@ class WidgetController(AbstractController, threading.Thread):
                 self.widget_loaded[unique_id] = widget_loaded.WidgetModule(widget)
                 self.widget_loaded[unique_id].initialize_variables()
                 self.widget_ready[unique_id] = True
-                self.logger.info("Widget {id} created/refreshed in {time:.1f} ms".format(
-                    id=widget.unique_id.split('-')[0], time=(timeit.default_timer() - timer) * 1000))
+                diff = (timeit.default_timer() - timer) * 1000
+                self.logger.info(f"Widget {widget.unique_id.split('-')[0]} created/refreshed in {diff:.1f} ms")
         except Exception:
             self.logger.exception("Widget create/refresh")
 
     def widget_remove(self, unique_id):
-        """Remove a widget"""
+        """Remove a widget."""
         try:
             timer = timeit.default_timer()
             if unique_id in self.widget_loaded:
                 self.widget_ready.pop(unique_id, None)
                 self.widget_loaded.pop(unique_id, None)
 
-                self.logger.info("Widget object {id} removed in {time:.1f} ms".format(
-                    id=unique_id.split('-')[0], time=(timeit.default_timer() - timer) * 1000))
+                diff = (timeit.default_timer() - timer) * 1000
+                self.logger.info(f"Widget object {unique_id.split('-')[0]} removed in {diff:.1f} ms")
         except Exception:
             self.logger.exception("Widget remove")
 
@@ -127,7 +123,7 @@ class WidgetController(AbstractController, threading.Thread):
             else:
                 return_value = "Widget not initialized in Daemon"
         except Exception as err:
-            return_value = "Error: {}".format(err)
-            self.logger.exception(1)
+            return_value = f"Error: {err}"
+            self.logger.exception("widget_execute()")
 
         return return_value

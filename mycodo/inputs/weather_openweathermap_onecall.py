@@ -57,6 +57,7 @@ INPUT_INFORMATION = {
     'input_name_unique': 'OPENWEATHERMAP_CALL_ONECALL',
     'input_manufacturer': 'Weather',
     'input_name': 'OpenWeatherMap (Lat/Lon, Current/Future)',
+    'input_name_short': 'OpenWeather Lat/Lon',
     'measurements_name': 'Humidity/Temperature/Pressure/Wind',
     'measurements_dict': measurements_dict,
     'url_additional': 'https://openweathermap.org',
@@ -171,9 +172,9 @@ INPUT_INFORMATION = {
 
 
 class InputModule(AbstractInput):
-    """A sensor support class that gets weather for a latitude/longitude location"""
+    """A sensor support class that gets weather for a latitude/longitude location."""
     def __init__(self, input_dev, testing=False):
-        super(InputModule, self).__init__(input_dev, testing=testing, name=__name__)
+        super().__init__(input_dev, testing=testing, name=__name__)
 
         self.api_url = None
         self.api_key = None
@@ -185,9 +186,9 @@ class InputModule(AbstractInput):
         if not testing:
             self.setup_custom_options(
                 INPUT_INFORMATION['custom_options'], input_dev)
-            self.initialize_input()
+            self.try_initialize()
 
-    def initialize_input(self):
+    def initialize(self):
         if self.api_key and self.latitude and self.longitude and self.weather_time:
             base_url = "https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&units=metric&appid={key}".format(
                 lat=self.latitude, lon=self.longitude, key=self.api_key)
@@ -207,7 +208,7 @@ class InputModule(AbstractInput):
             self.logger.debug("Time Dict: {}".format(self.weather_time_dict))
 
     def get_measurement(self):
-        """ Gets the weather data """
+        """Gets the weather data."""
         if not self.api_url:
             self.logger.error("API Key, Latitude, and Longitude required")
             return

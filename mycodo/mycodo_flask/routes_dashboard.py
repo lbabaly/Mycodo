@@ -1,15 +1,15 @@
 # coding=utf-8
-""" collection of Page endpoints """
+"""collection of Page endpoints."""
 import logging
 import os
 
 import flask_login
-from flask import jsonify
 from flask import redirect
 from flask import render_template
 from flask import request
 from flask import url_for
 from flask.blueprints import Blueprint
+from sqlalchemy import and_
 
 from mycodo.config import PATH_HTML_USER
 from mycodo.databases.models import Camera
@@ -19,7 +19,6 @@ from mycodo.databases.models import CustomController
 from mycodo.databases.models import Dashboard
 from mycodo.databases.models import DeviceMeasurements
 from mycodo.databases.models import Input
-from mycodo.databases.models import Math
 from mycodo.databases.models import Measurement
 from mycodo.databases.models import Method
 from mycodo.databases.models import Misc
@@ -27,6 +26,7 @@ from mycodo.databases.models import NoteTags
 from mycodo.databases.models import Output
 from mycodo.databases.models import OutputChannel
 from mycodo.databases.models import PID
+from mycodo.databases.models import Trigger
 from mycodo.databases.models import Unit
 from mycodo.databases.models import Widget
 from mycodo.mycodo_flask.extensions import db
@@ -59,7 +59,7 @@ def inject_dictionary():
 
 @blueprint.route('/save_dashboard_layout', methods=['POST'])
 def save_dashboard_layout():
-    """Save positions and sizes of widgets of a particular dashboard"""
+    """Save positions and sizes of widgets of a particular dashboard."""
     if not utils_general.user_has_permission('edit_controllers'):
         return redirect(url_for('routes_general.home'))
     data = request.get_json()
@@ -80,7 +80,7 @@ def save_dashboard_layout():
 @blueprint.route('/dashboard', methods=('GET', 'POST'))
 @flask_login.login_required
 def page_dashboard_default():
-    """Load default dashboard"""
+    """Load default dashboard."""
     dashboard = Dashboard.query.first()
     return redirect(url_for(
         'routes_dashboard.page_dashboard', dashboard_id=dashboard.unique_id))
@@ -89,7 +89,7 @@ def page_dashboard_default():
 @blueprint.route('/dashboard-add', methods=('GET', 'POST'))
 @flask_login.login_required
 def page_dashboard_add():
-    """Add a dashboard"""
+    """Add a dashboard."""
     if not utils_general.user_has_permission('edit_controllers'):
         return redirect(url_for('routes_general.home'))
     dashboard_id = utils_dashboard.dashboard_add()
@@ -100,7 +100,7 @@ def page_dashboard_add():
 @blueprint.route('/dashboard/<dashboard_id>', methods=('GET', 'POST'))
 @flask_login.login_required
 def page_dashboard(dashboard_id):
-    """ Generate custom dashboard with various data """
+    """Generate custom dashboard with various data."""
     # Retrieve tables from SQL database
     camera = Camera.query.all()
     conditional = Conditional.query.all()
@@ -110,7 +110,6 @@ def page_dashboard(dashboard_id):
         Dashboard.unique_id == dashboard_id).first()
     input_dev = Input.query.all()
     device_measurements = DeviceMeasurements.query.all()
-    math = Math.query.all()
     method = Method.query.all()
     misc = Misc.query.first()
     output = Output.query.all()
@@ -258,15 +257,15 @@ def page_dashboard(dashboard_id):
         function, dict_units, dict_measurements)
     choices_input = utils_general.choices_inputs(
         input_dev, dict_units, dict_measurements)
-    choices_math = utils_general.choices_maths(
-        math, dict_units, dict_measurements)
     choices_method = utils_general.choices_methods(method)
     choices_output = utils_general.choices_outputs(
-        output, dict_units, dict_measurements)
+        output, OutputChannel, dict_outputs, dict_units, dict_measurements)
+    choices_output_channels = utils_general.choices_outputs_channels(
+        output, output_channel, dict_outputs)
     choices_output_channels_measurements = utils_general.choices_outputs_channels_measurements(
         output, OutputChannel, dict_outputs, dict_units, dict_measurements)
     choices_output_pwm = utils_general.choices_outputs_pwm(
-        output, dict_units, dict_measurements, dict_outputs)
+        output, OutputChannel, dict_outputs, dict_units, dict_measurements)
     choices_pid = utils_general.choices_pids(
         pid, dict_units, dict_measurements)
     choices_pid_devices = utils_general.choices_pids_devices(pid)
@@ -278,9 +277,10 @@ def page_dashboard(dashboard_id):
 
     # Get what each measurement uses for a unit
     use_unit = utils_general.use_unit_generate(
-        device_measurements, input_dev, output, math, function)
+        device_measurements, input_dev, output, function)
 
     return render_template('pages/dashboard.html',
+                           and_=and_,
                            conditional=conditional,
                            custom_options_values_output_channels=custom_options_values_output_channels,
                            custom_options_values_widgets=custom_options_values_widgets,
@@ -289,16 +289,19 @@ def page_dashboard(dashboard_id):
                            table_function=CustomController,
                            table_widget=Widget,
                            table_input=Input,
-                           table_math=Math,
                            table_output=Output,
+                           table_output_channel=OutputChannel,
                            table_pid=PID,
                            table_device_measurements=DeviceMeasurements,
+                           table_camera=Camera,
+                           table_conditional=Conditional,
+                           table_trigger=Trigger,
                            choices_camera=choices_camera,
                            choices_function=choices_function,
                            choices_input=choices_input,
-                           choices_math=choices_math,
                            choices_method=choices_method,
                            choices_output=choices_output,
+                           choices_output_channels=choices_output_channels,
                            choices_output_channels_measurements=choices_output_channels_measurements,
                            choices_output_pwm=choices_output_pwm,
                            choices_pid=choices_pid,
@@ -309,6 +312,7 @@ def page_dashboard(dashboard_id):
                            dict_measure_measurements=dict_measure_measurements,
                            dict_measure_units=dict_measure_units,
                            dict_measurements=dict_measurements,
+                           dict_outputs=dict_outputs,
                            dict_units=dict_units,
                            dict_widgets=dict_widgets,
                            list_html_files_head=list_html_files_head,
@@ -320,7 +324,6 @@ def page_dashboard(dashboard_id):
                            list_html_files_js_ready_end=list_html_files_js_ready_end,
                            camera=camera,
                            function=function,
-                           math=math,
                            misc=misc,
                            pid=pid,
                            output=output,

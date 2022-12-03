@@ -26,6 +26,7 @@ import threading
 import time
 
 from mycodo.controllers.base_controller import AbstractController
+from mycodo.databases.models import Actions
 from mycodo.databases.models import Conversion
 from mycodo.databases.models import DeviceMeasurements
 from mycodo.databases.models import Input
@@ -36,8 +37,9 @@ from mycodo.databases.models import SMTP
 from mycodo.mycodo_client import DaemonControl
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.influx import add_measurements_influxdb
-from mycodo.utils.influx import parse_measurement
 from mycodo.utils.inputs import parse_input_information
+from mycodo.utils.inputs import parse_measurement
+from mycodo.utils.lockfile import LockFile
 from mycodo.utils.modules import load_module_from_file
 
 
@@ -68,10 +70,11 @@ class InputController(AbstractController, threading.Thread):
     """
     def __init__(self, ready, unique_id):
         threading.Thread.__init__(self)
-        super(InputController, self).__init__(ready, unique_id=unique_id, name=__name__)
+        super().__init__(ready, unique_id=unique_id, name=__name__)
 
         self.unique_id = unique_id
         self.sample_rate = None
+        self.lf = LockFile()
 
         self.control = DaemonControl()
 
@@ -125,7 +128,7 @@ class InputController(AbstractController, threading.Thread):
         return str(self.__class__)
 
     def loop(self):
-        # Pause loop to modify conditional statements.
+        # Pause loop to modify conditional.
         # Prevents execution of conditional while variables are
         # being modified.
         if self.pause_loop:
@@ -133,8 +136,12 @@ class InputController(AbstractController, threading.Thread):
             while self.pause_loop:
                 time.sleep(0.1)
 
-        if ('listener' in self.dict_inputs[self.device] and
-              self.dict_inputs[self.device]['listener']):
+        if (    # Some Inputs require a function to be threaded and run continually
+                ('listener' in self.dict_inputs[self.device] and
+             self.dict_inputs[self.device]['listener']) or
+                # Some Inputs don't run periodically
+                ('do_not_run_periodically' in self.dict_inputs[self.device] and
+                 self.dict_inputs[self.device]['do_not_run_periodically'])):
             pass
         else:
             now = time.time()
@@ -157,7 +164,7 @@ class InputController(AbstractController, threading.Thread):
                     self.pre_output_setup and
                     not self.pre_output_activated):
 
-                if self.lock_acquire(self.pre_output_lock_file, 30):
+                if self.lf.lock_acquire(self.pre_output_lock_file, timeout=30):
                     self.pre_output_timer = time.time() + self.pre_output_duration
                     self.pre_output_activated = True
 
@@ -180,8 +187,7 @@ class InputController(AbstractController, threading.Thread):
                             kwargs={'output_channel': self.pre_output_channel})
                         output_on.start()
                 else:
-                    self.logger.error("Could not acquire pre-output lock at {}".format(
-                        self.pre_output_lock_file))
+                    self.logger.error(f"Could not acquire pre-output lock at {self.pre_output_lock_file}")
 
             # If using a pre output, wait for it to complete before
             # querying the input for a measurement
@@ -191,7 +197,7 @@ class InputController(AbstractController, threading.Thread):
                         self.pre_output_activated and
                         now > self.pre_output_timer):
 
-                    if self.lock_locked(self.pre_output_lock_file):
+                    if self.lf.lock_locked(self.pre_output_lock_file):
                         try:
                             if self.pre_output_during_measure:
                                 # Measure then turn off pre-output
@@ -209,25 +215,39 @@ class InputController(AbstractController, threading.Thread):
                             self.get_new_measurement = False
                         finally:
                             # always remove lock
-                            self.lock_release(self.pre_output_lock_file)
+                            self.lf.lock_release(self.pre_output_lock_file)
                     else:
-                        self.logger.error("Pre-output lock not found at {}".format(
-                            self.pre_output_lock_file))
+                        self.logger.error(f"Pre-output lock not found at {self.pre_output_lock_file}")
 
                 elif not self.pre_output_setup:
                     # Pre-output not enabled, just measure
                     self.update_measure()
                     self.get_new_measurement = False
 
-                # Add measurement(s) to influxdb
+                # Acquiring measurements was successful
                 if self.measurement_success:
+                    measurements_dict = self.create_measurements_dict()
+
+                    # Run any actions
+                    message = "Executing actions of Input."
+                    actions = db_retrieve_table_daemon(Actions).filter(
+                        Actions.function_id == self.unique_id).all()
+                    for each_action in actions:
+                        message = self.control.trigger_action(
+                            each_action.unique_id,
+                            value=measurements_dict,
+                            message=message,
+                            debug=self.log_level_debug)
+
+                    # Add measurement(s) to influxdb
                     use_same_timestamp = True
                     if ('measurements_use_same_timestamp' in self.dict_inputs[self.device] and
                             not self.dict_inputs[self.device]['measurements_use_same_timestamp']):
                         use_same_timestamp = False
+
                     add_measurements_influxdb(
                         self.unique_id,
-                        self.create_measurements_dict(),
+                        measurements_dict,
                         use_same_timestamp=use_same_timestamp)
                     self.measurement_success = False
 
@@ -278,8 +298,7 @@ class InputController(AbstractController, threading.Thread):
                 self.pre_output_during_measure = input_dev.pre_output_during_measure
                 self.pre_output_activated = False
                 self.pre_output_timer = time.time()
-                self.pre_output_lock_file = '/var/lock/input_pre_output_{id}_{ch}'.format(
-                    id=self.pre_output_id, ch=self.pre_output_channel_id)
+                self.pre_output_lock_file = f'/var/lock/input_pre_output_{self.pre_output_id}_{self.pre_output_channel_id}'
 
                 # Check if Pre Output and channel IDs exists
                 output = db_retrieve_table_daemon(Output, unique_id=self.pre_output_id)
@@ -309,18 +328,19 @@ class InputController(AbstractController, threading.Thread):
         self.device_recognized = True
 
         if self.device in self.dict_inputs:
-            input_loaded = load_module_from_file(
-                self.dict_inputs[self.device]['file_path'],
-                'inputs')
+            input_loaded, status = load_module_from_file(
+                self.dict_inputs[self.device]['file_path'], 'inputs')
 
             if input_loaded:
                 self.measure_input = input_loaded.InputModule(self.input_dev)
+            self.ready.set()
+            self.running = True
         else:
             self.device_recognized = False
-            self.logger.debug("Device '{device}' not recognized".format(
-                device=self.device))
-            raise Exception("'{device}' is not a valid device type.".format(
-                device=self.device))
+            self.ready.set()
+            self.running = False
+            self.logger.error(f"'{self.device}' is not a valid device type. Deactivating controller.")
+            return
 
         self.input_timer = time.time()
         self.lastUpdate = None
@@ -344,8 +364,7 @@ class InputController(AbstractController, threading.Thread):
         measurements = None
 
         if not self.device_recognized:
-            self.logger.debug("Device not recognized: {device}".format(
-                device=self.device))
+            self.logger.debug(f"Device not recognized: {self.device}")
             self.measurement_success = False
             return 1
 
@@ -374,7 +393,7 @@ class InputController(AbstractController, threading.Thread):
                 self.logger.exception("This Input has already crashed. Look before this message "
                                       "for the relevant error that indicates what the issue was.")
             else:
-                self.logger.exception("Error while attempting to read input: {err}".format(err=except_msg))
+                self.logger.exception("Error while attempting to read input")
 
         if self.device_recognized and measurements is not None:
             self.measurement = Measurement(measurements)
@@ -391,42 +410,47 @@ class InputController(AbstractController, threading.Thread):
             measurement = self.device_measurements.filter(
                 DeviceMeasurements.channel == each_channel).first()
 
-            if 'value' in each_measurement:
+            if measurement and 'value' in each_measurement:
                 conversion = self.conversions.filter(
                     Conversion.unique_id == measurement.conversion_id).first()
+
+                # If a timestamp is passed from the module, use it
+                if 'timestamp_utc' in each_measurement:
+                    timestamp = each_measurement['timestamp_utc']
+                else:
+                    timestamp = None
 
                 measurements_record = parse_measurement(
                     conversion,
                     measurement,
                     measurements_record,
                     each_channel,
-                    each_measurement)
+                    each_measurement,
+                    timestamp=timestamp)
         self.logger.debug(
-            "Adding measurements to InfluxDB with ID {}: {}".format(
-                self.unique_id, measurements_record))
+            f"Adding measurements to InfluxDB with ID {self.unique_id}: {measurements_record}")
         return measurements_record
 
     def force_measurements(self):
-        """Signal that a measurement needs to be obtained"""
+        """Signal that a measurement needs to be obtained."""
         self.next_measurement = time.time()
         return 0, "Input instructed to begin acquiring measurements"
 
-    def custom_button_exec_function(self, button_id, args_dict, thread=True):
-        """Execute function from custom action button press"""
+    def call_module_function(self, button_id, args_dict, thread=True):
+        """Execute function from custom action button press."""
         try:
-            run_action = getattr(self.measure_input, button_id)
+            run_command = getattr(self.measure_input, button_id)
             if thread:
-                thread_run_action = threading.Thread(
-                    target=run_action,
+                thread_run_command = threading.Thread(
+                    target=run_command,
                     args=(args_dict,))
-                thread_run_action.start()
+                thread_run_command.start()
                 return 0, "Command sent to Input Controller and is running in the background."
             else:
-                return_val = run_action(args_dict)
-                return 0, "Command sent to Input Controller. Returned: {}".format(return_val)
+                return_val = run_command(args_dict)
+                return 0, f"Command sent to Input Controller. Returned: {return_val}"
         except Exception as err:
-            msg = "Error executing button press function '{}': {}".format(
-                button_id, err)
+            msg = f"Error executing button press function '{button_id}': {err}"
             self.logger.exception(msg)
             return 1, msg
 

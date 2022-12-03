@@ -11,9 +11,9 @@ from collections import OrderedDict
 
 from dateutil import relativedelta
 
-from mycodo.config import INFLUXDB_DATABASE
 from mycodo.config import INSTALL_DIRECTORY
 from mycodo.config import PATH_FUNCTIONS_CUSTOM
+from mycodo.config import PATH_ACTIONS_CUSTOM
 from mycodo.config import PATH_INPUTS_CUSTOM
 from mycodo.config import PATH_OUTPUTS_CUSTOM
 from mycodo.config import PATH_USER_SCRIPTS
@@ -25,13 +25,16 @@ from mycodo.databases.models import DeviceMeasurements
 from mycodo.databases.models import EnergyUsage
 from mycodo.databases.models import Misc
 from mycodo.databases.models import Output
+from mycodo.databases.models import OutputChannel
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.influx import average_past_seconds
 from mycodo.utils.influx import average_start_end_seconds
 from mycodo.utils.influx import output_sec_on
 from mycodo.utils.logging_utils import set_log_level
+from mycodo.utils.outputs import parse_output_information
 from mycodo.utils.system_pi import assure_path_exists
 from mycodo.utils.system_pi import cmd_output
+from mycodo.utils.system_pi import parse_custom_option_values_output_channels_json
 from mycodo.utils.system_pi import return_measurement_info
 from mycodo.utils.system_pi import set_user_grp
 
@@ -39,7 +42,7 @@ logger = logging.getLogger("mycodo.tools")
 logger.setLevel(set_log_level(logging))
 
 
-def create_measurements_export(save_path=None):
+def create_measurements_export(influxdb_version, save_path=None):
     try:
         data = io.BytesIO()
         influx_backup_dir = os.path.join(INSTALL_DIRECTORY, 'influx_backup')
@@ -51,9 +54,19 @@ def create_measurements_export(save_path=None):
         # Create new directory (make sure it's empty)
         assure_path_exists(influx_backup_dir)
 
-        cmd = "/usr/bin/influxd backup -database {db} -portable {path}".format(
-            db=INFLUXDB_DATABASE, path=influx_backup_dir)
-        _, _, status = cmd_output(cmd)
+        settings = db_retrieve_table_daemon(Misc, entry='first')
+
+        if influxdb_version.startswith("1."):
+            cmd = f"/usr/bin/influxd backup -database {settings.measurement_db_dbname} -portable {influx_backup_dir}"
+            out, err, status = cmd_output(cmd, user='root')
+        elif influxdb_version.startswith("2."):
+            cmd = f"/usr/bin/influx backup --org mycodo {influx_backup_dir}"
+            out, err, status = cmd_output(cmd, user='root')
+        else:
+            logger.error(f"Could not determine inflxdb version: {influxdb_version}")
+            return
+        
+        logger.info(f"out: {out}, error: {err}, status: {status}")
 
         if not status:
             # Zip all files in the influx_backup directory
@@ -76,7 +89,7 @@ def create_measurements_export(save_path=None):
             else:
                 return 0, data
     except Exception as err:
-        logger.error("Error: {}".format(err))
+        logger.exception(f"Error: {err}")
         return 1, err
 
 
@@ -88,6 +101,7 @@ def create_settings_export(save_path=None):
                     os.path.basename(SQL_DATABASE_MYCODO))
             export_directories = [
                 (PATH_FUNCTIONS_CUSTOM, "custom_functions"),
+                (PATH_ACTIONS_CUSTOM, "custom_actions"),
                 (PATH_INPUTS_CUSTOM, "custom_inputs"),
                 (PATH_OUTPUTS_CUSTOM, "custom_outputs"),
                 (PATH_WIDGETS_CUSTOM, "custom_widgets"),
@@ -101,7 +115,7 @@ def create_settings_export(save_path=None):
                         if filename == "__init__.py" or filename.endswith("pyc"):
                             continue
                         file_path = os.path.join(folder_name, filename)
-                        z.write(file_path, "{}/{}".format(each_backup[1], os.path.basename(file_path)))
+                        z.write(file_path, f"{each_backup[1]}/{os.path.basename(file_path)}")
         data.seek(0)
         if save_path:
             with open(save_path, "wb") as f:
@@ -111,7 +125,7 @@ def create_settings_export(save_path=None):
         else:
             return 0, data
     except Exception as err:
-        logger.error("Error: {}".format(err))
+        logger.error(f"Error: {err}")
         return 1, err
 
 
@@ -180,7 +194,7 @@ def next_schedule(time_span='daily', set_day=None, set_hour=None):
 
 
 def return_energy_usage(energy_usage, device_measurements_all, conversion_all):
-    """ Calculate energy usage from Inputs/Maths measuring amps """
+    """Calculate energy usage from Inputs measuring amps."""
     energy_usage_stats = {}
     graph_info = {}
     for each_energy in energy_usage:
@@ -321,7 +335,7 @@ def return_output_usage(
         outputs,
         table_output_channels,
         custom_options_values_output_channels):
-    """ Return output usage and cost """
+    """Return output usage and cost."""
     date_now = datetime.date.today()
     time_now = datetime.datetime.now()
     past_month_seconds = 0
@@ -432,10 +446,16 @@ def generate_output_usage_report():
 
         misc = db_retrieve_table_daemon(Misc, entry='first')
         output = db_retrieve_table_daemon(Output)
-        output_usage = return_output_usage(misc, output.all())
+        output_channel = db_retrieve_table_daemon(OutputChannel)
+        dict_outputs = parse_output_information()
+        custom_options_values_output_channels = parse_custom_option_values_output_channels_json(
+            output_channel.query.all(), dict_controller=dict_outputs, key_name='custom_channel_options')
+
+        output_usage = return_output_usage(
+            dict_outputs, misc, output.all(), output_channel, custom_options_values_output_channels)
 
         timestamp = time.strftime("%Y-%m-%d_%H-%M")
-        file_name = 'output_usage_report_{ts}.csv'.format(ts=timestamp)
+        file_name = f'output_usage_report_{timestamp}.csv'
         report_path_file = os.path.join(USAGE_REPORTS_PATH, file_name)
 
         with open(report_path_file, 'wb') as f:
@@ -449,7 +469,7 @@ def generate_output_usage_report():
                  'Past Day',
                  'Past Week',
                  'Past Month',
-                 'Past Month (from {})'.format(misc.output_usage_dayofmonth),
+                 f'Past Month (from {misc.output_usage_dayofmonth})',
                  'Past Year'
             ])
             for key, value in output_usage.items():
