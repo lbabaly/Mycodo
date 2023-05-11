@@ -156,7 +156,7 @@ class AbstractBaseController(object):
                 if required and not custom_option_set:
                     self.logger.error(
                         f"Option '{each_option_default['id']}' required but was not found to be set by the user. "
-                         "Setting to default.")
+                        f"Setting to default ({option_value}).")
 
                 if each_option_default['type'] == 'integer':
                     setattr(self, each_option_default['id'], int(option_value))
@@ -276,7 +276,7 @@ class AbstractBaseController(object):
                 if required and not custom_option_set:
                     self.logger.error(
                         f"Option '{each_option_default['id']}' required but was not found to be set by the user. "
-                        f"Setting to default.")
+                        f"Setting to default ({option_value}).")
 
                 if each_option_default['type'] in ['integer',
                                                    'float',
@@ -441,7 +441,7 @@ class AbstractBaseController(object):
         except Exception:
             self.logger.exception("set_custom_option")
 
-    def _get_custom_option(self, controller, unique_id, option):
+    def _get_custom_option(self, controller, unique_id, option, default_return=None):
         try:
             with session_scope(MYCODO_DB_PATH) as new_session:
                 read_function = new_session.query(controller).filter(
@@ -455,6 +455,7 @@ class AbstractBaseController(object):
                     return dict_custom_options[option]
         except Exception:
             self.logger.exception("get_custom_option")
+        return default_return
 
     def _delete_custom_channel_option(self, controller, unique_id, channel, option):
         try:

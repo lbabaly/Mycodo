@@ -154,6 +154,9 @@ class AbstractInput(AbstractBaseController):
         self.setup_device_measurement(self.unique_id)
 
     def is_enabled(self, channel):
+        if channel not in self.channels_measurement:
+            self.logger.error(f"Channel {channel} not found by is_enabled()")
+            return
         try:
             return self.channels_measurement[channel].is_enabled
         except:
@@ -172,10 +175,14 @@ class AbstractInput(AbstractBaseController):
                 self.logger.setLevel(logging.DEBUG)
             else:
                 self.logger.setLevel(logging.INFO)
-
+            
     def start_input(self):
         """Not used yet."""
         self.running = True
+    
+    def pre_stop(self):
+        """Executed when the controller is instructed to stop."""
+        pass
 
     def stop_input(self):
         """Called when Input is deactivated."""
@@ -265,8 +272,8 @@ class AbstractInput(AbstractBaseController):
     def set_custom_option(self, option, value):
         return self._set_custom_option(Input, self.unique_id, option, value)
 
-    def get_custom_option(self, option):
-        return self._get_custom_option(Input, self.unique_id, option)
+    def get_custom_option(self, option, default_return=None):
+        return self._get_custom_option(Input, self.unique_id, option, default_return=default_return)
 
     def delete_custom_option(self, option):
         return self._delete_custom_option(Input, self.unique_id, option)

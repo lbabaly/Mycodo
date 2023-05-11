@@ -142,9 +142,9 @@ class DaemonControl:
     #
 
     def trigger_action(
-            self, action_id, value=None, message='', debug=False):
+            self, action_id, value={}, debug=False):
         return self.proxy().trigger_action(
-            action_id, value=value, message=message, debug=debug)
+            action_id, value=value, debug=debug)
 
     def trigger_all_actions(self, function_id, message='', debug=False):
         return self.proxy().trigger_all_actions(
@@ -269,10 +269,10 @@ class DaemonControl:
             smtp.user, smtp.passw, smtp.email_from,
             recipients, message, subject=subject)
 
-    def module_function(self, controller_type, unique_id, button_id, args_dict, thread=True):
+    def module_function(self, controller_type, unique_id, button_id, args_dict, thread=True, return_from_function=False):
         try:
             return self.proxy().module_function(
-                controller_type, unique_id, button_id, args_dict, thread)
+                controller_type, unique_id, button_id, args_dict, thread=thread, return_from_function=return_from_function)
         except Exception:
             return 0, traceback.format_exc()
 

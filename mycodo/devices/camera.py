@@ -12,13 +12,11 @@ from mycodo.databases.models import OutputChannel
 from mycodo.databases.utils import session_scope
 from mycodo.mycodo_client import DaemonControl
 from mycodo.utils.database import db_retrieve_table_daemon
-from mycodo.utils.logging_utils import set_log_level
 from mycodo.utils.system_pi import assure_path_exists
 from mycodo.utils.system_pi import cmd_output
 from mycodo.utils.system_pi import set_user_grp
 
 logger = logging.getLogger(__name__)
-logger.setLevel(set_log_level(logging))
 
 
 #
@@ -267,7 +265,7 @@ def camera_record(record_type, unique_id, duration_sec=None, tmp_filename=None):
             elif (settings.picamera_awb == "off" and
                   settings.picamera_awb_gain_blue is not None and
                   settings.picamera_awb_gain_red is not None):
-                cmd += f" --awb {settings.picamera_awb}"
+                cmd += f" --awb custom"
                 cmd += f" --awbgains {settings.picamera_awb_gain_red:.1f},{settings.picamera_awb_gain_blue:.1f}"
             if settings.hflip:
                 cmd += " --hflip"

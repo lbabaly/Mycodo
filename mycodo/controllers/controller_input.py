@@ -26,19 +26,14 @@ import threading
 import time
 
 from mycodo.controllers.base_controller import AbstractController
-from mycodo.databases.models import Actions
-from mycodo.databases.models import Conversion
-from mycodo.databases.models import DeviceMeasurements
-from mycodo.databases.models import Input
-from mycodo.databases.models import Misc
-from mycodo.databases.models import Output
-from mycodo.databases.models import OutputChannel
-from mycodo.databases.models import SMTP
+from mycodo.databases.models import (SMTP, Actions, Conversion,
+                                     DeviceMeasurements, Input, Misc, Output,
+                                     OutputChannel)
+from mycodo.inputs.base_input import AbstractInput
 from mycodo.mycodo_client import DaemonControl
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.influx import add_measurements_influxdb
-from mycodo.utils.inputs import parse_input_information
-from mycodo.utils.inputs import parse_measurement
+from mycodo.utils.inputs import parse_input_information, parse_measurement
 from mycodo.utils.lockfile import LockFile
 from mycodo.utils.modules import load_module_from_file
 
@@ -124,6 +119,9 @@ class InputController(AbstractController, threading.Thread):
         self.input_timer = time.time()
         self.lastUpdate = None
 
+        self.has_loop = False
+        self.has_listener = False
+
     def __str__(self):
         return str(self.__class__)
 
@@ -136,14 +134,7 @@ class InputController(AbstractController, threading.Thread):
             while self.pause_loop:
                 time.sleep(0.1)
 
-        if (    # Some Inputs require a function to be threaded and run continually
-                ('listener' in self.dict_inputs[self.device] and
-             self.dict_inputs[self.device]['listener']) or
-                # Some Inputs don't run periodically
-                ('do_not_run_periodically' in self.dict_inputs[self.device] and
-                 self.dict_inputs[self.device]['do_not_run_periodically'])):
-            pass
-        else:
+        if self.has_loop:
             now = time.time()
             # Signal that a measurement needs to be obtained
             if (now > self.next_measurement and
@@ -210,14 +201,13 @@ class InputController(AbstractController, threading.Thread):
                             else:
                                 # Pre-output has turned off, now measure
                                 self.update_measure()
-
-                            self.pre_output_activated = False
-                            self.get_new_measurement = False
                         finally:
-                            # always remove lock
                             self.lf.lock_release(self.pre_output_lock_file)
                     else:
                         self.logger.error(f"Pre-output lock not found at {self.pre_output_lock_file}")
+
+                    self.pre_output_activated = False
+                    self.get_new_measurement = False
 
                 elif not self.pre_output_setup:
                     # Pre-output not enabled, just measure
@@ -233,11 +223,18 @@ class InputController(AbstractController, threading.Thread):
                     actions = db_retrieve_table_daemon(Actions).filter(
                         Actions.function_id == self.unique_id).all()
                     for each_action in actions:
-                        message = self.control.trigger_action(
+                        return_dict = self.control.trigger_action(
                             each_action.unique_id,
-                            value=measurements_dict,
-                            message=message,
+                            value={"message": message, "measurements_dict": measurements_dict},
                             debug=self.log_level_debug)
+
+                        # if message is returned, set message
+                        if return_dict and 'message' in return_dict and return_dict['message']:
+                            message = return_dict['message']
+
+                        # if measurements_dict is returned, use that to store measurements
+                        if return_dict and 'measurements_dict' in return_dict and return_dict['measurements_dict']:
+                            measurements_dict = return_dict['measurements_dict']
 
                     # Add measurement(s) to influxdb
                     use_same_timestamp = True
@@ -345,14 +342,24 @@ class InputController(AbstractController, threading.Thread):
         self.input_timer = time.time()
         self.lastUpdate = None
 
-        # Set up listener (e.g. MQTT, EDGE)
-        if ('listener' in self.dict_inputs[self.device] and
-              self.dict_inputs[self.device]['listener']):
-            self.logger.debug("Detected as listener. Starting listener thread.")
+        # Check if get_measurement() has been overwritten
+        if type(self.measure_input).get_measurement != AbstractInput.get_measurement:
+            self.logger.debug("get_measurement() found")
+            self.has_loop = True
+        else:
+            self.logger.debug("get_measurement() not found")
+
+        # Check if listener() exists
+        if hasattr(self.measure_input, 'listener'):
+            self.logger.debug("listener() found")
+            self.has_listener = True
+            self.logger.debug("Starting listener() thread.")
             input_listener = threading.Thread(
-                target=self.measure_input.listener())
+                target=self.measure_input.listener)
             input_listener.daemon = True
             input_listener.start()
+        else:
+            self.logger.debug("listener() not found")
 
     def update_measure(self):
         """
@@ -436,26 +443,31 @@ class InputController(AbstractController, threading.Thread):
         self.next_measurement = time.time()
         return 0, "Input instructed to begin acquiring measurements"
 
-    def call_module_function(self, button_id, args_dict, thread=True):
+    def call_module_function(self, button_id, args_dict, thread=True, return_from_function=False):
         """Execute function from custom action button press."""
         try:
             run_command = getattr(self.measure_input, button_id)
-            if thread:
+            if not thread or return_from_function:
+                return_val = run_command(args_dict)
+                if return_from_function:
+                    return 0, return_val
+                else:
+                    return 0, f"Command sent to Input Controller. Returned: {return_val}"
+            else:
                 thread_run_command = threading.Thread(
                     target=run_command,
                     args=(args_dict,))
                 thread_run_command.start()
                 return 0, "Command sent to Input Controller and is running in the background."
-            else:
-                return_val = run_command(args_dict)
-                return 0, f"Command sent to Input Controller. Returned: {return_val}"
+
         except Exception as err:
-            msg = f"Error executing button press function '{button_id}': {err}"
+            msg = f"Error executing function '{button_id}': {err}"
             self.logger.exception(msg)
             return 1, msg
 
     def pre_stop(self):
-        # Ensure pre-output is off
+        """Executed when the controller is instructed to stop."""
+        self.measure_input.pre_stop()
         if self.pre_output_setup:
             output_off = threading.Thread(
                 target=self.control.output_off,

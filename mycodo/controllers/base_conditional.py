@@ -49,10 +49,19 @@ class AbstractConditional:
         if action:
             full_action_id = action.unique_id
 
+        send_dict = {}
+
         if message is None:
-            message = self.message
-        self.message = self.control.trigger_action(
-            full_action_id, value=value, message=message)
+            send_dict['message'] = self.message
+
+        if value:
+            send_dict['value'] = value
+
+        return_dict = self.control.trigger_action(
+            full_action_id, value=send_dict)
+
+        if return_dict and 'message' in return_dict:
+            self.message = return_dict['message']
 
     def condition(self, condition_id):
         full_cond_id = condition_id
@@ -106,7 +115,7 @@ class AbstractConditional:
         except Exception:
             self.logger.exception("set_custom_option")
 
-    def get_custom_option(self, option):
+    def get_custom_option(self, option, default_return=None):
         conditional = db_retrieve_table_daemon(Conditional, unique_id=self.function_id)
         try:
             dict_custom_options = json.loads(conditional.custom_options)
@@ -114,3 +123,4 @@ class AbstractConditional:
             dict_custom_options = {}
         if option in dict_custom_options:
             return dict_custom_options[option]
+        return default_return

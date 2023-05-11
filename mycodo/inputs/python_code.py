@@ -23,25 +23,51 @@ def generate_code(new_input):
     pre_statement_run = """import os
 import sys
 sys.path.append(os.path.abspath('/var/mycodo-root'))
+from mycodo.databases.models import Conversion
 from mycodo.mycodo_client import DaemonControl
+from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.influx import add_measurements_influxdb
+from mycodo.utils.inputs import parse_measurement
 control = DaemonControl()
 
 class PythonInputRun:
-    def __init__(self, logger, input_id, measurement_info):
+    def __init__(self, logger, input_id, measurement_info, channels_conversion, channels_measurement):
         self.logger = logger
         self.input_id = input_id
         self.measurement_info = measurement_info
+        self.channels_conversion = channels_conversion
+        self.channels_measurement = channels_measurement
 
     def store_measurement(self, channel=None, measurement=None, timestamp=None):
         if None in [channel, measurement]:
             return
-        measure = {channel: {}}
-        measure[channel]['measurement'] = self.measurement_info[channel]['measurement']
-        measure[channel]['unit'] = self.measurement_info[channel]['unit']
-        measure[channel]['value'] = measurement
+        measure = {
+            channel: {
+                'measurement': self.measurement_info[channel]['measurement'],
+                'unit': self.measurement_info[channel]['unit'],
+                'value': measurement,
+                'timestamp_utc': None
+            }
+        }
         if timestamp:
             measure[channel]['timestamp_utc'] = timestamp
+
+        if channel in self.channels_conversion and self.channels_conversion[channel]:
+            conversion = db_retrieve_table_daemon(
+                Conversion,
+                unique_id=self.channels_measurement[channel].conversion_id)
+            if conversion:  # Convert value/unit is conversion_id present and valid
+                meas_conv = parse_measurement(
+                    self.channels_conversion[channel],
+                    self.channels_measurement[channel],
+                    measure,
+                    channel,
+                    measure[channel],
+                    timestamp=measure[channel]['timestamp_utc'])
+                measure[channel]['measurement'] = meas_conv[channel]['measurement']
+                measure[channel]['unit'] = meas_conv[channel]['unit']
+                measure[channel]['value'] = meas_conv[channel]['value']
+
         add_measurements_influxdb(self.input_id, measure)
 
     def python_code_run(self):
@@ -96,6 +122,14 @@ def execute_at_modification(
                 custom_options_channels_dict_postsave)
 
     try:
+        if not custom_options_dict_postsave['use_pylint']:
+            messages["info"].append("Review your code for issues and test your Input "
+                "before putting it into a production environment.")
+            return (messages,
+                    mod_input,
+                    custom_options_dict_postsave,
+                    custom_options_channels_dict_postsave)
+
         input_python_code_run, file_run = generate_code(mod_input)
 
         lines_code = ''
@@ -128,7 +162,7 @@ def execute_at_modification(
         messages["error"].append("Error running pylint: {}".format(err))
 
     if cmd_status:
-        messages["warning"].append("pylint returned with status: {}".format(cmd_status))
+        messages["warning"].append("pylint returned with status: {}. Note that warnings are not errors. This only indicates that the pylint analysis did not return a perfect score of 10.".format(cmd_status))
 
     if pylint_message:
         messages["info"].append("Review your code for issues and test your Input "
@@ -181,7 +215,17 @@ INPUT_INFORMATION = {
 random_value_channel_0 = random.uniform(10.0, 100.0)
 
 # Store measurements in database (must specify the channel and measurement)
-self.store_measurement(channel=0, measurement=random_value_channel_0)"""
+self.store_measurement(channel=0, measurement=random_value_channel_0)""",
+
+    'custom_options': [
+        {
+            'id': 'use_pylint',
+            'type': 'bool',
+            'default_value': True,
+            'name': 'Analyze Python Code with Pylint',
+            'phrase': 'Analyze your Python code with pylint when saving'
+        }
+    ]
 }
 
 
@@ -194,7 +238,11 @@ class InputModule(AbstractInput):
         self.input_dev = input_dev
         self.python_code = None
 
+        self.use_pylint = None
+
         if not testing:
+            self.setup_custom_options(
+                INPUT_INFORMATION['custom_options'], input_dev)
             self.try_initialize()
 
     def initialize(self):
@@ -232,7 +280,7 @@ class InputModule(AbstractInput):
         spec = importlib.util.spec_from_file_location(module_name, file_run)
         conditional_run = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(conditional_run)
-        run = conditional_run.PythonInputRun(self.logger, self.unique_id, self.measure_info)
+        run = conditional_run.PythonInputRun(self.logger, self.unique_id, self.measure_info, self.channels_conversion, self.channels_measurement)
         try:
             run.python_code_run()
         except Exception:

@@ -1595,12 +1595,6 @@ def settings_pi_mod(form):
     elif form.disable_ssh.data:
         _, _, status = cmd_output("raspi-config nonint do_ssh 1", user='root')
         action_str = "Disable SSH"
-    elif form.enable_pi_camera.data:
-        _, _, status = cmd_output("raspi-config nonint do_camera 0", user='root')
-        action_str = "Enable Pi Camera"
-    elif form.disable_pi_camera.data:
-        _, _, status = cmd_output("raspi-config nonint do_camera 1", user='root')
-        action_str = "Disable Pi Camera"
     elif form.change_hostname.data:
         if is_valid_hostname(form.hostname.data):
             _, _, status = cmd_output(
@@ -1901,6 +1895,38 @@ def settings_diagnostic_delete_file(delete_type):
         except Exception as except_msg:
             error.append(except_msg)
 
+    flash_success_errors(
+        error, action, url_for('routes_settings.settings_diagnostic'))
+
+
+def settings_diagnostic_recreate_influxdb_db_1():
+    action = gettext("Recreate InfluxDB 1.x Database")
+    error = []
+
+    if not error:
+        try:
+            command = f'/bin/bash {INSTALL_DIRECTORY}/mycodo/scripts/upgrade_commands.sh recreate-influxdb-1-db'
+            p = subprocess.Popen(command, shell=True)
+            p.communicate()
+        except Exception:
+            logger.exception()
+    
+    flash_success_errors(
+        error, action, url_for('routes_settings.settings_diagnostic'))
+
+
+def settings_diagnostic_recreate_influxdb_db_2():
+    action = gettext("Recreate InfluxDB 2.x Database")
+    error = []
+
+    if not error:
+        try:
+            command = f'/bin/bash {INSTALL_DIRECTORY}/mycodo/scripts/upgrade_commands.sh recreate-influxdb-2-db'
+            p = subprocess.Popen(command, shell=True)
+            p.communicate()
+        except Exception:
+            logger.exception()
+    
     flash_success_errors(
         error, action, url_for('routes_settings.settings_diagnostic'))
 

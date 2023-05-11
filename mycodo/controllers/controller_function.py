@@ -59,16 +59,19 @@ class FunctionController(AbstractController, threading.Thread):
         self.device = None
         self.period = None
 
+        self.has_loop = False
+        self.has_listener = False
+
     def __str__(self):
         return str(self.__class__)
 
     def loop(self):
-        if self.timer_loop < time.time():
-            if not self.run_function:
-                self.logger.error("Function could not be initialized. Shutting controller down.")
-                self.running = False
-                return
+        if not self.run_function:
+            self.logger.error("Function could not be initialized. Shutting controller down.")
+            self.running = False
+            return
 
+        if self.has_loop and self.timer_loop < time.time():
             while self.timer_loop < time.time():
                 self.timer_loop += self.sample_rate
 
@@ -122,22 +125,48 @@ class FunctionController(AbstractController, threading.Thread):
             self.logger.error(f"'{self.device}' is not a valid device type. Deactivating controller.")
             return
 
-    def call_module_function(self, button_id, args_dict, thread=True):
+        # Check if loop() exists
+        if hasattr(self.run_function, 'loop'):
+            self.logger.debug("loop() found")
+            self.has_loop = True
+        else:
+            self.logger.debug("loop() not found")
+
+        # Check if listener() exists
+        if hasattr(self.run_function, 'listener'):
+            self.logger.debug("listener() found")
+            self.has_listener = True
+        else:
+            self.logger.debug("listener() not found")
+
+        # Set up listener() thread
+        if self.has_listener:
+            self.logger.debug("Starting listener() thread")
+            function_listener = threading.Thread(
+                target=self.run_function.listener)
+            function_listener.daemon = True
+            function_listener.start()
+
+    def call_module_function(self, button_id, args_dict, thread=True, return_from_function=False):
         """Execute function from custom action button press."""
         try:
             run_command = getattr(self.run_function, button_id)
-            if thread:
+            if not thread or return_from_function:
+                return_val = run_command(args_dict)
+                if return_from_function:
+                    return 0, return_val
+                else:
+                    return 0, f"Command sent to Function Controller. Returned: {return_val}"
+            else:
                 thread_run_command = threading.Thread(
                     target=run_command,
                     args=(args_dict,))
                 thread_run_command.start()
                 return 0, "Command sent to Function Controller and is running in the background."
-            else:
-                return_val = run_command(args_dict)
-                return 0, ["Command sent to Function Controller.", return_val]
-        except:
-            self.logger.exception(
-                f"Error executing button press function '{button_id}'")
+        except Exception as err:
+            msg = f"Error executing function '{button_id}': {err}"
+            self.logger.exception(msg)
+            return 1, msg
 
     def function_action(self, action_string, args_dict=None, thread=True):
         """Execute function action."""

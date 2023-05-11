@@ -1,4 +1,161 @@
-## 8.15.0 (Unreleased)
+## 8.15.9 (Unreleased)
+
+### Bugfixes
+
+ - Fix setting Camera timelapse duration to 0
+ - Remove deprecated Raspberry Pi Enable Camera option
+ - Fix no image when libcamera AWB turned off
+
+### Features
+
+ - Add I2C interface for K30 Input
+ - Add Day to unit conversion
+ - Add ability to disable any Input/Output/Function/Widget option (user can view but not change)
+ - Add ability to return Input/Output/Function object with module_function()
+ - Add min_value and max_value parameters to query_flux()
+
+
+## 8.15.8 (2023-04-06)
+
+### Bugfixes
+
+ - Fix PID Controller startup status error
+ - Fix PCF8574 Pump Output always saving output amount to channel 0 ([#1281](https://github.com/kizniche/Mycodo/issues/1281))
+ - Fix numpy import error by installing libatlas-base-dev
+ - Fix dependency install for bash-commands
+ - Fix Custom Option display when no value in database
+ - Fix Conditional Function pylint dependency install
+ - Fix Conditional Function displaying code output when saved if pylint disabled ([#1291](https://github.com/kizniche/Mycodo/issues/1291))
+ - Fix waiting for influxdb to start if installed without influxdb ([#1293](https://github.com/kizniche/Mycodo/issues/1293))
+ - Fix WiringPi URLs ([#1294](https://github.com/kizniche/Mycodo/issues/1294))
+
+### Features
+
+ - Improve RAM Input by adding System Free/Used RAM and Mycodo Frontend RAM
+ - Add API endpoints to export Mycodo Configuration and Influxdb Database
+ - Add Input: System Uptime
+
+### Miscellaneous
+
+ - Update Python packages
+ - Update the SCD-4x Input adafruit-circuitpython-scd4x version to 1.3.8
+
+
+## 8.15.7 (2023-03-02)
+
+This update fixes a few bugs and adds the new Input Equation Action, which can apply an equation to an Input measurements prior to being stored in the database. For instance, if you wanted to apply an offset of +10 to a particular measurement of an Input, you could use the equation "x+10".
+
+In order for this new Action to be able to be created, there had to be a refactoring of the `trigger_action()` API function and `run_action()` Action module function.
+
+All references your code previously made to:
+
+`trigger_action(action_id, value=None, message='', debug=False)`
+
+Will need to be changed to:
+
+`trigger_action(action_id, value=None, debug=False)`
+
+Additionally, custom Action modules previously with the Class function:
+
+`run_action(self, message, dict_vars)`
+
+Will need to be changed to:
+
+`run_action(self, dict_vars)`
+
+Since dict_vars will be a dictionary that contains the key "message". Any messages added in `run_action()` will need to be appended to `dict_vars['message']`. Additionally, dict_vars will need to be returned by `run_action()` rather than the variable messages.
+
+Again, if you use any custom Actions, it is imperative that you make this second update to your modules for them to be able to properly work when upgrading to or beyond v8.15.7.
+
+### Bugfixes
+
+ - Fix Regulate pH & EC Function not regulating pH when water needs to be added
+ - Fix unit conversion of Python 3 Code Input
+ - Fix influxdb warning text during install (does not affect the actual install) ([#1276](https://github.com/kizniche/Mycodo/issues/1276))
+ - Fix MQTT JSON Input not storing values as float
+ - Fix PID Controller Widget timestamps
+
+### Features
+
+ - Add Input Equation Action
+ - Add Search to Log Page
+
+### Miscellaneous
+
+ - Update Python packages
+ - Remove Daemonize as a requirement
+
+
+## 8.15.6 (2023-01-30)
+
+### Bugfixes
+
+ - Revert SQLAlchemy to 1.4.46 due to 2.0.0 causing high CPU load
+
+
+## 8.15.5 (2023-01-30)
+
+### Bugfixes
+
+ - Fix backend/frontend restart during Settings Import
+ - Fix pumps not actuating with Regulate pH & Electrical Conductivity Function
+
+### Features
+
+ - Add listener and do_not_run_periodically as Function module options
+ - Add Settings Import Log
+ - Add ability to delete influxdb database on Diagnostics page
+
+### Miscellaneous
+
+ - Update Python packages
+ - Update InfluxDB to 2.6.1
+ - Switch from using libcamera-apps-lite to libcamera-apps ([#1270](https://github.com/kizniche/Mycodo/issues/1270))
+
+
+## 8.15.4 (2023-01-19)
+
+### Bugfixes
+
+ - Fix potential issues with MycodoRelease Class
+ - Fix library version typo in VL53L1X Input
+
+
+## 8.15.3 (2023-01-18)
+
+### Bugfixes
+
+ - Fix regex to properly parse latest Mycodo release
+
+### Miscellaneous
+
+ - Update Python packages
+
+
+## 8.15.2 (2023-01-18)
+
+### Bugfixes
+
+ - Fix PCF8574 Pump Output not properly determining channel states
+ - Fix MQTT Subscribe Inputs resubscribing to MQTT topics after reconnect
+
+### Features
+
+ - Add feedback about why a Python package dependency was unmet when adding an Input/Output/Function
+
+### Miscellaneous
+
+ - Add library name to the title when multiple Inputs of the same name exist in the manual
+
+
+## 8.15.1 (2023-01-14)
+
+### Bugfixes
+
+ - Fix endpoints of Widgets not able to be created until a frontend restart ([#1260](https://github.com/kizniche/Mycodo/issues/1260))
+
+
+## 8.15.0 (2023-01-13)
 
 This release fixes several bugs and changes how measurement timestamps are returned from the time-series database.
 
@@ -10,14 +167,25 @@ Previous behavior: InfluxDB 1.x returned data as a date/time string value (e.g. 
 
 New Behavior: InfluxDB 1.x returned data as an epoch float value (e.g. 1667228575.557).
 
+### Camera Changes
+
+Cameras integration was initially built into the Mycodo system. This made it difficult for users to add new camera libraries or features unless they learned the codebase well enough to understand the many files needed to be modified. This release allows for camera functinality to be developed within a single Function module file. This enables users to more easily develop and implement their own Camera Functions or modify existing Camera Functions to add new features.
+
+As this system is developed, the original camera system will be phased out, as it's a lot of work to maintain two different camera systems. As of now, there is only one Camera Function (libcamera). This should be considered EXPERIMENTAL and only used to test the development of this new feature until it is considered stable.
+
 ### Features
 
- - Add Function: Regulate pH and Electrical Conductivity
  - Add Input: MCP3008 (adafruit-circuitpython-mcp3xxx library)
  - Add Input: On/Off Output State
  - Add Input: Senseair K96 ([#1196](https://github.com/kizniche/Mycodo/issues/1196))
+-  Add Input: VL53L4CD
+ - Add Input: ams AS7341 light spectrum sensor
  - Add Output: Remote Mycodo Output: On/Off (API)
  - Add Output: Remote Mycodo Output: PWM (API)
+ - Add Output: Sequent Microsystems 8-Relay HAT for Raspberry Pi
+ - Add Output: Sparkfun Relay Board (4 Relays)
+ - Add Function: Camera libcamera Image
+ - Add Function: Regulate pH and Electrical Conductivity
  - Add Widget: Activate/Deactivate Controller
  - Add ability to set each Graph Widget series type to either Line or Column
  - Add Temperature Calibration for Atlas Scientific PT-1000 Input
@@ -28,6 +196,7 @@ New Behavior: InfluxDB 1.x returned data as an epoch float value (e.g. 166722857
  - Add ability to select Outputs in Output Modules
  - Add ability to average measurements in Verification Function
  - Add ability to select Output Measurements in Equation Functions
+ - Add Analyse with Pylint option for Python Code in Inputs, Outputs, and Conditional Functions ([#1249](https://github.com/kizniche/Mycodo/issues/1249))
 
 ### Bugfixes
 
@@ -62,6 +231,10 @@ New Behavior: InfluxDB 1.x returned data as an epoch float value (e.g. 166722857
  - Fix API Output POST when using a volume ([#1245](https://github.com/kizniche/Mycodo/pull/1245))
  - Fix hiding Warning/Info/Success toast messages
  - Fix timelapse error from entering too long duration ([#1246](https://github.com/kizniche/Mycodo/issues/1246))
+ - Fix Display Functions not properly changing line sets (and other Functions utilizing the same method)
+ - Fix typo in variable of Conditional Function example code ([#1248](https://github.com/kizniche/Mycodo/issues/1248))
+ - Fix Create Note Action typo preventing tags form woorking when passes as JSON
+ - Fix Atlas Pump not being able to turn on without duration ([#1254](https://github.com/kizniche/Mycodo/issues/1254))
 
 ### Miscellaneous
 

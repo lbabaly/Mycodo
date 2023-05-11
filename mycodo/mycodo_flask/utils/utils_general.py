@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import copy
 import importlib
 import json
 import logging
@@ -8,46 +9,29 @@ from datetime import datetime
 
 import flask_login
 import sqlalchemy
-from flask import flash
-from flask import redirect
-from flask import request
+from flask import flash, redirect, request
 from flask_babel import gettext
 from importlib_metadata import version
 from sqlalchemy import and_
 
-from mycodo.config import CAMERA_INFO
-from mycodo.config import DEPENDENCIES_GENERAL
-from mycodo.config import FUNCTION_INFO
-from mycodo.config import METHOD_INFO
-from mycodo.config import PATH_CAMERAS
-from mycodo.config_devices_units import MEASUREMENTS
-from mycodo.config_devices_units import UNITS
+from mycodo.config import (CAMERA_INFO, DEPENDENCIES_GENERAL, FUNCTION_INFO,
+                           METHOD_INFO, PATH_CAMERAS)
+from mycodo.config_devices_units import MEASUREMENTS, UNITS
 from mycodo.config_translations import TRANSLATIONS
-from mycodo.databases.models import Camera
-from mycodo.databases.models import Conditional
-from mycodo.databases.models import Conversion
-from mycodo.databases.models import CustomController
-from mycodo.databases.models import Dashboard
-from mycodo.databases.models import DeviceMeasurements
-from mycodo.databases.models import Input
-from mycodo.databases.models import Output
-from mycodo.databases.models import PID
-from mycodo.databases.models import Role
-from mycodo.databases.models import Trigger
-from mycodo.databases.models import User
-from mycodo.databases.models import Widget
+from mycodo.databases.models import (PID, Camera, Conditional, Conversion,
+                                     CustomController, Dashboard,
+                                     DeviceMeasurements, Input, Output, Role,
+                                     Trigger, User, Widget)
 from mycodo.mycodo_client import DaemonControl
 from mycodo.mycodo_flask.extensions import db
 from mycodo.utils.actions import parse_action_information
 from mycodo.utils.functions import parse_function_information
 from mycodo.utils.inputs import parse_input_information
 from mycodo.utils.outputs import parse_output_information
-from mycodo.utils.system_pi import add_custom_measurements
-from mycodo.utils.system_pi import add_custom_units
-from mycodo.utils.system_pi import dpkg_package_exists
-from mycodo.utils.system_pi import is_int
-from mycodo.utils.system_pi import return_measurement_info
-from mycodo.utils.system_pi import str_is_float
+from mycodo.utils.system_pi import (add_custom_measurements, add_custom_units,
+                                    assure_path_exists, dpkg_package_exists,
+                                    is_int, return_measurement_info,
+                                    str_is_float)
 from mycodo.utils.widgets import parse_widget_information
 
 logger = logging.getLogger(__name__)
@@ -184,7 +168,7 @@ def custom_options_return_json(
         custom_options=None):
     # Custom options
     if custom_options:
-        dict_options_return = custom_options
+        dict_options_return = copy.deepcopy(custom_options)
     else:
         dict_options_return = {}
 
@@ -1376,9 +1360,12 @@ def test_sql():
         logger.error("Error creating entries: {err}".format(err=msg))
 
 def get_camera_paths(camera):
-    """Retrieve still/timelapse paths for the given camera object."""
-    camera_path = os.path.join(PATH_CAMERAS, '{uid}'.format(
-        uid=camera.unique_id))
+    """Retrieve still/timelapse paths for the given camera."""
+    if not camera:
+        return None, None
+
+    camera_path = assure_path_exists(
+        os.path.join(PATH_CAMERAS, camera.unique_id))
 
     if camera.path_still:
         still_path = camera.path_still
@@ -1389,8 +1376,42 @@ def get_camera_paths(camera):
         tl_path = camera.path_timelapse
     else:
         tl_path = os.path.join(camera_path, 'timelapse')
-    
+
     return still_path, tl_path
+
+
+def get_camera_function_paths(function):
+    """Retrieve still/video/timelapse paths for the given camera function."""
+    if not function:
+        return None, None, None
+
+    try:
+        custom_options = json.loads(function.custom_options)
+    except:
+        custom_options = {}
+
+    camera_path = assure_path_exists(
+        os.path.join(PATH_CAMERAS, function.unique_id))
+
+    if ('custom_path_still' in custom_options and
+            custom_options['custom_path_still']):
+        still_path = custom_options['custom_path_still']
+    else:
+        still_path = os.path.join(camera_path, 'still')
+
+    if ('custom_path_video' in custom_options and
+            custom_options['custom_path_video']):
+        video_path = custom_options['custom_path_video']
+    else:
+        video_path = os.path.join(camera_path, 'video')
+
+    if ('custom_path_timelapse' in custom_options and
+            custom_options['custom_path_timelapse']):
+        tl_path = custom_options['custom_path_timelapse']
+    else:
+        tl_path = os.path.join(camera_path, 'timelapse')
+
+    return still_path, tl_path, video_path
 
 
 def bytes2human(n, fmt='%(value).1f %(symbol)s', symbols='customary'):
@@ -1779,15 +1800,12 @@ def custom_command(controller_type, dict_device, unique_id, form):
                     'wait_for_return' in options[button_id] and
                     options[button_id]['wait_for_return']):
                 use_thread = False
-            status = control.module_function(
+            status, msg = control.module_function(
                 controller_type, unique_id, button_id, args_dict, use_thread)
             if status:
-                if status[0]:
-                    messages["error"].append("Custom Button: {}".format(status[1]))
-                else:
-                    messages["success"].append("Custom Button: {}".format(status[1]))
+                messages["error"].append("Custom Button: {}".format(msg))
             else:
-                messages["error"].append("Custom Button didn't receive a return value")
+                messages["success"].append("Custom Button: {}".format(msg))
 
     except Exception as except_msg:
         logger.exception(1)
