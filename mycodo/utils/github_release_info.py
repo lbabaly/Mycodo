@@ -4,10 +4,12 @@ import json
 import logging
 import os
 import re
+import socket
 import sys
+import urllib
 from urllib.request import urlopen
 
-from pkg_resources import parse_version
+from packaging.version import parse
 
 sys.path.append(os.path.abspath(os.path.join(
     os.path.dirname(__file__), os.path.pardir) + '/..'))
@@ -40,6 +42,10 @@ class MycodoRelease:
                     tag_full = each_tag['ref'].split('/')
                     if len(tag_full) == 3 and re.match('v(\d+)\.(\d+)\.\d+', tag_full[2]):
                         parsed_tags.append(tag_full[2])
+        except socket.gaierror:
+            logger.error("Cannot connect")
+        except urllib.error.URLError:
+            logger.error("Cannot resolve name")
         except Exception:
             logger.exception("update_mycodo_tags()")
         self.mycodo_tags = parsed_tags
@@ -89,8 +95,8 @@ class MycodoRelease:
             releases = self.github_releases(current_maj_version)
 
             if releases:
-                if (parse_version(releases[0]) > parse_version(MYCODO_VERSION) or
-                        parse_version(current_latest_tag[0]) > parse_version(MYCODO_VERSION)):
+                if (parse(releases[0]) > parse(MYCODO_VERSION) or
+                        parse(current_latest_tag[0]) > parse(MYCODO_VERSION)):
                     upgrade_exists = True
         except Exception:
             logger.exception("github_upgrade_exists()")

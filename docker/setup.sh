@@ -18,7 +18,7 @@ case "${1:-''}" in
         apt remove -y python3-cffi-backend
         apt clean
 
-        python3 -m pip install --upgrade pip
+        python3 -m pip install --break-system-packages --upgrade pip
 
         # Rasppberry pi requires rust be installed
         # curl https://sh.rustup.rs -sSf | sh

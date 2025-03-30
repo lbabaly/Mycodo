@@ -110,17 +110,17 @@ WIDGET_INFORMATION = {
     'dependencies_module': [
         ('bash-commands',
         [
-            '/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highstock-9.1.2.js',
-            '/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highcharts-more-9.1.2.js'
+            '/opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highstock-9.1.2.js',
+            '/opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highcharts-more-9.1.2.js'
         ],
         [
             'rm -rf Highcharts-Stock-9.1.2.zip',
             'wget https://code.highcharts.com/zips/Highcharts-Stock-9.1.2.zip 2>&1',
             'unzip Highcharts-Stock-9.1.2.zip -d Highcharts-Stock-9.1.2',
-            'cp -rf Highcharts-Stock-9.1.2/code/highstock.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highstock-9.1.2.js',
-            'cp -rf Highcharts-Stock-9.1.2/code/highstock.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highstock.js.map',
-            'cp -rf Highcharts-Stock-9.1.2/code/highcharts-more.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highcharts-more-9.1.2.js',
-            'cp -rf Highcharts-Stock-9.1.2/code/highcharts-more.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highcharts-more.js.map',
+            'cp -rf Highcharts-Stock-9.1.2/code/highstock.js /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highstock-9.1.2.js',
+            'cp -rf Highcharts-Stock-9.1.2/code/highstock.js.map /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highstock.js.map',
+            'cp -rf Highcharts-Stock-9.1.2/code/highcharts-more.js /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highcharts-more-9.1.2.js',
+            'cp -rf Highcharts-Stock-9.1.2/code/highcharts-more.js.map /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highcharts-more.js.map',
             'rm -rf Highcharts-Stock-9.1.2.zip',
             'rm -rf Highcharts-Stock-9.1.2'
         ])
@@ -303,11 +303,6 @@ WIDGET_INFORMATION = {
           getLastDataGaugeAngular('{{each_widget.unique_id}}', '{{device_id}}', 'input', '{{measurement_id}}', {{widget_options['max_measure_age']}});
           repeatLastDataGaugeAngular('{{each_widget.unique_id}}', '{{device_id}}', 'input', '{{measurement_id}}', {{widget_options['refresh_seconds']}}, {{widget_options['max_measure_age']}});
           {%- endfor -%}
-
-          {% for each_math in math if each_math.unique_id == device_id %}
-          getLastDataGaugeAngular('{{each_widget.unique_id}}', '{{device_id}}', 'math', '{{measurement_id}}', {{widget_options['max_measure_age']}});
-          repeatLastDataGaugeAngular('{{each_widget.unique_id}}', '{{device_id}}', 'math', '{{measurement_id}}', {{widget_options['refresh_seconds']}}, {{widget_options['max_measure_age']}});
-          {%- endfor -%}
           
           {% for each_function in function if each_function.unique_id == device_id %}
           getLastDataGaugeAngular('{{each_widget.unique_id}}', '{{device_id}}', 'function', '{{measurement_id}}', {{widget_options['max_measure_age']}});
@@ -401,10 +396,6 @@ WIDGET_INFORMATION = {
             {%- endif -%}
           {%- endif -%}
         {%- endfor -%}
-
-        {%- for each_math in math if each_math.unique_id == device_id -%}
-          {{each_math.measure|safe}}
-        {%- endfor -%}
         
         {%- for each_function in function if each_function.unique_id == device_id -%}
           {{each_function.measure|safe}}
@@ -434,10 +425,6 @@ WIDGET_INFORMATION = {
             valueSuffix: '
         {%- for each_input in input if each_input.unique_id == device_id -%}
           {{' ' + dict_units[device_measurements_dict[measurement_id].unit]['unit']}}
-        {%- endfor -%}
-
-        {%- for each_math in math if each_math.unique_id == device_id -%}
-          {{' ' + each_math.measure_units|safe}}
         {%- endfor -%}
         
         {%- for each_function in function if each_function.unique_id == device_id -%}

@@ -19,6 +19,7 @@ from wtforms.fields import EmailField
 from wtforms.validators import DataRequired
 from wtforms.validators import Optional
 from wtforms.widgets import NumberInput
+from wtforms.widgets import TextArea
 
 from mycodo.config_translations import TRANSLATIONS
 
@@ -90,6 +91,15 @@ class SettingsGeneral(FlaskForm):
     index_page = StringField(lazy_gettext('Index Page'))
     language = StringField(lazy_gettext('Language'))
     rpyc_timeout = StringField(lazy_gettext('Pyro Timeout'))
+    custom_css = StringField(lazy_gettext('Custom CSS'), widget=TextArea())
+    custom_layout = StringField(lazy_gettext('Custom Layout'), widget=TextArea())
+    brand_display = StringField(lazy_gettext('Brand Display'))
+    title_display = StringField(lazy_gettext('Title Display'))
+    hostname_override = StringField(lazy_gettext('Brand Text'))
+    brand_image = FileField(lazy_gettext('Brand Image'))
+    brand_image_height = IntegerField(lazy_gettext('Brand Image Height'))
+    favicon_display = StringField(lazy_gettext('Favicon Display'))
+    brand_favicon = FileField(lazy_gettext('Favicon Image'))
     daemon_debug_mode = BooleanField(lazy_gettext('Enable Daemon Debug Logging'))
     force_https = BooleanField(lazy_gettext('Force HTTPS'))
     hide_success = BooleanField(lazy_gettext('Hide success messages'))
@@ -99,11 +109,11 @@ class SettingsGeneral(FlaskForm):
 
     use_database = StringField(lazy_gettext('Database'))
     measurement_db_retention_policy = StringField(lazy_gettext('Retention Policy'))
-    measurement_db_host = StringField(lazy_gettext('Hostname'))
+    measurement_db_host = StringField(lazy_gettext('Database Hostname'))
     measurement_db_port = IntegerField(lazy_gettext('Port'))
     measurement_db_dbname = StringField(lazy_gettext('Database Name'))
-    measurement_db_user = StringField(lazy_gettext('Username'))
-    measurement_db_password = PasswordField(lazy_gettext('Password'))
+    measurement_db_user = StringField(lazy_gettext('Database Username'))
+    measurement_db_password = PasswordField(lazy_gettext('Database Password'))
 
     grid_cell_height = IntegerField(
         lazy_gettext('Grid Cell Height (px)'), widget=NumberInput())

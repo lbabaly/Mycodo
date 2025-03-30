@@ -12,6 +12,7 @@ from mycodo.databases.models import Input
 from mycodo.databases.models import InputChannel
 from mycodo.databases.utils import session_scope
 from mycodo.inputs.base_input import AbstractInput
+from mycodo.utils.actions import run_input_actions
 from mycodo.utils.database import db_retrieve_table_daemon
 from mycodo.utils.influx import add_measurements_influxdb
 from mycodo.utils.inputs import parse_measurement
@@ -70,7 +71,7 @@ INPUT_INFORMATION = {
     ],
 
     'dependencies_module': [
-        ('pip-pypi', 'requests', 'requests==2.25.1'),
+        ('pip-pypi', 'requests', 'requests==2.31.0'),
     ],
 
     'custom_options': [
@@ -127,6 +128,7 @@ class InputModule(AbstractInput):
     def __init__(self, input_dev, testing=False):
         super().__init__(input_dev, testing=testing, name=__name__)
 
+        self.log_level_debug = None
         self.first_run = True
 
         self.application_id = None
@@ -146,6 +148,7 @@ class InputModule(AbstractInput):
             self.try_initialize()
 
     def initialize(self):
+        self.log_level_debug = self.input_dev.log_level_debug
         self.interface = self.input_dev.interface
         self.period = self.input_dev.period
         self.latest_datetime = self.input_dev.datetime
@@ -239,8 +242,12 @@ class InputModule(AbstractInput):
                     measurements[channel] = {}
                     measurements[channel]['measurement'] = self.channels_measurement[channel].measurement
                     measurements[channel]['unit'] = self.channels_measurement[channel].unit
-                    measurements[channel]['value'] = payload[var_name]
                     measurements[channel]['timestamp_utc'] = datetime_utc
+
+                    try:
+                        measurements[channel]['value'] = float(payload[var_name])
+                    except:
+                        self.logger.error(f"Value doesn't represent float: {payload[var_name]}")
 
                     # Convert value/unit is conversion_id present and valid
                     if self.channels_conversion[channel]:
@@ -257,9 +264,11 @@ class InputModule(AbstractInput):
 
                             measurements[channel]['measurement'] = meas[channel]['measurement']
                             measurements[channel]['unit'] = meas[channel]['unit']
-                            measurements[channel]['value'] = meas[channel]['value']
+                            measurements[channel]['value'] = float(meas[channel]['value'])
 
             if measurements:
+                message, measurements = run_input_actions(self.unique_id, "", measurements, self.log_level_debug)
+
                 self.logger.debug("Adding measurements to influxdb: {}".format(measurements))
                 add_measurements_influxdb(
                     self.unique_id, measurements,

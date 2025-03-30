@@ -7,9 +7,9 @@ import importlib.util
 import os
 import textwrap
 
-from flask import Markup
 from flask import current_app
 from flask_babel import lazy_gettext
+from markupsafe import Markup
 from sqlalchemy import and_
 
 from mycodo.config import INSTALL_DIRECTORY
@@ -29,7 +29,7 @@ from mycodo.utils.system_pi import set_user_grp
 def generate_code(code_pwm, unique_id):
     pre_statement_run = f"""import os
 import sys
-sys.path.append(os.path.abspath('/var/mycodo-root'))
+sys.path.append(os.path.abspath('/opt/Mycodo'))
 from mycodo.mycodo_client import DaemonControl
 control = DaemonControl()
 output_id = '{unique_id}'
@@ -116,12 +116,12 @@ def execute_at_modification(
                 ln=line_num,
                 line=each_line)
 
-        cmd_test = 'mkdir -p /var/mycodo-root/.pylint.d && ' \
-                   'export PYTHONPATH=$PYTHONPATH:/var/mycodo-root && ' \
-                   'export PYLINTHOME=/var/mycodo-root/.pylint.d && ' \
+        cmd_test = 'mkdir -p /opt/Mycodo/.pylint.d && ' \
+                   'export PYTHONPATH=$PYTHONPATH:/opt/Mycodo && ' \
+                   'export PYLINTHOME=/opt/Mycodo/.pylint.d && ' \
                    '{dir}/env/bin/python -m pylint -d I,W0621,C0103,C0111,C0301,C0327,C0410,C0413 {path}'.format(
                        dir=INSTALL_DIRECTORY, path=file_run)
-        cmd_out, cmd_error, cmd_status = cmd_output(cmd_test)
+        cmd_out, cmd_error, cmd_status = cmd_output(cmd_test, user='root')
         pylint_message = Markup(
             '<pre>\n\n'
             'Full Python code:\n\n{code}\n\n'
@@ -176,7 +176,7 @@ OUTPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('pip-pypi', 'pylint', 'pylint==2.12.2')
+        ('pip-pypi', 'pylint', 'pylint==3.0.1')
     ],
 
     'interfaces': ['PYTHON'],
@@ -398,7 +398,7 @@ class OutputModule(AbstractOutput):
             if self.options_channels['pwm_invert_stored_signal'][0]:
                 amount = 100.0 - abs(amount)
 
-            measure_dict[0]['value'] = amount
+            measure_dict[0]['value'] = float(amount)
             add_measurements_influxdb(self.unique_id, measure_dict)
 
     def is_on(self, output_channel=None):

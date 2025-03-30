@@ -12,7 +12,7 @@ from collections import OrderedDict
 from dateutil import relativedelta
 
 from mycodo.config import (INSTALL_DIRECTORY, PATH_ACTIONS_CUSTOM,
-                           PATH_FUNCTIONS_CUSTOM, PATH_HTML_USER,
+                           PATH_FUNCTIONS_CUSTOM, PATH_TEMPLATE_USER,
                            PATH_INPUTS_CUSTOM, PATH_OUTPUTS_CUSTOM,
                            PATH_PYTHON_CODE_USER, PATH_USER_SCRIPTS,
                            PATH_WIDGETS_CUSTOM, SQL_DATABASE_MYCODO,
@@ -52,7 +52,7 @@ def create_measurements_export(influxdb_version, save_path=None):
             cmd = f"/usr/bin/influx backup --org mycodo {influx_backup_dir}"
             out, err, status = cmd_output(cmd, user='root')
         else:
-            logger.error(f"Could not determine inflxdb version: {influxdb_version}")
+            logger.error(f"Could not determine influxdb version: {influxdb_version}")
             return
         
         logger.info(f"out: {out}, error: {err}, status: {status}")
@@ -86,8 +86,12 @@ def create_settings_export(save_path=None):
     try:
         data = io.BytesIO()
         with zipfile.ZipFile(data, mode='w') as z:
-            z.write(SQL_DATABASE_MYCODO,
-                    os.path.basename(SQL_DATABASE_MYCODO))
+            try:
+                z.write(SQL_DATABASE_MYCODO,
+                        os.path.basename(SQL_DATABASE_MYCODO))
+            except:
+                logger.error(f"Could not find database file {SQL_DATABASE_MYCODO}")
+
             export_directories = [
                 (PATH_FUNCTIONS_CUSTOM, "custom_functions"),
                 (PATH_ACTIONS_CUSTOM, "custom_actions"),
@@ -95,7 +99,7 @@ def create_settings_export(save_path=None):
                 (PATH_OUTPUTS_CUSTOM, "custom_outputs"),
                 (PATH_WIDGETS_CUSTOM, "custom_widgets"),
                 (PATH_USER_SCRIPTS, "user_scripts"),
-                (PATH_HTML_USER, "user_html"),
+                (PATH_TEMPLATE_USER, "user_html"),
                 (PATH_PYTHON_CODE_USER, "user_python_code")
             ]
             for each_backup in export_directories:

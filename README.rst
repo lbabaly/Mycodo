@@ -3,7 +3,7 @@ Mycodo
 
 Environmental Regulation System
 
-Latest version: 8.15.8
+Latest version: 8.16.0
 
 Mycodo is open source software for the Raspberry Pi that couples inputs and outputs in interesting ways to sense and manipulate the environment.
 
@@ -41,8 +41,6 @@ Documentation
 `Mycodo Wiki <https://github.com/kizniche/Mycodo/wiki>`__
 
 `Mycodo Custom Module Repository <https://github.com/kizniche/Mycodo-custom>`__
-
-`Mycodo Support Android App <https://play.google.com/store/apps/details?id=com.mycodo.mycododocs>`__
 
 Discussion
 ~~~~~~~~~~
@@ -142,20 +140,20 @@ Prerequisites
 
 Required:
 
-- Debian-based operating system
-- An active internet connection
+-  Debian-based operating system
+-  An active internet connection
 
 Recommended:
 
--  `Raspberry Pi <https://www.raspberrypi.org>`__ single-board computer (any version: Zero, 1, 2, 3, or 4)
--  `Raspberry Pi Operating System <https://www.raspberrypi.org/downloads/raspberry-pi-os/>`__ flashed to a micro SD card
+-  `Raspberry Pi <https://www.raspberrypi.org>`__ single-board computer: 3, 4, or 5 (Zero, 1, and 2 are no longer recommended)
+-  `Raspberry Pi Operating System <https://www.raspberrypi.com/software/>`__ flashed to a micro SD card or SSD
 
-Mycodo has been tested to work with Raspberry Pi OS Lite and Desktop, both 32-bit and 64-bit.
+Mycodo has been tested to work with Raspberry Pi OS 12 (Bookworm release), Lite and Desktop, 32-bit and 64-bit.
 
 Install Command
 ~~~~~~~~~~~~~~~
 
-Once you have the Raspberry Pi booted, log in and run the following command in a terminal to initiate the Mycodo install:
+Once you have the Raspberry Pi booted, log in and run the following command in a terminal to initiate the Mycodo install to /opt/Mycodo:
 
 .. code:: bash
 
@@ -165,7 +163,7 @@ Once you have the Raspberry Pi booted, log in and run the following command in a
 Install Notes
 ~~~~~~~~~~~~~
 
-Make sure the install script finishes without errors. A log of the output will be created at ``~/Mycodo/install/setup.log``.
+Make sure the install script finishes without errors. A log of the output will be created at ``/opt/Mycodo/install/setup.log``.
 
 If the install is successful, the web user interface should be accessible by navigating a web browser to ``https://127.0.0.1/``, replacing ``127.0.0.1`` with the IP address of the computer you installed on. Upon your first visit, you will be prompted to create an admin user before being redirected to the login page. Once logged in, check that the time is correct at the top left of the page. Incorrect time can cause a number of issues with measurement storage and retrieval in a time-series database. Also ensure the host name and version number at the top left of the page is green, indicating the daemon is running. If it's red, it indicates the daemon is inactive or unresponsive. Last, ensure any java-blocking plugins of your browser are disabled for all parts of the web interface to function properly.
 
@@ -176,12 +174,12 @@ A minimal set of anonymous usage statistics are collected to help improve develo
 Measurement Database
 ~~~~~~~~~~~~~~~~~~~~
 
-Mycodo currently supports InfluxDB as the time-searies database used to store measurements. Both versions 1.x (for 32-bit systems) and 2.x (for 64-bit systems) are supported. During the install, you will be prompted to install 1.x, 2.x, or none (if you wish to set up your own, either locally or remotely). The settings for the database can be reconfigured after install. 
+Mycodo currently supports InfluxDB as the time-series database used to store measurements. Both versions 1.x (for 32-bit systems) and 2.x (for 64-bit systems) are supported. During the install, you will be prompted to install 1.x, 2.x, or none (if you wish to set up your own, either locally or remotely). The settings for the database can be reconfigured after install.
 
 Docker
 ~~~~~~
 
-Docker support is experimental, but if you want to try it, read the [DOCKER.md](https://github.com/kizniche/Mycodo/blob/master/DOCKER.md). There is also a `Docker Issue (#637) <https://github.com/kizniche/Mycodo/issues/637>`__ on github for those that wish to help with development.
+Docker support is experimental, but if you want to try it, read the docker `README.md <https://github.com/kizniche/Mycodo/blob/master/docker/README.md>`__. There is also a `Docker Issue (#637) <https://github.com/kizniche/Mycodo/issues/637>`__ on github for those that wish to help with development.
 
 REST API
 --------
@@ -208,14 +206,14 @@ Supported Inputs and Outputs
 
 All supported Inputs, Outputs, and other devices can be found under the `Supported Devices <https://kizniche.github.io/Mycodo/Supported-Inputs-By-Measurement/>`__ section of the manual.
 
-Custom Inputs, Outputs, Functions and Actions
----------------------------------------------
+Custom Inputs, Outputs, Functions, Actions, and Widgets
+-------------------------------------------------------
 
 Mycodo supports importing custom Input, Output, Function, Action, and Widget modules. you can find more information about each in the manual under `Custom Inputs <https://kizniche.github.io/Mycodo/Inputs/#custom-inputs>`__, `Custom Outputs <https://kizniche.github.io/Mycodo/Outputs/#custom-outputs>`__, `Custom Functions <https://kizniche.github.io/Mycodo/Functions/#custom-functions>`__, `Custom Actions <https://kizniche.github.io/Mycodo/Functions/#custom-actions>`__, and `Custom Widgets <https://kizniche.github.io/Mycodo/Data-Viewing/#custom-widgets>`__.
 
 If you would like to add to the list of supported Inputs, Outputs, Functions, Actions, and Widgets, submit a pull request with the module you created or start a `New Issue <https://github.com/kizniche/Mycodo/issues/new?assignees=&labels=&template=feature-request.md&title=>`__.
 
-Additionally, I have another github repository devoted to custom Inputs, Outputs, Functions, Actions, and Widgets that do not necessarily fit with the built-in set and are not included by default with Mycodo, but can be imported. These can be found at `kizniche/Mycodo-custom <https://github.com/kizniche/Mycodo-custom>`__.
+Additionally, I have another github repository devoted to custom modules that do not necessarily fit with the built-in set and are not included by default with Mycodo, but can be imported. These can be found at `kizniche/Mycodo-custom <https://github.com/kizniche/Mycodo-custom>`__.
 
 Links
 -----
@@ -244,7 +242,7 @@ This software includes third party open source software components. Please see i
 Languages
 ---------
 
-Mycodo has been translated to several laguages. Weblate is now used so anyone can contribute to translations. However, due to an increasing number of new languages being added and not translated, only languages that are at least 50% complete will be included in Mycodo as a translation option.
+Mycodo has been translated to several languages. Weblate is now used so anyone can contribute to translations. However, due to an increasing number of new languages being added and not translated, only languages that are at least 50% complete will be included in Mycodo as a translation option.
 
 |Translation Table|
 
@@ -266,7 +264,7 @@ Mycodo has been translated to several laguages. Weblate is now used so anyone ca
 
 The install script will prompt you to select a language. This will be the set language when you first open the web user interface. You may change this at a later time on the settings page at ``[Gear Icon] -> Configure -> General -> Language``.
 
-If you would like to contribute to the translations, you can do so at `http://translate.kylegabriel.com <http://translate.kylegabriel.com:8080/engage/mycodo/>`__. Please read [How To Contribute to Language Translations in Mycodo](https://forum.radicaldiy.com/t/how-to-contribute-to-language-translations-in-mycodo/1162/2) for more information.
+If you would like to contribute to the translations, you can do so at `http://translate.kylegabriel.com <https://translate.kylegabriel.com/engage/mycodo/>`__. Please read `How To Contribute to Language Translations in Mycodo <https://forum.radicaldiy.com/t/how-to-contribute-to-language-translations-in-mycodo/1162/2>`__ for more information.
 
 Thanks
 ------
@@ -318,10 +316,10 @@ Mycodo is made possible, in part, by the many fine open source libraries, below.
    :target: https://github.com/kizniche/Mycodo/actions/workflows/main.yml
 .. |Codacy Badge| image:: https://app.codacy.com/project/badge/Grade/bb5ffc43e4444231b813ca6e81359336
    :target: https://www.codacy.com/gh/kizniche/Mycodo/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=kizniche/Mycodo&amp;utm_campaign=Badge_Grade
-.. |Translation Badge| image:: http://translate.kylegabriel.com:8080/widgets/mycodo/-/svg-badge.svg
-   :target: http://translate.kylegabriel.com:8080/engage/mycodo/
-.. |Translation Table| image:: http://translate.kylegabriel.com:8080/widgets/mycodo/-/multi-auto.svg
-   :target: http://translate.kylegabriel.com:8080/engage/mycodo/
+.. |Translation Badge| image:: https://translate.kylegabriel.com/widget/mycodo/git-translation/svg-badge.svg
+   :target: https://translate.kylegabriel.com/engage/mycodo/
+.. |Translation Table| image:: https://translate.kylegabriel.com/widget/mycodo/git-translation/multi-auto.svg
+   :target: https://translate.kylegabriel.com/engage/mycodo/
 .. |DOI| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.824199.svg
    :target: https://doi.org/10.5281/zenodo.824199
 .. |Mycodo| image:: https://kylegabriel.com/projects/wp-content/uploads/sites/3/2016/05/Mycodo-3.6.0-tango-Graph-2016-05-21-11-15-26.png

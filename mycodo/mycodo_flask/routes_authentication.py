@@ -52,6 +52,13 @@ def create_admin():
 
     language = None
 
+    try:
+        host = Misc.query.first().hostname_override
+    except:
+        host = None
+    if not host:
+        host = socket.gethostname()
+
     # Find user-selected language in Mycodo/.language
     try:
         lang_path = os.path.join(INSTALL_DIRECTORY, ".language")
@@ -100,7 +107,7 @@ def create_admin():
                                        form_create_admin=form_create_admin,
                                        form_language=form_language,
                                        form_notice=form_notice,
-                                       host=socket.gethostname(),
+                                       host=host,
                                        language=language,
                                        languages=LANGUAGES)
 
@@ -147,7 +154,7 @@ def create_admin():
                            form_create_admin=form_create_admin,
                            form_language=form_language,
                            form_notice=form_notice,
-                           host=socket.gethostname(),
+                           host=host,
                            language=language,
                            languages=LANGUAGES)
 
@@ -185,6 +192,13 @@ def login_password():
 
     language = None
 
+    try:
+        host = Misc.query.first().hostname_override
+    except:
+        host = None
+    if not host:
+        host = socket.gethostname()
+
     # Find user-selected language in Mycodo/.language
     try:
         lang_path = os.path.join(INSTALL_DIRECTORY, ".language")
@@ -211,7 +225,7 @@ def login_password():
             if form_language.language.data:
                 session['language'] = form_language.language.data
             else:
-                username = form_login.username.data.lower()
+                username = form_login.mycodo_username.data.lower()
                 user_ip = request.environ.get('HTTP_X_FORWARDED_FOR', 'unknown address')
                 user = User.query.filter(
                     func.lower(User.name) == username).first()
@@ -221,7 +235,7 @@ def login_password():
                     failed_login()
                 elif form_login.validate_on_submit():
                     matched_hash = User().check_password(
-                        form_login.password.data, user.password_hash)
+                        form_login.mycodo_password.data, user.password_hash)
 
                     # Encode stored password hash if it's a str
                     password_hash = user.password_hash
@@ -256,7 +270,7 @@ def login_password():
                            dict_translation=TRANSLATIONS,
                            form_language=form_language,
                            form_login=form_login,
-                           host=socket.gethostname(),
+                           host=host,
                            language=language,
                            languages=LANGUAGES)
 
@@ -272,6 +286,13 @@ def login_keypad():
               "error")
         return redirect(url_for('routes_general.home'))
 
+    try:
+        host = Misc.query.first().hostname_override
+    except:
+        host = None
+    if not host:
+        host = socket.gethostname()
+
     # Check if the user is banned from logging in (too many incorrect attempts)
     if banned_from_login():
         flash(gettext(
@@ -282,7 +303,7 @@ def login_keypad():
 
     return render_template('login_keypad.html',
                            dict_translation=TRANSLATIONS,
-                           host=socket.gethostname())
+                           host=host)
 
 
 @blueprint.route('/login_keypad_code/', methods=('GET', 'POST'))
@@ -303,6 +324,13 @@ def login_keypad_code(code):
         flash(gettext("Cannot access login page if you're already logged in"),
               "error")
         return redirect(url_for('routes_general.home'))
+
+    try:
+        host = Misc.query.first().hostname_override
+    except:
+        host = None
+    if not host:
+        host = socket.gethostname()
 
     # Check if the user is banned from logging in (too many incorrect attempts)
     if banned_from_login():
@@ -335,7 +363,7 @@ def login_keypad_code(code):
 
     return render_template('login_keypad.html',
                            dict_translation=TRANSLATIONS,
-                           host=socket.gethostname())
+                           host=host)
 
 
 @blueprint.route("/logout")
@@ -370,7 +398,7 @@ def newremote():
         if User().check_password(
                 pass_word, user.password_hash) == user.password_hash:
             try:
-                with open('/var/mycodo-root/mycodo/mycodo_flask/ssl_certs/cert.pem', 'r') as cert:
+                with open('/opt/Mycodo/mycodo/mycodo_flask/ssl_certs/cert.pem', 'r') as cert:
                     certificate_data = cert.read()
             except Exception:
                 certificate_data = None
@@ -422,7 +450,7 @@ def check_database_version_issue():
     if len(AlembicVersion.query.all()) > 1:
         flash("A check of your database indicates there is an issue with your"
               " database version number. To resolve this issue, move"
-              " your mycodo.db from ~/Mycodo/databases/mycodo.db to a "
+              " your mycodo.db from /opt/Mycodo/databases/mycodo.db to a "
               "different location (or delete it) and a new database will be "
               "generated in its place.", "error")
 
@@ -459,7 +487,7 @@ def failed_login():
 
 def login_log(user, group, ip, status):
     """Write to login log."""
-    with open(LOGIN_LOG_FILE, 'a') as log_file:
+    with open(LOGIN_LOG_FILE, 'a+') as log_file:
         log_file.write(
             '{dt:%Y-%m-%d %H:%M:%S}: {stat} {user} ({grp}), {ip}\n'.format(
                 dt=datetime.datetime.now(), stat=status,

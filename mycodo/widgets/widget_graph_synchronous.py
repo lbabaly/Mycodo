@@ -31,6 +31,7 @@ from flask import flash
 from flask import jsonify
 from flask_babel import lazy_gettext
 from flask_login import current_user
+from pytz import timezone
 
 from mycodo.config import THEMES_DARK
 from mycodo.databases.models import Conversion
@@ -69,7 +70,7 @@ def past_data(unique_id, measure_type, measurement_id, past_seconds):
         for each_note in notes:
             if tag.unique_id in each_note.tags.split(','):
                 notes_list.append(
-                    [each_note.date_time.strftime("%Y-%m-%dT%H:%M:%S.000000000Z"), each_note.name, each_note.note])
+                    [each_note.date_time.replace(tzinfo=timezone('UTC')).timestamp(), each_note.name, each_note.note])
 
         if notes_list:
             return jsonify(notes_list)
@@ -205,29 +206,29 @@ WIDGET_INFORMATION = {
     'dependencies_module': [
         ('bash-commands',
         [
-            '/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highstock-9.1.2.js',
-            '/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highcharts-more-9.1.2.js',
-            '/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/data-9.1.2.js',
-            '/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/exporting-9.1.2.js',
-            '/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/export-data-9.1.2.js',
-            '/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/offline-exporting-9.1.2.js'
+            '/opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highstock-9.1.2.js',
+            '/opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highcharts-more-9.1.2.js',
+            '/opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/data-9.1.2.js',
+            '/opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/exporting-9.1.2.js',
+            '/opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/export-data-9.1.2.js',
+            '/opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/offline-exporting-9.1.2.js'
         ],
         [
             'rm -rf Highcharts-Stock-9.1.2.zip',
             'wget https://code.highcharts.com/zips/Highcharts-Stock-9.1.2.zip 2>&1',
             'unzip Highcharts-Stock-9.1.2.zip -d Highcharts-Stock-9.1.2',
-            'cp -rf Highcharts-Stock-9.1.2/code/highstock.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highstock-9.1.2.js',
-            'cp -rf Highcharts-Stock-9.1.2/code/highstock.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highstock.js.map',
-            'cp -rf Highcharts-Stock-9.1.2/code/highcharts-more.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highcharts-more-9.1.2.js',
-            'cp -rf Highcharts-Stock-9.1.2/code/highcharts-more.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highcharts-more.js.map',
-            'cp -rf Highcharts-Stock-9.1.2/code/modules/data.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/data-9.1.2.js',
-            'cp -rf Highcharts-Stock-9.1.2/code/modules/data.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/data.js.map',
-            'cp -rf Highcharts-Stock-9.1.2/code/modules/exporting.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/exporting-9.1.2.js',
-            'cp -rf Highcharts-Stock-9.1.2/code/modules/exporting.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/exporting.js.map',
-            'cp -rf Highcharts-Stock-9.1.2/code/modules/export-data.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/export-data-9.1.2.js',
-            'cp -rf Highcharts-Stock-9.1.2/code/modules/export-data.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/export-data.js.map',
-            'cp -rf Highcharts-Stock-9.1.2/code/modules/offline-exporting.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/offline-exporting-9.1.2.js',
-            'cp -rf Highcharts-Stock-9.1.2/code/modules/offline-exporting.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/offline-exporting.js.map',
+            'cp -rf Highcharts-Stock-9.1.2/code/highstock.js /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highstock-9.1.2.js',
+            'cp -rf Highcharts-Stock-9.1.2/code/highstock.js.map /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highstock.js.map',
+            'cp -rf Highcharts-Stock-9.1.2/code/highcharts-more.js /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highcharts-more-9.1.2.js',
+            'cp -rf Highcharts-Stock-9.1.2/code/highcharts-more.js.map /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highcharts-more.js.map',
+            'cp -rf Highcharts-Stock-9.1.2/code/modules/data.js /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/data-9.1.2.js',
+            'cp -rf Highcharts-Stock-9.1.2/code/modules/data.js.map /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/data.js.map',
+            'cp -rf Highcharts-Stock-9.1.2/code/modules/exporting.js /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/exporting-9.1.2.js',
+            'cp -rf Highcharts-Stock-9.1.2/code/modules/exporting.js.map /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/exporting.js.map',
+            'cp -rf Highcharts-Stock-9.1.2/code/modules/export-data.js /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/export-data-9.1.2.js',
+            'cp -rf Highcharts-Stock-9.1.2/code/modules/export-data.js.map /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/export-data.js.map',
+            'cp -rf Highcharts-Stock-9.1.2/code/modules/offline-exporting.js /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/offline-exporting-9.1.2.js',
+            'cp -rf Highcharts-Stock-9.1.2/code/modules/offline-exporting.js.map /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/offline-exporting.js.map',
             'rm -rf Highcharts-Stock-9.1.2.zip',
             'rm -rf Highcharts-Stock-9.1.2'
         ])
@@ -248,7 +249,7 @@ WIDGET_INFORMATION = {
         ("/past/<unique_id>/<measure_type>/<measurement_id>/<past_seconds>", "past", past_data, ["GET"]),
     ],
 
-    'widget_width': 20,
+    'widget_width': 24,
     'widget_height': 15,
 
     'custom_options': [
@@ -497,6 +498,9 @@ WIDGET_INFORMATION = {
             <div class="input-group-text">
               <select id="series_type-{{widget_variables['colors_graph'][n]['measure_id']}}" name="series_type-{{widget_variables['colors_graph'][n]['measure_id']}}">
                 <option value="line" {% if widget_variables['colors_graph'][n]['series_type'] == "line" %} selected{% endif %}>Line</option>
+                <option value="step-left" {% if widget_variables['colors_graph'][n]['series_type'] == "step-left" %} selected{% endif %}>Line (Step, Left)</option>
+                <option value="step-center" {% if widget_variables['colors_graph'][n]['series_type'] == "step-center" %} selected{% endif %}>Line (Step, Center)</option>
+                <option value="step-right" {% if widget_variables['colors_graph'][n]['series_type'] == "step-right" %} selected{% endif %}>Line (Step, Right)</option>
                 <option value="column" {% if widget_variables['colors_graph'][n]['series_type'] == "column" %} selected{% endif %}>Column</option>
               </select>
             </div>
@@ -1114,7 +1118,15 @@ WIDGET_INFORMATION = {
         {%- endif -%}
 
           )",
+        {% if ns.series_type in ['line', 'column'] -%}
         type: '{{ns.series_type}}',
+        {%- elif ns.series_type == 'step-left' -%}
+        step: 'left',
+        {%- elif ns.series_type == 'step-center' -%}
+        step: 'center',
+        {%- elif ns.series_type == 'step-right' -%}
+        step: 'right',
+        {%- endif %}
         dataGrouping: {
           enabled: {% if ns.disable_data_grouping %}false{% else %}true{% endif %},
           groupPixelWidth: 5
@@ -1181,7 +1193,15 @@ WIDGET_INFORMATION = {
         {%- endif -%}
 
           )",
+        {% if ns.series_type in ['line', 'column'] -%}
         type: '{{ns.series_type}}',
+        {%- elif ns.series_type == 'step-left' -%}
+        step: 'left',
+        {%- elif ns.series_type == 'step-center' -%}
+        step: 'center',
+        {%- elif ns.series_type == 'step-right' -%}
+        step: 'right',
+        {%- endif %}
         dataGrouping: {
           enabled: {% if ns.disable_data_grouping %}false{% else %}true{% endif %},
           groupPixelWidth: 2
@@ -1246,7 +1266,15 @@ WIDGET_INFORMATION = {
         {%- endif -%}
 
         )",
+      {% if ns.series_type in ['line', 'column'] -%}
       type: '{{ns.series_type}}',
+      {%- elif ns.series_type == 'step-left' -%}
+      step: 'left',
+      {%- elif ns.series_type == 'step-center' -%}
+      step: 'center',
+      {%- elif ns.series_type == 'step-right' -%}
+      step: 'right',
+      {%- endif %}
       dataGrouping: {
         enabled: {% if ns.disable_data_grouping %}false{% else %}true{% endif %},
         groupPixelWidth: 2
@@ -1311,7 +1339,15 @@ WIDGET_INFORMATION = {
         {%- endif -%}
 
         )",
+      {% if ns.series_type in ['line', 'column'] -%}
       type: '{{ns.series_type}}',
+      {%- elif ns.series_type == 'step-left' -%}
+      step: 'left',
+      {%- elif ns.series_type == 'step-center' -%}
+      step: 'center',
+      {%- elif ns.series_type == 'step-right' -%}
+      step: 'right',
+      {%- endif %}
       dataGrouping: {
         enabled: {% if ns.disable_data_grouping %}false{% else %}true{% endif %},
         groupPixelWidth: 2
@@ -1443,7 +1479,7 @@ def series_type_graph(form, error):
     for key in form.keys():
         if 'series_type' in key:
             for value in form.getlist(key):
-                if value not in ["column", "line"]:
+                if value not in ["column", "line", "step-left", "step-center", "step-right"]:
                     error.append("Invalid series type")
                 series_types[key[12:]] = value
     return series_types, error

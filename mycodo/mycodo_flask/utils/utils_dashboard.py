@@ -129,11 +129,11 @@ def dashboard_del(form):
         action=TRANSLATIONS['delete']['title'],
         controller=TRANSLATIONS['dashboard']['title'])
     error = []
+    create_new_dash = False
 
     dashboards = Dashboard.query.all()
     if len(dashboards) == 1:
-        flash('Cannot delete the only remaining dashboard.', 'error')
-        return
+        create_new_dash = True
 
     widgets = Widget.query.filter(
         Widget.dashboard_id == form.dashboard_id.data).all()
@@ -141,6 +141,11 @@ def dashboard_del(form):
         delete_entry_with_id(Widget, each_widget.unique_id)
 
     delete_entry_with_id(Dashboard, form.dashboard_id.data)
+
+    if create_new_dash:
+        new_dash = Dashboard()
+        new_dash.name = 'New Dashboard'
+        new_dash.save()
 
     flash_success_errors(
         error, action, url_for('routes_dashboard.page_dashboard_default'))
@@ -156,6 +161,8 @@ def widget_add(form_base, request_form):
         action=TRANSLATIONS['add']['title'],
         controller=TRANSLATIONS['widget']['title'])
     error = []
+
+    reload_flask = False
 
     dict_widgets = parse_widget_information()
 
@@ -230,9 +237,7 @@ def widget_add(form_base, request_form):
             # It has already handled its first request, any changes will not be applied consistently.
             # Make sure all imports, decorators, functions, etc. needed to set up the application are done before running it.
             if Widget.query.filter(Widget.graph_type == widget_name).count() == 1:
-                cmd = f"{INSTALL_DIRECTORY}/mycodo/scripts/mycodo_wrapper frontend_reload 2>&1"
-                init = subprocess.Popen(cmd, shell=True)
-                init.wait()
+                reload_flask = True
 
             if not current_app.config['TESTING']:
                 # Refresh widget settings
@@ -252,7 +257,7 @@ def widget_add(form_base, request_form):
     for each_error in error:
         flash(each_error, "error")
 
-    return dep_unmet
+    return dep_unmet, reload_flask
 
 
 def widget_mod(form_base, request_form):

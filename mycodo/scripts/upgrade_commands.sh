@@ -16,18 +16,13 @@ MYCODO_MAJOR_VERSION="8"
 # Dependency versions/URLs
 PIGPIO_URL="https://github.com/joan2937/pigpio/archive/v79.tar.gz"
 MCB2835_URL="http://www.airspayce.com/mikem/bcm2835/bcm2835-1.50.tar.gz"
-WIRINGPI_URL_ARMHF="https://github.com/WiringPi/WiringPi/releases/download/2.61-1/wiringpi-2.61-1-armhf.deb"
-WIRINGPI_URL_ARM64="https://github.com/WiringPi/WiringPi/releases/download/2.61-1/wiringpi-2.61-1-arm64.deb"
+WIRINGPI_URL_ARMHF="https://github.com/WiringPi/WiringPi/releases/download/2.61-1/wiringpi-3.10-armhf.deb"
+WIRINGPI_URL_ARM64="https://github.com/WiringPi/WiringPi/releases/download/2.61-1/wiringpi-3.10-arm64.deb"
 
 INFLUXDB1_VERSION="1.8.10"
-INFLUXDB2_VERSION="2.6.1"
-
-VIRTUALENV_VERSION="20.17.1"
 
 # Required apt packages
-APT_PKGS="gawk gcc g++ git jq libatlas-base-dev libffi-dev libi2c-dev logrotate moreutils netcat nginx python3 python3-pip python3-dev python3-setuptools rng-tools sqlite3 unzip wget"
-
-PYTHON_BINARY_SYS_LOC="$(python3 -c "import os; print(os.environ['_'])")"
+APT_PKGS="gawk gcc g++ git jq libatlas-base-dev libffi-dev libi2c-dev logrotate moreutils netcat-openbsd nginx python3 python3-dev python3-pip python3-setuptools python3-venv rng-tools sqlite3 unzip wget"
 
 UNAME_TYPE=$(uname -m)
 MACHINE_TYPE=$(dpkg --print-architecture)
@@ -48,7 +43,7 @@ cd "${MYCODO_PATH}" || return
 HELP_OPTIONS="upgrade_commands.sh [option] - Program to execute various mycodo commands
 
 Options:
-  backup-create                 Create a backup of the ~/Mycodo directory
+  backup-create                 Create a backup of the /opt/Mycodo directory
   backup-restore [backup]       Restore [backup] location, which must be the full path to the backup.
                                 Ex.: '/var/Mycodo-backups/Mycodo-backup-2018-03-11_21-19-15-5.6.4/'
   compile-mycodo-wrapper        Compile mycodo_wrapper.c
@@ -97,7 +92,6 @@ Options:
   upgrade-master                Upgrade Mycodo to the master branch at https://github.com/kizniche/Mycodo
   upgrade-post                  Execute post-upgrade script
   web-server-connect            Attempt to connect to the web server
-  web-server-reload             Reload the web server
   web-server-restart            Restart the web server
   web-server-disable            Disable the web server service
   web-server-enable             Enable the web server service
@@ -141,6 +135,7 @@ case "${1:-''}" in
         mkdir -p "${MYCODO_PATH}"/mycodo/mycodo_flask/ssl_certs
         mkdir -p "${MYCODO_PATH}"/mycodo/mycodo_flask/static/js/user_js
         mkdir -p "${MYCODO_PATH}"/mycodo/mycodo_flask/static/css/user_css
+        mkdir -p "${MYCODO_PATH}"/mycodo/mycodo_flask/static/fonts/user_fonts
 
         if [[ ! -e /var/log/mycodo/mycodo.log ]]; then
             touch /var/log/mycodo/mycodo.log
@@ -220,10 +215,9 @@ case "${1:-''}" in
     'setup-virtualenv')
         printf "\n#### Checking Python 3 virtual environment\n"
         if [[ ! -e ${MYCODO_PATH}/env/bin/python ]]; then
-            printf "#### Creating virtualenv with ${PYTHON_BINARY_SYS_LOC} at "${MYCODO_PATH}"/env\n"
-            python3 -m pip install virtualenv==${VIRTUALENV_VERSION}
+            printf "#### Creating virtual environment at ${MYCODO_PATH}/env\n"
             rm -rf "${MYCODO_PATH}"/env
-            python3 -m virtualenv -p "${PYTHON_BINARY_SYS_LOC}" "${MYCODO_PATH}"/env
+            python3 -m venv "${MYCODO_PATH}"/env
         fi
     ;;
     'setup-virtualenv-full')
@@ -265,7 +259,7 @@ case "${1:-''}" in
     'update-alembic')
         printf "\n#### Upgrading Mycodo database with alembic (if needed)\n"
         cd "${MYCODO_PATH}"/alembic_db || return
-        "${MYCODO_PATH}"/env/bin/alembic upgrade head
+        "${MYCODO_PATH}"/env/bin/python -m alembic upgrade head
     ;;
     'update-alembic-post')
         printf "\n#### Executing post-alembic script\n"
@@ -327,8 +321,8 @@ case "${1:-''}" in
         /bin/bash "${MYCODO_PATH}"/mycodo/scripts/upgrade_commands.sh build-pigpiod
         /bin/bash "${MYCODO_PATH}"/mycodo/scripts/upgrade_commands.sh disable-pigpiod
         /bin/bash "${MYCODO_PATH}"/mycodo/scripts/upgrade_commands.sh enable-pigpiod-high
-        mkdir -p /opt/mycodo
-        touch /opt/mycodo/pigpio_installed
+        mkdir -p /opt/Mycodo
+        touch /opt/Mycodo/pigpio_installed
     ;;
     'uninstall-pigpiod')
         printf "\n#### Uninstalling pigpiod\n"
@@ -345,7 +339,7 @@ case "${1:-''}" in
         rm -rf ./PIGPIO
         rm -rf pigpio.tar.gz
         touch /etc/systemd/system/pigpiod_uninstalled.service
-        rm -f /opt/mycodo/pigpio_installed
+        rm -f /opt/Mycodo/pigpio_installed
     ;;
     'disable-pigpiod')
         printf "\n#### Disabling installed pigpiod startup script\n"
@@ -443,13 +437,29 @@ case "${1:-''}" in
         printf "\n#### Ensuring compatible version of influxdb 2.x is installed ####\n"
         if [[ ${UNAME_TYPE} == 'x86_64' || ${MACHINE_TYPE} == 'arm64' ]]; then
             INSTALL_ADDRESS="https://dl.influxdata.com/influxdb/releases/"
-            INSTALL_FILE="influxdb2-${INFLUXDB2_VERSION}-${MACHINE_TYPE}.deb"
-            CLI_FILE="influxdb2-client-${INFLUXDB2_VERSION}-${MACHINE_TYPE}.deb"
-            CORRECT_VERSION="${INFLUXDB2_VERSION}-1"
+            AMD64_INSTALL_FILE="influxdb2_2.7.8-1_amd64.deb"
+            ARM64_INSTALL_FILE="influxdb2_2.7.8-1_arm64.deb"
+            CORRECT_VERSION_INSTALL="2.7.8-1"
+            AMD64_CLIENT_FILE="influxdb2-client-2.7.5-amd64.deb"
+            ARM64_CLIENT_FILE="influxdb2-client-2.7.5-arm64.deb"
+            CORRECT_VERSION_CLI="2.7.5-1"
+
+            if [[ ${UNAME_TYPE} == 'x86_64' ]]; then
+                printf "#### Detected x86_64 architecture\n"
+                INSTALL_FILE=$AMD64_INSTALL_FILE
+                CLIENT_FILE=$AMD64_CLIENT_FILE
+            elif [[ ${MACHINE_TYPE} == 'arm64' ]]; then
+                printf "#### Detected arm64 architecture\n"
+                INSTALL_FILE=$ARM64_INSTALL_FILE
+                CLIENT_FILE=$ARM64_CLIENT_FILE
+            fi
+
+            printf "#### Influxdb server file location: ${INSTALL_ADDRESS}${INSTALL_FILE}\n"
+
             CURRENT_VERSION=$(apt-cache policy influxdb2 | grep 'Installed' | gawk '{print $2}')
 
-            if [[ "${CURRENT_VERSION}" != "${CORRECT_VERSION}" ]]; then
-                printf "#### Incorrect InfluxDB version (v${CURRENT_VERSION}) installed. Should be v${CORRECT_VERSION}\n"
+            if [[ "${CURRENT_VERSION}" != "${CORRECT_VERSION_INSTALL}" ]]; then
+                printf "#### Incorrect InfluxDB version (v${CURRENT_VERSION}) installed. Should be v${CORRECT_VERSION_INSTALL}\n"
 
                 printf "#### Stopping influxdb 1.x (if installed)...\n"
                 service influxdb stop
@@ -457,17 +467,33 @@ case "${1:-''}" in
                 printf "#### Uninstalling influxdb 1.x (if installed)...\n"
                 DEBIAN_FRONTEND=noninteractive apt remove -y influxdb
 
-                printf "#### Installing InfluxDB v${CORRECT_VERSION}...\n"
+                printf "#### Installing InfluxDB v${CORRECT_VERSION_INSTALL}...\n"
 
                 wget --quiet "${INSTALL_ADDRESS}${INSTALL_FILE}"
-                wget --quiet "${INSTALL_ADDRESS}${CLI_FILE}"
                 dpkg -i "${INSTALL_FILE}"
-                dpkg -i "${CLI_FILE}"
-                rm -rf "${CLI_FILE}"
                 rm -rf "${INSTALL_FILE}"
+
                 service influxd restart
             else
-                printf "Correct version of InfluxDB currently installed.\n"
+                printf "Correct version of InfluxDB currently installed (v${CORRECT_VERSION_INSTALL}).\n"
+            fi
+
+            printf "#### Influxdb client file location: ${INSTALL_ADDRESS}${CLIENT_FILE}\n"
+
+            CURRENT_VERSION=$(apt-cache policy influxdb2-cli | grep 'Installed' | gawk '{print $2}')
+
+            if [[ "${CURRENT_VERSION}" != "${CORRECT_VERSION_CLI}" ]]; then
+                printf "#### Incorrect InfluxDB-Client version (v${CURRENT_VERSION}) installed. Should be v${CORRECT_VERSION_CLI}\n"
+
+                printf "#### Installing InfluxDB-Client v${CORRECT_VERSION_CLI}...\n"
+
+                wget --quiet "${INSTALL_ADDRESS}${CLIENT_FILE}"
+                dpkg -i "${CLIENT_FILE}"
+                rm -rf "${CLIENT_FILE}"
+
+                service influxd restart
+            else
+                printf "Correct version of InfluxDB-Client currently installed (v${CORRECT_VERSION_CLI}).\n"
             fi
         else
             printf "ERROR: Could not detect 64-bit architecture (x86_64/arm64) to install Influxdb 2.x (found ${UNAME_TYPE}/${MACHINE_TYPE}).\n"
@@ -582,16 +608,17 @@ case "${1:-''}" in
         apt remove -y apache2
         apt install -y ${APT_PKGS}
         apt clean
-        python3 -m pip install --upgrade pip
     ;;
     'update-permissions')
         printf "\n#### Setting permissions\n"
-        chown -LR mycodo.mycodo "${MYCODO_PATH}"
-        chown -R mycodo.mycodo /var/log/mycodo
-        chown -R mycodo.mycodo /var/Mycodo-backups
+        chown -LR mycodo:mycodo "${MYCODO_PATH}"
+        chown -R mycodo:mycodo /var/log/mycodo
+        chown -R mycodo:mycodo /var/Mycodo-backups
+        chown -R mycodo:mycodo /opt/Mycodo
 
         find "${MYCODO_PATH}" -type d -exec chmod u+wx,g+wx {} +
         find "${MYCODO_PATH}" -type f -exec chmod u+w,g+w,o+r {} +
+        chmod 770 /opt/Mycodo  # Exclude other users from viewing files
 
         chown root:mycodo "${MYCODO_PATH}"/mycodo/scripts/mycodo_wrapper
         chmod 4770 "${MYCODO_PATH}"/mycodo/scripts/mycodo_wrapper
@@ -658,20 +685,12 @@ case "${1:-''}" in
             printf "#### Trying again...\n"
         done
     ;;
-    'web-server-reload')
+    'web-server-restart')
         printf "\n#### Restarting nginx\n"
         service nginx restart
         sleep 5
         printf "#### Reloading mycodoflask\n"
         service mycodoflask reload
-    ;;
-    'web-server-restart')
-        printf "\n#### Restarting nginx\n"
-        service nginx restart
-        sleep 5
-        printf "#### Restarting mycodoflask\n"
-        service mycodoflask restart
-        sleep 5
     ;;
     'web-server-disable')
         printf "\n#### Disabling service for nginx web server\n"
@@ -708,6 +727,7 @@ case "${1:-''}" in
         mkdir -p "${MYCODO_PATH}"/mycodo/scripts
         mkdir -p "${MYCODO_PATH}"/mycodo/mycodo_flask/static/js/user_js
         mkdir -p "${MYCODO_PATH}"/mycodo/mycodo_flask/static/css/user_css
+        mkdir -p "${MYCODO_PATH}"/mycodo/mycodo_flask/static/fonts/user_fonts
 
         if [[ ! -e /var/log/mycodo/mycodo.log ]]; then
             touch /var/log/mycodo/mycodo.log

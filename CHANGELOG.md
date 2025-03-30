@@ -1,10 +1,179 @@
-## 8.15.9 (Unreleased)
+## 8.16.1 (Unreleased)
+
+This release introduces the ability to override MYCODO_DB_PATH, SQLALCHEMY_DATABASE_URI, and ALEMBIC_URL in mycodo/config.py to use an alternate settings database. This is accomplished by creating these variables in mycodo/config_override.py. This new config file will be checked on startup and will persist after upgrades.
+
+### Bugfixes
+
+ - Fix Atlas EC and pH Inputs losing measurements when calibration temperature is None
+ - Fix restoring mycodo/user_scripts during upgrade
+ - Fix documentation generation
+ - Fix theming on selection inputs
+ - Fix minimum Python version for upgrade
+ - Fix generating library hyperlinks when pip uses a git source
+ - Fix directory validation
+ - Add Output: L298N Peristaltic Pump (Pi 5)
+ - Add Input: Raspberry Pi 6-Channel Power Monitor (v0.4.0)
+ - Fix PID Autotune not turning output off
+
+### Features
+
+ - Add ability to use alternate mysql server using config_override.py
+ - Add Output: PWM Raspberry Pi GPIO (RPi.GPIO) (for Pi <= 4, since pigpiod is deprecated)
+ - Add ability to average measurements in Redundancy Function
+
+### Miscellaneous
+
+ - Allow deletion of the last remaining Dashboard
+ - Add custom favicon
+ - Make output state color (yellow/red/green) more prominent
+
+
+## 8.16.0 (2024.09.29)
+
+This release updates several python packages that require Python >= 3.8. You can check your Python version prior to upgrading. If you do not have the required version, you should not upgrade, since this will likely break your system. To be able to use this and future Mycodo releases, ensure you are running an updated operating system that supports a modern Python version.
+
+This release changes the Desktop grid width from 20 to 24, enabling the use of 3 column layouts that are evenly-spaced. You will need to resize/rearrange Dashboard Widgets after this update to correct for the new width. The update of Gridstack to 10.0.1 also now allows the ability to drag Desktop widgets on mobile devices. If you don't like this behavior, you should lock the desktop from the Dashboard Configuration menu to prevent widgets from being dragged/rearranged.
+
+This release changes the install directory from ~/Mycodo to /opt/Mycodo. This necessitates deleting and regenerating the Python virtual environment. If you have any custom changes to the Mycodo venv, you will need to make those changes again after the upgrade. As a result of moving the install directory, following the upgrade, you will need to either run "sudo service mycodoflask restart" in a terminal or reboot your system for the web interface to become accessible again.
+
+### Bugfixes
+
+ - Fix some Inputs potentially sending integers to influxdb when it should be float
+ - Fix influxdb client install if server is already installed
+ - Fix Select options of web UI not properly displaying the saved value
+ - Fix note attachments not being copied during upgrade
+ - Fix display of values <=0 in PID Widget ([#1372](https://github.com/kizniche/Mycodo/issues/1372))
+ - Fix MCP23017 Pump Output KeyError
+ - Fix displaying Tags on Highcharts Widget
+ - Fix dependencies of Mijia LYWSD03MMC
+ - Fix Restart Frontend returning an error
+ - Fix PWM Outputs not recording values of 0 to database
+
+### Features
+
+ - Add Action: Measurement (Single, Last, with Timestamp)
+ - Add Input: DHT20
+ - Add Input: MAX31855 CircuitPython
+ - Add Output: GPIO On/Off using pinctrl (First Pi 5-compatible Output)
+ - Add Output: PWM MQTT Publish
+ - Add Output: GP8403 2-Channel DAC (0-10 VDC) ([#1354](https://github.com/kizniche/Mycodo/issues/1354))
+ - Add Output: GP8XXX (8403) 2-Channel DAC (0-10 VDC) ([#1354](https://github.com/kizniche/Mycodo/issues/1354))
+ - Add Output: XL9535 16-Channel On/Off IO-Expander
+ - Add Widget: Measurement (2 Values)
+ - Add ability to set custom layout.html
+ - Add API Endpoint: /notes/create to create a Note ([#1357](https://github.com/kizniche/Mycodo/issues/1357))
+ - Add ability to switch displaying hostname with custom text
+ - Add Step Line Series Type to Graph (Synchronous) Widget
+ - Add controller_restart as client endpoint
+ - Add option for custom CSS
+ - Add options for changing title and brand text
+ - Add ability to edit Input and Input Measurement unique_id
+ - Add "edge_input" Input option for use in Edge Trigger Functions
+ - Add ability to use custom theme
+
+### Miscellaneous
+
+ - Move install location from ~/Mycodo to /opt/Mycodo
+ - Change Dashboard grid width from 20 to 24
+ - Add endpoint option to RAM Input for when Mycodo is using a non-standard IP/port
+ - Add self.control to the Python 3 Code Action
+ - Run widget HTML regeneration in thread
+ - Update InfluxDB 2.x to v2.7.8
+ - Update adafruit-circuitpython-ads1x15 to 2.2.25
+ - Update Gridstack to 10.0.1
+ - Update alembic to 1.13.1
+ - Update bcrypt to 1.4.2 
+ - Update distro to 1.9.0
+ - Update email_validator to 2.0.0
+ - Update filelock to 3.13.1
+ - Update Flask to 3.0.0
+ - Update Flask_Babel to 4.0.0
+ - Update Flask_Compress to 1.14
+ - Update Flask_Limiter to 3.5.0
+ - Update Flask_Login to 0.6.3
+ - Update Flask_RESTX to 1.3.0
+ - Update Flask_SQLAlchemy to 3.1.1
+ - Update Flask_WTF to 1.2.1
+ - Update marshmallow_sqlalchemy to 0.30.0
+ - Update pyro5 to 5.15
+ - Update requests to 2.31.0
+ - Update setuptools to 69.0.3
+ - Update SQLAlchemy to 2.0.25
+ - Update Werkzeug to 3.0.1
+ - Update WTForms to 3.1.2
+
+
+## 8.15.13 (2023.12.24)
+
+### Bugfixes
+
+ - Fix inability to properly import settings backup
+ - Fix Actions not executing for MQTT, TTN, and Python Code Inputs ([#1336](https://github.com/kizniche/Mycodo/issues/1336))
+ - Fix running pylint
+ - Fix display of data from Functions on the Live Page
+
+### Features
+
+ - Add ability to use Actions in Custom Functions
+ - Add Input Action: Execute Python 3 Code ([#1334](https://github.com/kizniche/Mycodo/issues/1334))
+ - Add Function: Adafruit Neokey (Key Press Executes Actions) ([#1353](https://github.com/kizniche/Mycodo/issues/1353))
+ - Add Action: Neopixel Flashing On
+ - Add Action: Neopixel Flashing Off
+ - Change deprecated threading.currentThread to threading.current_thread
+
+### Miscellaneous
+
+ - Update InfluxDB 2.x to 2.7.3
+
+
+## 8.15.12 (2023.10.28)
+
+### Miscellaneous
+
+ - Update pylint to 3.0.1
+
+
+## 8.15.11 (2023.10.18)
+
+This release fixes a bug that prevents installing some dependencies.
+
+### Bugfixes
+
+ - Fix issue installing some dependencies
+ - Fix automatically reloading the frontend when adding certain Widgets
+
+
+## 8.15.10 (2023.10.15)
+
+This release is a bugfix release to fix issues related to installing Mycodo on the latest Raspberry Pi OS (Debian 12, Bookworm).
+
+### Bugfixes
+
+ - Fix missing netcat apt install candidate with package netcat-openbsd
+ - Fix pip requiring --break-system-packages to install/update non-system packages
+ - Fix install by replacing whiptail with dialog
+
+### Miscellaneous
+
+ - Add timeout parameter to module_function()
+
+
+## 8.15.9 (2023.08.21)
 
 ### Bugfixes
 
  - Fix setting Camera timelapse duration to 0
  - Remove deprecated Raspberry Pi Enable Camera option
  - Fix no image when libcamera AWB turned off
+ - Fix Rsync Backup Function ([#1314](https://github.com/kizniche/Mycodo/issues/1314))
+ - Fix Activate/Deactivate Controller Widget not recognizing Custom Functions
+ - Fix tags in Create Note Action
+ - Fix saving Python Code Input when Pylint Analysis is disabled
+ - Fix several Actions using incorrect calls to a function
+ - Fix Mycodo login and influxdb login fields having the same web form ID
+ - Fix Install issue selecting InfluxDB on 32-bit operating systems
+ - Fix Install by setting python jsonschema version to 4.17.3 to avoid 4.18.x rust dependency
+ - Fix deprecated parse_version with packaging.version.parse() ([#1333](https://github.com/kizniche/Mycodo/issues/1333))
 
 ### Features
 
@@ -13,6 +182,14 @@
  - Add ability to disable any Input/Output/Function/Widget option (user can view but not change)
  - Add ability to return Input/Output/Function object with module_function()
  - Add min_value and max_value parameters to query_flux()
+ - Add ability to select Output measurements in Sum Functions
+ - Add Input: Python 3 Code (v2.0) ([#1297](https://github.com/kizniche/Mycodo/issues/1297))
+ - Add popup of Action UUID when hovering on its title
+
+### Miscellaneous
+
+ - Add check for missing measurements/channels when an Input is saved
+ - Update Python packages
 
 
 ## 8.15.8 (2023-04-06)

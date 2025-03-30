@@ -92,15 +92,15 @@ INPUT_INFORMATION = {
         ('apt', 'git', 'git'),
         ('bash-commands',
          [
-             '/var/mycodo-root/env/RTIMULib_installed',
+             '/opt/Mycodo/env/RTIMULib_installed',
          ],
          [
              'cd /tmp',
              'git clone https://github.com/RPi-Distro/RTIMULib',
              'cd ./RTIMULib/Linux/python/',
-             '~/Mycodo/env/bin/python setup.py build',
-             '~/Mycodo/env/bin/python setup.py install',
-             'touch /var/mycodo-root/env/RTIMULib_installed'
+             '/opt/Mycodo/env/bin/python setup.py build',
+             '/opt/Mycodo/env/bin/python setup.py install',
+             'touch /opt/Mycodo/env/RTIMULib_installed'
          ]),
         ('pip-pypi', 'sense_hat', 'sense-hat==2.2.0')
     ],

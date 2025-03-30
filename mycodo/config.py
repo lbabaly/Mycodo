@@ -3,18 +3,18 @@
 # config.py - Global Mycodo settings
 #
 import binascii
+import os
 import sys
 from datetime import timedelta
 
-import os
 from flask_babel import lazy_gettext as lg
 
 # Append proper path for other software reading this config file
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from config_translations import TRANSLATIONS as T
 
-MYCODO_VERSION = '8.15.8'
-ALEMBIC_VERSION = '16b28ef31b5b'
+MYCODO_VERSION = '8.16.0'
+ALEMBIC_VERSION = '5966b3569c89'
 
 # FORCE UPGRADE MASTER
 # Set True to enable upgrading to the master branch of the Mycodo repository.
@@ -27,20 +27,25 @@ FORCE_UPGRADE_MASTER = False
 # Used to determine proper upgrade page to display
 FINAL_RELEASES = ['5.7.3', '6.4.7', '7.10.0']
 
-# ENABLE FLASK PROFILER
+# Flask Profiler
 # Accessed at https://127.0.0.1/mycodo-flask-profiler
 ENABLE_FLASK_PROFILER = False
 
 # Install path (the parent directory of this file)
 INSTALL_DIRECTORY = os.path.abspath(os.path.dirname(os.path.realpath(__file__)) + '/..')
 
-# Database
-DATABASE_NAME = "mycodo.db"
-ALEMBIC_PATH = os.path.join(INSTALL_DIRECTORY, 'alembic_db')
+# Settings database
 DATABASE_PATH = os.path.join(INSTALL_DIRECTORY, 'databases')
-ALEMBIC_UPGRADE_POST = os.path.join(ALEMBIC_PATH, 'alembic_post_upgrade_versions')
+DATABASE_NAME = "mycodo.db"
 SQL_DATABASE_MYCODO = os.path.join(DATABASE_PATH, DATABASE_NAME)
-MYCODO_DB_PATH = f'sqlite:///{SQL_DATABASE_MYCODO}'
+ALEMBIC_PATH = os.path.join(INSTALL_DIRECTORY, 'alembic_db')
+ALEMBIC_UPGRADE_POST = os.path.join(ALEMBIC_PATH, 'alembic_post_upgrade_versions')
+
+try:
+    import config_override
+    MYCODO_DB_PATH = config_override.MYCODO_DB_PATH
+except:
+    MYCODO_DB_PATH = f'sqlite:///{SQL_DATABASE_MYCODO}'
 
 # Misc paths
 PATH_1WIRE = '/sys/bus/w1/devices/'
@@ -55,8 +60,15 @@ PATH_ACTIONS_CUSTOM = os.path.join(PATH_ACTIONS, 'custom_actions')
 PATH_INPUTS_CUSTOM = os.path.join(PATH_INPUTS, 'custom_inputs')
 PATH_OUTPUTS_CUSTOM = os.path.join(PATH_OUTPUTS, 'custom_outputs')
 PATH_WIDGETS_CUSTOM = os.path.join(PATH_WIDGETS, 'custom_widgets')
+PATH_TEMPLATE = os.path.join(INSTALL_DIRECTORY, 'mycodo/mycodo_flask/templates')
+PATH_TEMPLATE_LAYOUT = os.path.join(PATH_TEMPLATE, 'layout.html')
+PATH_TEMPLATE_LAYOUT_DEFAULT = os.path.join(PATH_TEMPLATE, 'layout_default.html')
+PATH_TEMPLATE_USER = os.path.join(PATH_TEMPLATE, 'user_templates')
+PATH_STATIC = os.path.join(INSTALL_DIRECTORY, 'mycodo/mycodo_flask/static')
+PATH_CSS_USER = os.path.join(PATH_STATIC, 'css/user_css')
+PATH_JS_USER = os.path.join(PATH_STATIC, 'js/user_js')
+PATH_FONTS_USER = os.path.join(PATH_STATIC, 'fonts/user_fonts')
 PATH_USER_SCRIPTS = os.path.join(INSTALL_DIRECTORY, 'mycodo/user_scripts')
-PATH_HTML_USER = os.path.join(INSTALL_DIRECTORY, 'mycodo/mycodo_flask/templates/user_templates')
 PATH_PYTHON_CODE_USER = os.path.join(INSTALL_DIRECTORY, 'mycodo/user_python_code')
 PATH_MEASUREMENTS_BACKUP = os.path.join(INSTALL_DIRECTORY, 'mycodo/backup_measurements')
 PATH_SETTINGS_BACKUP = os.path.join(INSTALL_DIRECTORY, 'mycodo/backup_settings')
@@ -86,7 +98,6 @@ LOCK_FILE_STREAM = os.path.join(LOCK_PATH, 'mycodo-camera-stream.pid')
 # Run files
 RUN_PATH = '/var/run'
 FRONTEND_PID_FILE = os.path.join(RUN_PATH, 'mycodoflask.pid')
-DAEMON_PID_FILE = os.path.join(RUN_PATH, 'mycodo.pid')
 
 # Remote admin
 STORED_SSL_CERTIFICATE_PATH = os.path.join(
@@ -224,12 +235,12 @@ CAMERA_INFO = {
 
 METHOD_DEP_BASE = [
     ('bash-commands',
-     ['/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highcharts-9.1.2.js'],
+     ['/opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highcharts-9.1.2.js'],
      [
         'wget --no-clobber https://code.highcharts.com/zips/Highcharts-9.1.2.zip',
         'unzip Highcharts-9.1.2.zip -d Highcharts-9.1.2',
-        'cp -rf Highcharts-9.1.2/code/highcharts.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highcharts-9.1.2.js',
-        'cp -rf Highcharts-9.1.2/code/highcharts.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highcharts.js.map',
+        'cp -rf Highcharts-9.1.2/code/highcharts.js /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highcharts-9.1.2.js',
+        'cp -rf Highcharts-9.1.2/code/highcharts.js.map /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highcharts.js.map',
         'rm -rf Highcharts-9.1.2'
      ])
 ]
@@ -339,28 +350,28 @@ DEPENDENCIES_GENERAL = {
         'dependencies_module': [
             ('bash-commands',
              [
-                 '/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highstock-9.1.2.js',
-                 '/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highcharts-more-9.1.2.js',
-                 '/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/data-9.1.2.js',
-                 '/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/exporting-9.1.2.js',
-                 '/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/export-data-9.1.2.js',
-                 '/var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/offline-exporting-9.1.2.js'
+                 '/opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highstock-9.1.2.js',
+                 '/opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highcharts-more-9.1.2.js',
+                 '/opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/data-9.1.2.js',
+                 '/opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/exporting-9.1.2.js',
+                 '/opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/export-data-9.1.2.js',
+                 '/opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/offline-exporting-9.1.2.js'
              ],
              [
                  'wget --no-clobber https://code.highcharts.com/zips/Highcharts-Stock-9.1.2.zip',
                  'unzip Highcharts-Stock-9.1.2.zip -d Highcharts-Stock-9.1.2',
-                 'cp -rf Highcharts-Stock-9.1.2/code/highstock.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highstock-9.1.2.js',
-                 'cp -rf Highcharts-Stock-9.1.2/code/highstock.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highstock.js.map',
-                 'cp -rf Highcharts-Stock-9.1.2/code/highcharts-more.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highcharts-more-9.1.2.js',
-                 'cp -rf Highcharts-Stock-9.1.2/code/highcharts-more.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/highcharts-more.js.map',
-                 'cp -rf Highcharts-Stock-9.1.2/code/modules/data.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/data-9.1.2.js',
-                 'cp -rf Highcharts-Stock-9.1.2/code/modules/data.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/data.js.map',
-                 'cp -rf Highcharts-Stock-9.1.2/code/modules/exporting.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/exporting-9.1.2.js',
-                 'cp -rf Highcharts-Stock-9.1.2/code/modules/exporting.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/exporting.js.map',
-                 'cp -rf Highcharts-Stock-9.1.2/code/modules/export-data.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/export-data-9.1.2.js',
-                 'cp -rf Highcharts-Stock-9.1.2/code/modules/export-data.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/export-data.js.map',
-                 'cp -rf Highcharts-Stock-9.1.2/code/modules/offline-exporting.js /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/offline-exporting-9.1.2.js',
-                 'cp -rf Highcharts-Stock-9.1.2/code/modules/offline-exporting.js.map /var/mycodo-root/mycodo/mycodo_flask/static/js/user_js/offline-exporting.js.map',
+                 'cp -rf Highcharts-Stock-9.1.2/code/highstock.js /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highstock-9.1.2.js',
+                 'cp -rf Highcharts-Stock-9.1.2/code/highstock.js.map /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highstock.js.map',
+                 'cp -rf Highcharts-Stock-9.1.2/code/highcharts-more.js /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highcharts-more-9.1.2.js',
+                 'cp -rf Highcharts-Stock-9.1.2/code/highcharts-more.js.map /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/highcharts-more.js.map',
+                 'cp -rf Highcharts-Stock-9.1.2/code/modules/data.js /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/data-9.1.2.js',
+                 'cp -rf Highcharts-Stock-9.1.2/code/modules/data.js.map /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/data.js.map',
+                 'cp -rf Highcharts-Stock-9.1.2/code/modules/exporting.js /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/exporting-9.1.2.js',
+                 'cp -rf Highcharts-Stock-9.1.2/code/modules/exporting.js.map /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/exporting.js.map',
+                 'cp -rf Highcharts-Stock-9.1.2/code/modules/export-data.js /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/export-data-9.1.2.js',
+                 'cp -rf Highcharts-Stock-9.1.2/code/modules/export-data.js.map /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/export-data.js.map',
+                 'cp -rf Highcharts-Stock-9.1.2/code/modules/offline-exporting.js /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/offline-exporting-9.1.2.js',
+                 'cp -rf Highcharts-Stock-9.1.2/code/modules/offline-exporting.js.map /opt/Mycodo/mycodo/mycodo_flask/static/js/user_js/offline-exporting.js.map',
                  'rm -rf Highcharts-Stock-9.1.2'
              ])
         ]
@@ -371,6 +382,8 @@ DEPENDENCIES_GENERAL = {
 CONDITIONAL_CONDITIONS = [
     ('measurement',
      f"{T['measurement']['title']} ({T['single']['title']}, {T['last']['title']})"),
+    ('measurement_and_ts',
+     f"{T['measurement']['title']} ({T['single']['title']}, {T['last']['title']}, with Timestamp)"),
     ('measurement_past_average',
      f"{T['measurement']['title']} ({T['single']['title']}, {T['past']['title']}, {T['average']['title']})"),
     ('measurement_past_sum',
@@ -391,7 +404,7 @@ FUNCTION_INFO = {
     'conditional_conditional': {
         'name': f"{T['conditional']['title']} {T['controller']['title']}",
         'dependencies_module': [
-            ('pip-pypi', 'pylint', 'pylint==2.12.2')
+            ('pip-pypi', 'pylint', 'pylint==3.0.1')
         ]
     },
     'pid_pid': {
@@ -477,36 +490,53 @@ USER_ROLES = [
 
 # Web UI themes
 THEMES = [
-    ('cerulean', 'Cerulean'),
-    ('cosmo', 'Cosmo'),
-    ('cyborg', 'Cyborg'),
-    ('darkly', 'Darkly'),
-    ('flatly', 'Flatly'),
-    ('journal', 'Journal'),
-    ('literia', 'Literia'),
-    ('lumen', 'Lumen'),
-    ('lux', 'Lux'),
-    ('materia', 'Materia'),
-    ('minty', 'Minty'),
-    ('pulse', 'Pulse'),
-    ('sandstone', 'Sandstone'),
-    ('simplex', 'Simplex'),
-    ('slate', 'Slate'),
-    ('solar', 'Solar'),
-    ('spacelab', 'Spacelab'),
-    ('superhero', 'Superhero'),
-    ('united', 'United'),
-    ('yeti', 'Yeti')
+    ('/static/css/bootstrap-4-themes/cerulean.css', 'Cerulean'),
+    ('/static/css/bootstrap-4-themes/cosmo.css', 'Cosmo'),
+    ('/static/css/bootstrap-4-themes/cyborg.css', 'Cyborg'),
+    ('/static/css/bootstrap-4-themes/darkly.css', 'Darkly'),
+    ('/static/css/bootstrap-4-themes/flatly.css', 'Flatly'),
+    ('/static/css/bootstrap-4-themes/journal.css', 'Journal'),
+    ('/static/css/bootstrap-4-themes/literia.css', 'Literia'),
+    ('/static/css/bootstrap-4-themes/lumen.css', 'Lumen'),
+    ('/static/css/bootstrap-4-themes/lux.css', 'Lux'),
+    ('/static/css/bootstrap-4-themes/materia.css', 'Materia'),
+    ('/static/css/bootstrap-4-themes/minty.css', 'Minty'),
+    ('/static/css/bootstrap-4-themes/pulse.css', 'Pulse'),
+    ('/static/css/bootstrap-4-themes/sandstone.css', 'Sandstone'),
+    ('/static/css/bootstrap-4-themes/simplex.css', 'Simplex'),
+    ('/static/css/bootstrap-4-themes/slate.css', 'Slate'),
+    ('/static/css/bootstrap-4-themes/solar.css', 'Solar'),
+    ('/static/css/bootstrap-4-themes/spacelab.css', 'Spacelab'),
+    ('/static/css/bootstrap-4-themes/superhero.css', 'Superhero'),
+    ('/static/css/bootstrap-4-themes/united.css', 'United'),
+    ('/static/css/bootstrap-4-themes/yeti.css', 'Yeti')
 ]
 
-THEMES_DARK = ['cyborg', 'darkly', 'slate', 'solar', 'superhero']
+THEMES_DARK = [
+    '/static/css/bootstrap-4-themes/cyborg.css',
+    '/static/css/bootstrap-4-themes/darkly.css',
+    '/static/css/bootstrap-4-themes/slate.css',
+    '/static/css/bootstrap-4-themes/solar.css',
+    '/static/css/bootstrap-4-themes/superhero.css'
+]
 
+try:
+    user_themes = os.path.join(PATH_CSS_USER, "bootstrap-4-themes")
+    for file in os.listdir(os.fsencode(user_themes)):
+        filename = os.fsdecode(file)
+        if filename.endswith(".css"):
+            theme_location = f"/static/css/user_css/bootstrap-4-themes/{filename}"
+            theme_display = filename.split('.')[0].replace('-', ' ').replace('_', ' ').title()
+            THEMES.append((theme_location, theme_display))
+
+            if 'dark' in filename.lower():
+                THEMES_DARK.append(theme_location)
+except:
+    pass
 
 class ProdConfig(object):
     """Production Configuration."""
-    SQL_DATABASE_MYCODO = os.path.join(DATABASE_PATH, DATABASE_NAME)
-    MYCODO_DB_PATH = f'sqlite:///{SQL_DATABASE_MYCODO}'
-    SQLALCHEMY_DATABASE_URI = f'sqlite:///{SQL_DATABASE_MYCODO}'
+    SQLALCHEMY_DATABASE_URI = MYCODO_DB_PATH
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     FLASK_PROFILER = {

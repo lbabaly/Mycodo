@@ -81,6 +81,18 @@ def index_page():
     return clear_cookie_auth()
 
 
+@blueprint.route('/custom.css')
+@flask_login.login_required
+def custom_css():
+    """Load custom CSS"""
+    try:
+        settings = Misc.query.first()
+        if settings and settings.custom_css:
+            return settings.custom_css
+    except:
+        return ""
+
+
 @blueprint.route('/settings', methods=('GET', 'POST'))
 @flask_login.login_required
 def page_settings():
@@ -831,8 +843,13 @@ def computer_command(action):
             elif action == 'frontend_reload':
                 subprocess.Popen('docker restart mycodo_flask 2>&1', shell=True)
         else:
-            cmd = f'{INSTALL_DIRECTORY}/mycodo/scripts/mycodo_wrapper {action} 2>&1'
-            subprocess.Popen(cmd, shell=True)
+            if action == 'frontend_reload':
+                logger.info("Reloading frontend in 10 seconds")
+                cmd = f"sleep 10 && {INSTALL_DIRECTORY}/mycodo/scripts/mycodo_wrapper frontend_reload 2>&1"
+                subprocess.Popen(cmd, shell=True)
+            else:
+                cmd = f'{INSTALL_DIRECTORY}/mycodo/scripts/mycodo_wrapper {action} 2>&1'
+                subprocess.Popen(cmd, shell=True)
 
         if action == 'restart':
             flash(gettext("System rebooting in 10 seconds"), "success")
@@ -841,7 +858,7 @@ def computer_command(action):
         elif action == 'daemon_restart':
             flash(gettext("Command to restart the daemon sent"), "success")
         elif action == 'frontend_reload':
-            flash(gettext("Command to reload the frontend sent"), "success")
+            flash(gettext("Frontend reloading in 10 seconds"), "success")
 
         return redirect('/settings')
 

@@ -135,6 +135,10 @@ def get_condition_value(condition_id):
     :param condition_id: Conditional condition ID
     :return: measurement: multiple types
     """
+    if not condition_id:
+        logger.error("Must provide a Condition ID")
+        return
+
     sql_condition = db_retrieve_table_daemon(ConditionalConditions).filter(
         ConditionalConditions.unique_id == condition_id).first()
 
@@ -143,7 +147,40 @@ def get_condition_value(condition_id):
         return
 
     # Check Measurement Conditions
-    if sql_condition.condition_type in ['measurement',
+    if sql_condition.condition_type == 'measurement_and_ts':
+        device_id = sql_condition.measurement.split(',')[0]
+        measurement_id = sql_condition.measurement.split(',')[1]
+
+        device_measurement = db_retrieve_table_daemon(
+            DeviceMeasurements, unique_id=measurement_id)
+        if device_measurement:
+            conversion = db_retrieve_table_daemon(
+                Conversion, unique_id=device_measurement.conversion_id)
+        else:
+            conversion = None
+        channel, unit, measurement = return_measurement_info(
+            device_measurement, conversion)
+
+        if None in [channel, unit]:
+            logger.error(
+                "Could not determine channel or unit from measurement ID: "
+                "{}".format(measurement_id))
+            return {"time": None, "value": None}
+
+        max_age = sql_condition.max_age
+
+        influx_return = get_last_measurement(
+            device_id, measurement_id, max_age=max_age)
+        if influx_return is not None:
+            return_ts = influx_return[0]
+            return_measurement = influx_return[1]
+        else:
+            return_ts = None
+            return_measurement = None
+
+        return {"time": return_ts, "value": return_measurement}
+
+    elif sql_condition.condition_type in ['measurement',
                                         'measurement_past_average',
                                         'measurement_past_sum']:
         device_id = sql_condition.measurement.split(',')[0]
@@ -235,10 +272,18 @@ def get_condition_value_dict(condition_id):
     :param condition_id: Conditional condition ID
     :return: measurement: dict of float measurements
     """
-    # Check Measurement Conditions
+    if not condition_id:
+        logger.error("Must provide a Condition ID")
+        return
+
     sql_condition = db_retrieve_table_daemon(ConditionalConditions).filter(
         ConditionalConditions.unique_id == condition_id).first()
 
+    if not sql_condition:
+        logger.error("Condition ID not found")
+        return
+
+    # Check Measurement Conditions
     if sql_condition.condition_type == 'measurement_dict':
         device_id = sql_condition.measurement.split(',')[0]
         measurement_id = sql_condition.measurement.split(',')[1]
@@ -296,20 +341,20 @@ def trigger_action(
 
     :param dict_actions: dict of action information
     :param action_id: unique_id of action
-    :param value: an object to be sent to the action. Typically a dictionary with 'message' as a key.
+    :param value: an object to be sent to the action. Typically, a dictionary with 'message' as a key.
     :param debug: determine if logging level should be DEBUG
 
     :return: dict with 'message' as a key
     """
     action = db_retrieve_table_daemon(Actions, unique_id=action_id)
-    if not action:
-        message += 'Error: Action with ID {} not found!'.format(action_id)
-        return {'message': message}
-
     if not value or 'message' not in value:
         message = ''
     else:
         message = value['message']
+
+    if not action:
+        message += 'Error: Action with ID {} not found!'.format(action_id)
+        return {'message': message}
 
     logger_actions = logging.getLogger("mycodo.trigger_action_{id}".format(
         id=action.unique_id.split('-')[0]))
@@ -340,6 +385,31 @@ def trigger_action(
     logger_actions.debug("Message: {}".format(message))
 
     return value
+
+
+def run_input_actions(unique_id, message, measurements_dict, debug=False):
+    control = DaemonControl()
+    actions = db_retrieve_table_daemon(Actions).filter(
+        Actions.function_id == unique_id).all()
+
+    for each_action in actions:
+        try:
+            return_dict = control.trigger_action(
+                each_action.unique_id,
+                value={"message": message, "measurements_dict": measurements_dict},
+                debug=debug)
+
+            # if message is returned, set message
+            if return_dict and 'message' in return_dict and return_dict['message']:
+                message = return_dict['message']
+
+            # if measurements_dict is returned, use that to store measurements
+            if return_dict and 'measurements_dict' in return_dict and return_dict['measurements_dict']:
+                measurements_dict = return_dict['measurements_dict']
+        except:
+            logger.exception(f"Running Input Action {each_action.unique_id}")
+
+    return message, measurements_dict
 
 
 def trigger_controller_actions(dict_actions, controller_id, message='', debug=False):

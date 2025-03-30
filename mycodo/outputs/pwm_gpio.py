@@ -33,7 +33,7 @@ channels_dict = {
 # Output information
 OUTPUT_INFORMATION = {
     'output_name_unique': 'pwm',
-    'output_name': "{}: Raspberry Pi GPIO".format(lazy_gettext('PWM')),
+    'output_name': "{}: Raspberry Pi GPIO (Pi <= 4)".format(lazy_gettext('PWM')),
     'output_library': 'pigpio',
     'measurements_dict': measurements_dict,
     'channels_dict': channels_dict,
@@ -45,7 +45,7 @@ OUTPUT_INFORMATION = {
     'options_disabled': ['interface'],
 
     'dependencies_module': [
-        ('internal', 'file-exists /opt/mycodo/pigpio_installed', 'pigpio'),
+        ('internal', 'file-exists /opt/Mycodo/pigpio_installed', 'pigpio'),
         ('pip-pypi', 'pigpio', 'pigpio==1.78')
     ],
 
@@ -286,7 +286,7 @@ class OutputModule(AbstractOutput):
         if self.options_channels['pwm_invert_stored_signal'][0]:
             amount = 100.0 - abs(amount)
 
-        measure_dict[0]['value'] = amount
+        measure_dict[0]['value'] = float(amount)
         add_measurements_influxdb(self.unique_id, measure_dict)
 
         return "success"

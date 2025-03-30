@@ -28,14 +28,14 @@ channels_dict = {
 # Output information
 OUTPUT_INFORMATION = {
     'output_name_unique': 'wireless_rpi_rf',
-    'output_name': "{}: {} 315/433 MHz".format(lazy_gettext('On/Off'), lazy_gettext('Wireless')),
+    'output_name': "{}: {} 315/433 MHz (Pi <= 4)".format(lazy_gettext('On/Off'), lazy_gettext('Wireless')),
     'output_library': 'rpi-rf',
     'measurements_dict': measurements_dict,
     'channels_dict': channels_dict,
     'output_types': ['on_off'],
 
     'message': 'This output uses a 315 or 433 MHz transmitter to turn wireless power outlets on or off. '
-               'Run ~/Mycodo/mycodo/devices/wireless_rpi_rf.py with a receiver to discover the codes '
+               'Run /opt/Mycodo/mycodo/devices/wireless_rpi_rf.py with a receiver to discover the codes '
                'produced from your remote.',
 
     'options_enabled': [

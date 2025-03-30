@@ -231,7 +231,7 @@ class CustomModule(AbstractFunction):
             self.logger.info('state: {0}'.format(self.autotune.state))
 
             if self.autotune.state == PIDAutotune.STATE_SUCCEEDED:
-                self.logger.info('Autotube was successful')
+                self.logger.info('Autotune was successful')
                 for rule in self.autotune.tuning_rules:
                     params = self.autotune.get_pid_parameters(rule)
                     self.logger.info('')
@@ -246,11 +246,16 @@ class CustomModule(AbstractFunction):
             self.deactivate_self()
             return
 
-        self.control.output_on(
-            self.output_device_id,
-            output_type='sec',
-            output_channel=self.output_channel,
-            amount=self.control_variable)
+        if self.control_variable:
+            self.control.output_on(
+                self.output_device_id,
+                output_type='sec',
+                output_channel=self.output_channel,
+                amount=self.control_variable)
+        else:
+            self.control.output_off(
+                self.output_device_id,
+                output_channel=self.output_channel)
 
     def deactivate_self(self):
         self.logger.info("Deactivating Autotune Function")

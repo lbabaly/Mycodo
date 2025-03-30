@@ -1,4 +1,4 @@
-#!/var/mycodo-root/env/bin/python
+#!/opt/Mycodo/env/bin/python
 # -*- coding: utf-8 -*-
 #
 #  mycodo_client.py - Client to communicate with the Mycodo daemon.
@@ -62,10 +62,13 @@ class DaemonControl:
 
         self.uri= pyro_uri
 
-    def proxy(self):
+    def proxy(self, timeout=None):
         try:
             proxy = Proxy(self.uri)
-            proxy._pyroTimeout = self.pyro_timeout
+            if timeout:
+                proxy._pyroTimeout = timeout
+            else:
+                proxy._pyroTimeout = self.pyro_timeout
             return proxy
         except Exception as e:
             logger.error(f"Pyro5 proxy error: {e}")
@@ -124,6 +127,9 @@ class DaemonControl:
 
     def controller_deactivate(self, controller_id):
         return self.proxy().controller_deactivate(controller_id)
+
+    def controller_restart(self, controller_id):
+        return self.proxy().controller_restart(controller_id)
 
     def refresh_daemon_conditional_settings(self, unique_id):
         return self.proxy().refresh_daemon_conditional_settings(unique_id)
@@ -269,12 +275,12 @@ class DaemonControl:
             smtp.user, smtp.passw, smtp.email_from,
             recipients, message, subject=subject)
 
-    def module_function(self, controller_type, unique_id, button_id, args_dict, thread=True, return_from_function=False):
+    def module_function(self, controller_type, unique_id, button_id, args_dict, thread=True, return_from_function=False, timeout=None):
         try:
-            return self.proxy().module_function(
+            return self.proxy(timeout=timeout).module_function(
                 controller_type, unique_id, button_id, args_dict, thread=thread, return_from_function=return_from_function)
         except Exception:
-            return 0, traceback.format_exc()
+            return 1, traceback.format_exc()
 
     def widget_add_refresh(self, unique_id):
         return self.proxy().widget_add_refresh(unique_id)

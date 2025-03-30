@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
-from flask import Markup
+
+from markupsafe import Markup
 
 from mycodo.config import INSTALL_DIRECTORY
 from mycodo.config import PATH_PYTHON_CODE_USER
@@ -50,12 +51,12 @@ def test_python_code(python_code_run, filename):
                 ln=line_num,
                 line=each_line)
 
-        cmd_test = 'mkdir -p /var/mycodo-root/.pylint.d && ' \
-                   'export PYTHONPATH=$PYTHONPATH:/var/mycodo-root && ' \
-                   'export PYLINTHOME=/var/mycodo-root/.pylint.d && ' \
+        cmd_test = 'mkdir -p /opt/Mycodo/.pylint.d && ' \
+                   'export PYTHONPATH=$PYTHONPATH:/opt/Mycodo && ' \
+                   'export PYLINTHOME=/opt/Mycodo/.pylint.d && ' \
                    '{dir}/env/bin/python -m pylint -d I,W0621,C0103,C0111,C0301,C0327,C0410,C0413,R0201,R0903,W0201,W0612 {path}'.format(
                     dir=INSTALL_DIRECTORY, path=file_run)
-        cmd_out, _, cmd_status = cmd_output(cmd_test)
+        cmd_out, _, cmd_status = cmd_output(cmd_test, user='root')
 
         message = Markup(
             '<pre>\n\n'

@@ -58,19 +58,18 @@ runSelfUpgrade() {
 
   printf "\n#### Beginning pre-upgrade checks ####\n\n"
 
-  # Upgrade requires Python >= 3.6
+  # Upgrade requires Python >= 3.8
   printf "Checking Python version...\n"
   if hash python3 2>/dev/null; then
-    if ! python3 "${CURRENT_MYCODO_DIRECTORY}"/mycodo/scripts/upgrade_check.py --min_python_version "3.6"; then
-      printf "\nIncorrect Python version found. Mycodo requires Python >= 3.6.\n"
-      printf "If you're running Raspbian 9 (Stretch) with Python 3.5, you will need to install at least Raspbian 10 (Buster) with Python 3.7 to upgrade to the latest version of Mycodo.\n"
+    if ! python3 "${CURRENT_MYCODO_DIRECTORY}"/mycodo/scripts/upgrade_check.py --min_python_version "3.8"; then
+      printf "Error: Incorrect Python version found. Mycodo requires Python >= 3.8.\n"
       echo '0' > "${CURRENT_MYCODO_DIRECTORY}"/.upgrade
       exit 1
     else
-      printf "Python >= 3.6 found. Continuing with the upgrade.\n"
+      printf "Python >= 3.8 found. Continuing with the upgrade.\n"
     fi
   else
-    printf "\npython3 was not found. Cannot proceed with the upgrade without python3 (Python >= 3.6).\n"
+    printf "\nError: python3 binary required in PATH to proceed with the upgrade.\n"
     echo '0' > "${CURRENT_MYCODO_DIRECTORY}"/.upgrade
     exit 1
   fi
@@ -111,6 +110,14 @@ runSelfUpgrade() {
     error_found
   fi
   printf "Done.\n"
+
+  if [ -f "${CURRENT_MYCODO_DIRECTORY}"/mycodo/config_override.py ] ; then
+    printf "Copying config_override.py..."
+    if ! cp "${CURRENT_MYCODO_DIRECTORY}"/mycodo/config_override.py "${THIS_MYCODO_DIRECTORY}"/mycodo/ ; then
+      printf "Failed: Error while trying to copy config_override.py."
+    fi
+    printf "Done.\n"
+  fi
 
   printf "Copying flask_secret_key..."
   if ! cp "${CURRENT_MYCODO_DIRECTORY}"/databases/flask_secret_key "${THIS_MYCODO_DIRECTORY}"/databases ; then
@@ -191,6 +198,15 @@ runSelfUpgrade() {
     printf "Done.\n"
   fi
 
+  if [ -d "${CURRENT_MYCODO_DIRECTORY}"/mycodo/note_attachments ] ; then
+    printf "Copying mycodo/note_attachments..."
+    if ! cp -r "${CURRENT_MYCODO_DIRECTORY}"/mycodo/note_attachments "${THIS_MYCODO_DIRECTORY}"/mycodo/ ; then
+      printf "Failed: Error while trying to copy mycodo/note_attachments"
+      error_found
+    fi
+    printf "Done.\n"
+  fi
+
   if [ -d "${CURRENT_MYCODO_DIRECTORY}"/mycodo/mycodo_flask/static/js/user_js ] ; then
     printf "Copying mycodo/mycodo_flask/static/js/user_js..."
     if ! cp -r "${CURRENT_MYCODO_DIRECTORY}"/mycodo/mycodo_flask/static/js/user_js "${THIS_MYCODO_DIRECTORY}"/mycodo/mycodo_flask/static/js/ ; then
@@ -204,6 +220,24 @@ runSelfUpgrade() {
     printf "Copying mycodo/mycodo_flask/static/css/user_css..."
     if ! cp -r "${CURRENT_MYCODO_DIRECTORY}"/mycodo/mycodo_flask/static/css/user_css "${THIS_MYCODO_DIRECTORY}"/mycodo/mycodo_flask/static/css/ ; then
       printf "Failed: Error while trying to copy mycodo/mycodo_flask/static/css/user_css"
+      error_found
+    fi
+    printf "Done.\n"
+  fi
+
+  if [ -d "${CURRENT_MYCODO_DIRECTORY}"/mycodo/mycodo_flask/static/fonts/user_fonts ] ; then
+    printf "Copying mycodo/mycodo_flask/static/fonts/user_fonts..."
+    if ! cp -r "${CURRENT_MYCODO_DIRECTORY}"/mycodo/mycodo_flask/static/fonts/user_fonts "${THIS_MYCODO_DIRECTORY}"/mycodo/mycodo_flask/static/fonts/ ; then
+      printf "Failed: Error while trying to copy mycodo/mycodo_flask/static/fonts/user_fonts"
+      error_found
+    fi
+    printf "Done.\n"
+  fi
+
+  if [ -d "${CURRENT_MYCODO_DIRECTORY}"/mycodo/user_scripts ] ; then
+    printf "Copying mycodo/user_scripts..."
+    if ! cp -r "${CURRENT_MYCODO_DIRECTORY}"/mycodo/user_scripts "${THIS_MYCODO_DIRECTORY}"/mycodo/ ; then
+      printf "Failed: Error while trying to copy mycodo/user_scripts"
       error_found
     fi
     printf "Done.\n"
@@ -239,24 +273,25 @@ runSelfUpgrade() {
 
   BACKUP_DIR="/var/Mycodo-backups/Mycodo-backup-${NOW}-${CURRENT_VERSION}"
 
-  printf "Moving current Mycodo intstall from %s to %s..." "${CURRENT_MYCODO_DIRECTORY}" "${BACKUP_DIR}"
+  printf "Moving current Mycodo install from %s to %s..." "${CURRENT_MYCODO_DIRECTORY}" "${BACKUP_DIR}"
   if ! mv "${CURRENT_MYCODO_DIRECTORY}" "${BACKUP_DIR}" ; then
     printf "Failed: Error while trying to move old Mycodo install from %s to %s.\n" "${CURRENT_MYCODO_DIRECTORY}" "${BACKUP_DIR}"
     error_found
   fi
   printf "Done.\n"
 
-  printf "Moving downloaded Mycodo version from %s to %s/Mycodo..." "${THIS_MYCODO_DIRECTORY}" "${CURRENT_MYCODO_INSTALL_DIRECTORY}"
-  if ! mv "${THIS_MYCODO_DIRECTORY}" "${CURRENT_MYCODO_INSTALL_DIRECTORY}"/Mycodo ; then
-    printf "Failed: Error while trying to move new Mycodo install from %s to %s/Mycodo.\n" "${THIS_MYCODO_DIRECTORY}" "${CURRENT_MYCODO_INSTALL_DIRECTORY}"
+  mkdir -p /opt
+
+  printf "Moving downloaded Mycodo version from %s to /opt/Mycodo..." "${THIS_MYCODO_DIRECTORY}"
+  if ! mv "${THIS_MYCODO_DIRECTORY}" /opt/Mycodo ; then
+    printf "Failed: Error while trying to move new Mycodo install from %s to /opt/Mycodo.\n" "${THIS_MYCODO_DIRECTORY}"
     error_found
   fi
   printf "Done.\n"
 
   sleep 30
 
-  CURRENT_MYCODO_DIRECTORY=$( cd -P /var/mycodo-root && pwd -P )
-  cd "${CURRENT_MYCODO_DIRECTORY}" || return
+  cd /opt/Mycodo || return
 
   ############################################
   # Begin tests prior to post-upgrade script #
@@ -265,18 +300,18 @@ runSelfUpgrade() {
   if [ "$RELEASE_WIPE" = true ] ; then
     # Instructed to wipe configuration files (database, virtualenv)
 
-    if [ -d "${CURRENT_MYCODO_DIRECTORY}"/env ] ; then
-      printf "Removing virtualenv at %s/env..." "${CURRENT_MYCODO_DIRECTORY}"
-      if ! rm -rf "${CURRENT_MYCODO_DIRECTORY}"/env ; then
-        printf "Failed: Error while trying to delete virtaulenv.\n"
+    if [ -d /opt/Mycodo/env ] ; then
+      printf "Removing virtualenv at /opt/Mycodo/env..."
+      if ! rm -rf /opt/Mycodo/env ; then
+        printf "Failed: Error while trying to delete virtaulenv at /opt/Mycodo/env.\n"
       fi
       printf "Done.\n"
     fi
 
-    if [ -d "${CURRENT_MYCODO_DIRECTORY}"/databases/mycodo.db ] ; then
-      printf "Removing database at %s/databases/mycodo.db..." "${CURRENT_MYCODO_DIRECTORY}"
-      if ! rm -f "${CURRENT_MYCODO_DIRECTORY}"/databases/mycodo.db ; then
-        printf "Failed: Error while trying to delete database.\n"
+    if [ -d /opt/Mycodo/databases/mycodo.db ] ; then
+      printf "Removing database at /opt/Mycodo/databases/mycodo.db..."
+      if ! rm -f /opt/Mycodo/databases/mycodo.db ; then
+        printf "Failed: Error while trying to delete database at /opt/Mycodo/databases/mycodo.db.\n"
       fi
       printf "Done.\n"
     fi
@@ -293,7 +328,7 @@ runSelfUpgrade() {
   TIMER_START_stage_three=$SECONDS
 
   printf "Running post-upgrade script...\n"
-  if ! "${CURRENT_MYCODO_DIRECTORY}"/mycodo/scripts/upgrade_post.sh ; then
+  if ! /opt/Mycodo/mycodo/scripts/upgrade_post.sh ; then
     printf "Failed: Error while running post-upgrade script.\n"
     error_found
   fi
@@ -312,7 +347,7 @@ runSelfUpgrade() {
   # End tests after upgrade #
   ###########################
 
-  echo '0' > "${CURRENT_MYCODO_DIRECTORY}"/.upgrade
+  echo '0' > /opt/Mycodo/.upgrade
 
   exit 0
 }
